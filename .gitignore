@@ -1,0 +1,52 @@
+# ==========================================
+# 🐍 BACKEND (Python / FastAPI / Django)
+# ==========================================
+# Ambientes Virtuais
+.venv/
+venv/
+ENV/
+env/
+
+# Arquivos compilados do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configurações locais e Segredos (NUNCA suba senhas/chaves)
+.env
+*.env
+local_settings.py
+
+# Banco de Dados local (SQLite / Logs)
+*.db
+*.sqlite3
+*.log
+
+# Pastas de IDE e Editores de Código
+.vscode/
+.idea/
+.DS_Store
+
+# ==========================================
+# ⚡ FRONTEND (Node / React / Vue / Next.js)
+# ==========================================
+# Dependências do Node (Extremamente pesadas)
+node_modules/
+
+# Builds e Distribuição
+dist/
+build/
+.next/
+out/
+
+# Logs de erro e pacotes
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Variáveis de ambiente do Frontend
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
