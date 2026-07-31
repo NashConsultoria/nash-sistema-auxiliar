@@ -1,0 +1,132 @@
+/* Container que gerencia o scroll de uma planilha grande */
+.table-dre-wrapper {
+    width: 100%;
+    max-height: 600px;
+    overflow-x: auto;
+    overflow-y: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    background-color: var(--bg-color4);
+}
+
+.table-dre {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+}
+
+/* Cabeçalhos Fixos ao Rolar */
+.table-dre th {
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-color1);
+    color: var(--text-color2);
+    padding: 12px 14px;
+    font-weight: 600;
+    z-index: 1;
+    white-space: nowrap;
+}
+
+.dre-th-main {
+    min-width: 260px;
+}
+
+.dre-th-mes {
+    text-align: center;
+    min-width: 120px;
+}
+
+/* Base das linhas e células */
+.table-dre td {
+    padding: 10px 12px;
+    vertical-align: middle;
+    border-bottom: var(--border-box);
+    user-select: none;
+}
+
+/* Alinhamento dos valores nos meses */
+.dre-td-valor {
+    text-align: center;
+}
+
+/* Classes de Interação */
+.dre-row-clicavel {
+    cursor: pointer;
+}
+
+/* Indentações/Recuos por Nível */
+.dre-td-descricao.nivel-1 { padding-left: 12px; }
+.dre-td-descricao.nivel-2 { padding-left: 28px; }
+.dre-td-descricao.nivel-3 { padding-left: 48px; }
+
+/* Ícones de expandir e de cálculo */
+.dre-icon-calculo, .dre-icon-toggle {
+    margin-right: 8px;
+    display: inline-block;
+    width: 16px;
+    text-align: center;
+}
+.dre-icon-calculo { color: var(--text-color2); font-weight: bold; }
+.dre-icon-toggle { color: var(--bg-color6); font-size: var(--font-size2); }
+.dre-icon-espaco { margin-right: 8px; display: inline-block; width: 16px; }
+
+/* ==========================================================================
+   ESTILIZAÇÃO DOS NÍVEIS E CÁLCULOS (ESTILO EXCEL)
+   ========================================================================== */
+
+/* Linhas de Resultado/Cálculo (Ex: Lucro Líquido, Margem Bruta) */
+.dre-row-calculo {
+    background-color: var(--bg-color6) !important;
+    font-weight: bold;
+}
+.dre-row-calculo td {
+    color: var(--text-color2) !important; /* Destaca o resultado com um tom azul claro/neon */
+    border-bottom: var(--border-color); /* Linha dupla de fechamento contábil */
+}
+
+/* Grupos Principais Nível 1 (Ex: Receita Bruta, Custos) */
+.dre-row-pai {
+    background-color: var(--bg-color3);
+    font-weight: bold;
+}
+.dre-row-pai td {
+    color: var(--text-color2);
+}
+
+.dre-row-pai:hover td {
+    background-color: var(--hover-color);
+    color: var(--text-color2);
+}
+
+/* Subgrupos Nível 2 (Ex: Impostos, Deduções) */
+.dre-row-subgrupo {
+    background-color: var(--bg-color4);
+}
+.dre-row-subgrupo td {
+    color: var(--text-color1);
+}
+
+.dre-row-subgrupo:hover td {
+    background-color: var(--hover-color);
+    color: var(--text-color2);
+}
+
+/* Contas Analíticas Nível 3 (Lançamentos finais) */
+.dre-row-nivel3 {
+    background-color: var(--bg-color5);
+}
+.dre-row-nivel3 td {
+    color: var(--text-color1);
+}
+.dre-row-nivel3:hover td{
+    background-color: var(--hover-color);
+    color: var(--text-color2);
+}
+
+/* Mensagem de fallback */
+.dre-vazia {
+    padding: 24px;
+    text-align: center;
+    color: var(--text-color2);
+}

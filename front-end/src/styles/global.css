@@ -1,0 +1,110 @@
+:root{
+  /* Background */
+  --bg-color1: #35448a;
+  --bg-color2: #f7f7f8;
+  --bg-color3: #6384ac;
+  --bg-color4: #cbd5e1;
+  --bg-color5: #f8fafc;
+  --bg-color6: #183e7c;
+  --box-shadow: 0 5px 6px -1px #0000001a, 0 2px 4px -1px #00000099;
+  --border-color: 1px solid #d9d9d9;
+  
+  /* Texto */
+  --font-text: 'Arial';
+  --font-size1: 18px;
+  --font-size2: 12px;
+  --title-color1: #273264;
+  --title-color2: #666;
+  --text-color1: #000000;
+  --text-color2: #ffffff;
+
+  /* Botão*/
+  --bnt-color: #35448a;
+  --hover-color: #273264;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--font-text);
+  background-color:var(--bg-color2);
+  font-size:var(--font-size2);
+  line-height:1.55;
+  min-height:100vh;
+}
+
+/* PAGES */
+/* Container que cuida do espaçamento de cima para baixo de toda a página */
+.page-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Controla facilmente a distância vertical entre o Card da DRE e a Grid */
+    width: 100%;
+}
+
+.dashboard-grid {
+    display: flex;       /* Ativa o Flexbox para alinhar lado a lado */
+    gap: 10px;           /* Cria um espaçamento de 20px entre um card e outro */
+    width: 100%;         /* Garante que o container use toda a largura disponível */
+    align-items: flex-start; /* Evita que um card estique a altura do outro se um for menor */
+}
+/* Opcional: Se você quiser que cada Card ocupe o mesmo espaço ou tenha tamanhos proporcionais */
+.dashboard-grid > * {
+    flex: 1;             /* Faz com que ambos dividam o espaço disponível igualmente (50% / 50%) */
+    min-width: 300px;    /* Evita que eles fiquem esmagados demais em telas muito pequenas */
+}
+
+/* Container Principal dos Filtros */
+.filtro-bar-container {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Agrupador de Label + Input */
+.filtro-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.filtro-campo label {
+  font-size: 12px;
+  font-weight: bold;
+  color: #4a5568;
+}
+
+/* Inputs da Barra de Filtros */
+.filtro-input {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background-color: #fff;
+  outline: none;
+  font-size: 14px;
+}
+
+.filtro-input:disabled {
+  background-color: #f1f5f9;
+  cursor: not-allowed;
+}
+
+.filtro-input-text {
+  min-width: 180px;
+}
+
+.filtro-input-date {
+  cursor: pointer;
+}
+
+/* Agrupador dos Botões na Direita */
+.filtro-acoes {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+}

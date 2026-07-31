@@ -1,0 +1,86 @@
+.card {
+    background-color: var(--bg-color2); 
+    color: var(--text-color1);
+    border-radius: 8px;
+    padding: 0; 
+    box-shadow: var(--box-shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; 
+    transition: all 0.3s ease;
+}
+
+.card-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:14px 16px;
+    border-bottom: var(--border-color);
+    color: var(--text-color2);
+    background: var(--bg-color1);
+}
+
+.card-header h1{
+    margin:0;
+    font-size:var(--font-size1);
+    font-weight:600;
+    color: var(--text-color2);
+}
+
+.card-body{
+    padding:16px;
+    color: var(--text-color1);
+}
+
+.card-actions{
+    display:flex;
+    gap:8px;
+}
+
+/* 1. CORREÇÃO DO ESPAÇAMENTO: Zere as margens fantasmas do valor e dos textos internos */
+.card-kpi-value {
+    font-size: 2.2rem;     /* Aumentado um pouquinho para dar mais destaque */
+    font-weight: 800;      /* Um pouco mais gordinho (black) como na imagem */
+    display: block;       
+    margin: 4px 0 0 0;     /* CORREÇÃO: Remove margens nativas e deixa só 4px de respiro no topo */
+    line-height: 1;        /* Força a altura da linha a colar no tamanho da letra */
+}
+
+/* Nova classe para o subtítulo que fica embaixo do número (se houver) */
+.card-body p, .card-body h4 {
+    margin: 4px 0 0 0;     /* Zera as margens padrão do navegador que empurram as coisas */
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+
+/* ==================================================================== */
+/* 2. NOVO COMPONENTE: O Subcard Azul Claro Interno                     */
+/* ==================================================================== */
+.subcard-azul-claro {
+    /* Um tom de azul marinho translúcido perfeito para encaixar dentro do fundo escuro */
+    background-color: rgba(30, 58, 138, 0.25); 
+    
+    /* Uma borda azul clara bem fininha e elegante */
+    border: 1px solid rgba(59, 130, 246, 0.15); 
+    
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Título de dentro do subcard azul */
+.subcard-azul-claro h4 {
+    color: #93c5fd; /* Azul bem clarinho para o título */
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Número de dentro do subcard azul */
+.subcard-azul-claro .card-kpi-value {
+    color: #ffffff; /* Número em branco puro para saltar aos olhos */
+    font-size: 1.6rem;
+    margin-top: 6px;
+}

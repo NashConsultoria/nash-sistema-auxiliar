@@ -1,0 +1,39 @@
+/* Container que define o tamanho do gráfico */
+.chart-container {
+  width: 100%;
+  height: 350px;
+}
+
+/* Customização dos textos dos eixos X e Y gerados pelo Recharts */
+.chart-container .recharts-text {
+  fill: var(--text-color1);
+  font-family: var(--text-font);
+  font-size: var(--text-size1);
+}
+
+/* Customização da legenda do Recharts */
+.chart-container .recharts-default-legend {
+  font-family: var(--text-font), sans-serif;
+  font-size: var(--text-size1, 12px) !important;
+  padding-top: 10px;
+}
+
+/* Estilização interna do Pop-up (Tooltip) */
+.chart-tooltip {
+  background-color: var(--bg-color2);
+  border: var(--border-color);
+  border-radius: var(--radius-default, 4px);
+  padding: 8px 12px;
+  box-shadow: var(--box-shadow);
+}
+
+.chart-tooltip-label {
+  margin: 0 0 4px 0;
+  font-weight: 600;
+  color: var(--text-color1);
+}
+
+.chart-tooltip-item {
+  margin: 0;
+  font-size: 13px;
+}

@@ -1,0 +1,63 @@
+.usuario-page-layout {
+    display: flex;
+    gap: 24px;
+    width: 100%;
+    align-items: flex-start;
+}
+
+.page-sidebar {
+    width: 280px; /* Largura fixa para o menu da esquerda */
+    flex-shrink: 0;
+}
+
+.page-main-content {
+    flex-grow: 1; /* O conteúdo da direita ocupa o resto da tela */
+}
+
+/* Estilização dos botões dentro do Card */
+.sidebar-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.menu-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background-color: transparent;
+    color: #000000;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.menu-btn:hover {
+    background-color: #465cc2;
+    color: #ffffff;
+}
+
+/* Estilo para o botão que estiver selecionado */
+.menu-btn.active {
+    background-color: #1b2347; 
+    color: #ffffff;
+}
+
+/* Estilo especial vermelho para o botão Sair */
+.menu-btn.logout:hover {
+    background-color: #ef444422;
+    color: #f87171;
+}
+
+.perfil-info p {
+    margin-bottom: 12px;
+    font-size: 16px;
+    color: #000000;
+}

@@ -1,0 +1,153 @@
+/* ==================================================================
+   1. ESTILOS DE TELA NORMAL (Esconde o cabeçalho de impressão)
+   ================================================================== */
+.header-impressao-only {
+  display: none; /* Escondido por padrão na tela */
+}
+/* ==================================================================
+   REGRAS DE IMPRESSÃO (window.print()) - AJUSTE DRE + GRÁFICOS
+   ================================================================== */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important; /* Safari e Chrome/Edge */
+    print-color-adjust: exact !important;         /* Padrão W3C e Firefox */
+  }
+  /* Configuração da Página A4 em Paisagem */
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  /* 1. OCULTA ELEMENTOS QUE NÃO DEVEM SAIR NA IMPRESSÃO */
+  .no-print,
+  navbar,
+  nav,
+  header,
+  .sidebar,
+  .filtro-bar-container,
+  button {
+    display: none !important;
+  }
+
+  /* 2. CABEÇALHO DE IMPRESSÃO */
+  .header-impressao-only {
+    display: block !important;
+    margin-bottom: 15px;
+  }
+
+  .header-impressao-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .header-info h1 {
+    font-size: 16pt;
+    margin: 0 0 5px 0;
+    color: #1e293b;
+  }
+
+  .header-info p {
+    font-size: 9pt;
+    margin: 2px 0;
+    color: #475569;
+  }
+
+  .header-divisor {
+    border: none;
+    border-top: 2px solid #35448a;
+    margin-top: 10px;
+  }
+
+  /* 3. CORREÇÃO DO CORTE DA DRE: LIBERA SCROLL DE TODOS OS CONTAINERS PAIS */
+  html, body, #root, 
+  .dre-page-container, 
+  .area-tabela-impressao, 
+  .table-responsive,
+  div {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* 4. FORMATAÇÃO DA TABELA DRE */
+  .table-dre {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 7pt !important;
+    table-layout: fixed !important;
+  }
+
+  .table-dre th, 
+  .table-dre td {
+    padding: 3px 2px !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    white-space: nowrap !important; /* Evita quebra estranha de valores */
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* 1ª COLUNA (DESCRIÇÃO DAS CONTAS/DRE GERENCIAL) -> Mais larga para o texto */
+  .table-dre th:first-child,
+  .table-dre td:first-child {
+    width: 22% !important; 
+    text-align: left !important;
+    padding-left: 4px !important;
+  }
+
+  /* COLUNAS DOS MESES (12 Meses) -> Largura fixa pequena e igual para todos */
+  .table-dre th:not(:first-child),
+  .table-dre td:not(:first-child) {
+    width: 6.5% !important; /* (6.5% * 12 meses = 78% da tela restante) */
+    text-align: right !important;
+  }
+
+  /* Esconde os ícones de seta (▲/▼) das pastas na impressão para economizar espaço horizontal */
+  .table-dre .icone-expansao,
+  .table-dre svg {
+    display: none !important;
+  }
+
+  .table-dre tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* 5. CENTRALIZAÇÃO E REDIMENSIONAMENTO DOS GRÁFICOS */
+  .dashboard-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important; /* Centraliza os cards na página */
+    justify-content: center !important;
+    gap: 25px !important;
+    width: 100% !important;
+    margin-top: 20px !important;
+    page-break-before: always !important; /* Move os gráficos para a 2ª página */
+    break-before: page !important;
+  }
+
+  /* Define uma largura elegante e centralizada para o card do gráfico */
+  .dashboard-grid > div,
+  .chart-card {
+    width: 85% !important;            /* Ocupa 85% do papel em vez de 100% */
+    max-width: 700px !important;       /* Impede que o fundo fique desproporcional */
+    margin: 0 auto !important;        /* Força a centralização na folha */
+    box-sizing: border-box !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 15px !important;
+    background-color: #fff !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Ajusta o SVG / Canvas do gráfico para ocupar 100% do CARD centralizado */
+  .dashboard-grid canvas,
+  .dashboard-grid svg,
+  .dashboard-grid .recharts-responsive-container,
+  .dashboard-grid .apexcharts-canvas {
+    width: 100% !important;
+    max-height: 280px !important;
+    margin: 0 auto !important;
+  }
+}

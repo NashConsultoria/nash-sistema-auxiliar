@@ -1,0 +1,91 @@
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 26px;
+    background: var(--bg-color1);
+    height: 54px;
+    color: var(--text-color2);
+    box-shadow: var(--box-shadow);
+}
+
+.header-left{
+    display:flex;
+    align-items:center;
+    gap:20px;
+}
+
+.header-middle{
+    display:flex;
+    align-items:center;
+}
+
+.header-right{
+    display:flex;
+    gap:10px;
+}
+
+.logo{
+    display:flex;
+    flex-direction:column;
+    color:white;
+}
+
+.logo h1{
+    font-size:28px;
+    font-weight:700;
+    letter-spacing:1px;
+    margin:0;
+}
+
+.logo span{
+    font-size:9px;
+    letter-spacing:3px;
+    margin-top:-4px;
+}
+
+.divider{
+    width:1px;
+    height:28px;
+    background:rgba(255,255,255,.25);
+}
+
+.page-title{
+    color:#e6c26a;
+    font-weight:600;
+    font-size:15px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+}
+
+.header-right{
+    display:flex;
+    gap:10px;
+}
+
+.logo-texto{
+    display:flex;
+    height: 40px;
+    width: auto;
+    flex-direction:column;
+    color:white;
+}
+
+.logo h1{
+    font-size:var(--font-size1);
+    font-weight:700;
+    letter-spacing:1px;
+    margin:0;
+}
+
+.logo span{
+    font-size:var(--font-size2);
+    letter-spacing:3px;
+    margin-top:-4px;
+}
+
+.header-left img {
+  height: 40px;                  /* Define uma altura fixa para não distorcer */
+  width: auto;                   /* Ajusta a largura proporcionalmente */
+  object-fit: contain;           /* Garante que a imagem não fique esticada */
+}
