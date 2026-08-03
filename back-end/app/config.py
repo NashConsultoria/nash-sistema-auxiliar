@@ -68,5 +68,37 @@ TABELAS_PERMITIDAS = {
             LEFT JOIN dbo.PlanoContas p ON m.planoContaId = p.id
         """,
         "coluna_padrao_id": "importacaoLoteId"
-    }
+    },
+    "movimentacaofolhapagamento": {
+        "query_customizada": """
+            SELECT 
+                m.id,
+                c.nome AS [CONTRATANTE],
+                u_reg.nome AS [UNIDADE REGISTRO],
+                u_atu.nome AS [UNIDADE ATUACAO],
+                u_reg.cnpj AS [CNPJ],
+                m.nome AS [NOME],
+                m.cpf AS [CPF],
+                m.dataNascimento AS [DATA NASCIMENTO],
+                m.cboCargo AS [CBO CARGO],
+                m.cargo AS [CARGO],
+                m.departamento AS [DEPARTAMENTO],
+                m.dataAdmissao AS [DATA ADMISSAO],
+                m.descricao AS [DESCRICAO],
+                p.planoConta AS [PLANO DE CONTA],
+                p.grupoConta AS [GRUPO DE CONTA],
+                p.efolha AS [E-FOLHA],
+                m.dataCompetencia AS [DATA COMPETENCIA],
+                m.dataCaixa AS [DATA CAIXA],
+                m.tipo AS [TIPO],
+                m.valor AS [VALOR],
+                m.importacaoLoteId
+            FROM dbo.MovimentacaoFolhaPagamento m
+            LEFT JOIN dbo.Unidade u_reg ON m.unidadeRegistroId = u_reg.id
+            LEFT JOIN dbo.Unidade u_atu ON m.unidadeAtuacaoId = u_atu.id
+            LEFT JOIN dbo.Contratante c ON u_reg.contratanteId = c.id
+            LEFT JOIN dbo.PlanoContas p ON m.planoContaId = p.id
+        """,
+        "coluna_padrao_id": "importacaoLoteId"
+    },
 }

@@ -52,7 +52,7 @@ export default function Chart({ title, meses = [], data = [], series = [], xAxis
 
     return (
         <Card title={title}>
-            <div className="chart-container" style={{ width: '100%', height: 320 }}>
+            <div className="chart-container" style={{ width: '100%', height: 320, minWidth: 0, overflow: 'hidden' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid stroke="var(--border-color, #334155)" strokeDasharray="3 3" vertical={false} />

@@ -155,6 +155,12 @@ def deletar_lote_importacao(
                 SELECT DISTINCT unidadeRegistroId 
                 FROM dbo.MovimentacaoFolhaPagamento 
                 WHERE unidadeRegistroId IS NOT NULL
+
+                UNION
+
+                SELECT DISTINCT unidadeAtuacaoId 
+                FROM dbo.MovimentacaoFolhaPagamento 
+                WHERE unidadeAtuacaoId IS NOT NULL
             )
         """
         )

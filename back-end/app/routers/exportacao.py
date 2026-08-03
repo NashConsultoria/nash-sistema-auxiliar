@@ -40,7 +40,7 @@ def exportar_excel(
             coluna_sanitizada = "".join(
                 c for c in coluna_filtro if c.isalnum() or c in ["_", "."]
             )
-            query = f"SELECT * FROM ({query_base}) AS SubTabela WHERE {coluna_sanitizada} = ?"
+            query = f"SELECT * FROM ({query_base}) AS SubTabela WHERE SubTabela.{coluna_sanitizada} = ?"
             params = [valor_filtro]
         else:
             query = query_base

@@ -46,6 +46,7 @@ body{
     gap: 10px;           /* Cria um espaçamento de 20px entre um card e outro */
     width: 100%;         /* Garante que o container use toda a largura disponível */
     align-items: flex-start; /* Evita que um card estique a altura do outro se um for menor */
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
 }
 /* Opcional: Se você quiser que cada Card ocupe o mesmo espaço ou tenha tamanhos proporcionais */
 .dashboard-grid > * {

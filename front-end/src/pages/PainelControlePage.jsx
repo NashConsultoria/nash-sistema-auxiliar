@@ -341,10 +341,20 @@ export default function PainelControlePage() {
 
     // 2. Função para exportar os lotes
     const handleExportarLote = (row) => {
-        // Identifica se é o lote do Plano de Contas pelo nome do arquivo ou pelo texto do contratante
+        // Tratamento para garantir que o arquivo exportado mantenha o nome original com a extensão .xlsx
+        const nomeOriginal = row.nomeArquivo ? row.nomeArquivo.replace(/\.[^/.]+$/, "") : `Lote_${row.id}`;
+        const nomeArquivoDownload = `${nomeOriginal}.xlsx`;
+
+        // 1. Identifica se é o lote do Plano de Contas
         const ehPlanoContas = 
-            row.nomeArquivo.toLowerCase().includes("plano") || 
+            row.nomeArquivo?.toLowerCase().includes("plano") || 
             row.contratante === "PLANO DE CONTAS (SISTEMA)";
+
+        // 2. Identifica se é Folha de Pagamento
+        const ehFolhaPagamento = 
+            row.nomeArquivo?.toLowerCase().includes("folha") || 
+            row.tipoLote?.toLowerCase().includes("folha") ||
+            row.contratante?.toLowerCase().includes("folha");
 
         if (ehPlanoContas) {
             ExportarExcel({
@@ -356,9 +366,38 @@ export default function PainelControlePage() {
                     "dfc",
                     "efolha"
                 ],
-                nomeArquivoCustomizado: "Plano_de_Contas.xlsx"
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else if (ehFolhaPagamento) {
+            ExportarExcel({
+                tabela: "movimentacaofolhapagamento",
+                colunaFiltro: "importacaoLoteId",
+                valorFiltro: row.id,
+                colunas: [
+                    "CONTRATANTE",
+                    "UNIDADE REGISTRO",
+                    "UNIDADE ATUACAO",
+                    "CNPJ",
+                    "NOME",
+                    "CPF",
+                    "DATA NASCIMENTO",
+                    "CBO CARGO",
+                    "CARGO",
+                    "DEPARTAMENTO",
+                    "ADMISSAO",
+                    "DESCRICAO",
+                    "PLANO DE CONTA",
+                    "GRUPO DE CONTA",
+                    "E-FOLHA",
+                    "DATA COMPETENCIA",
+                    "DATA CAIXA",
+                    "TIPO",
+                    "VALOR"
+                ],
+                nomeArquivoCustomizado: nomeArquivoDownload
             });
         } else {
+            // Movimentação padrão
             ExportarExcel({
                 tabela: "movimentacao",
                 colunaFiltro: "importacaoLoteId",
@@ -378,7 +417,7 @@ export default function PainelControlePage() {
                     "CPF_CNPJ",
                     "PLANO DE CONTA"
                 ],
-                nomeArquivoCustomizado: `Movimentacoes_Lote_${row.id}.xlsx`
+                nomeArquivoCustomizado: nomeArquivoDownload
             });
         }
     };

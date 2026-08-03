@@ -1,7 +1,16 @@
 /* Container que define o tamanho do gráfico */
 .chart-container {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;           /* CRUCIAL: Cancela o min-width: auto padrão do Flex/Grid */
   height: 350px;
+  overflow: hidden;       /* Trava física para não vazar nada */
+}
+
+.chart-card {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;   /* Corta com segurança qualquer vazamento residual */
 }
 
 /* Customização dos textos dos eixos X e Y gerados pelo Recharts */
