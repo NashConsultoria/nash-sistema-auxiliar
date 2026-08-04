@@ -1,61 +1,65 @@
-/* Container que define o tamanho do gráfico */
-.chart-container {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;           /* Cancela o min-width: auto padrão do Flex/Grid */
-  height: 350px;
-  overflow: hidden;       /* Trava física para evitar vazamentos */
-  position: relative;
-}
-
+/* Container do Card */
 .chart-card {
   min-width: 0;
   width: 100%;
   overflow: hidden;
+  box-shadow: var(--box-shadow); /* Sombra do card restaurada */
+  border-radius: var(--radius-default, 8px);
+}
+
+/* Container que define o tamanho do gráfico */
+.chart-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0; /* Cancela o min-width: auto padrão do Flex/Grid */
+  height: 350px;
+  overflow: hidden; /* Trava física para evitar vazamentos */
+  position: relative;
 }
 
 /* Customização dos textos dos eixos X e Y gerados pelo Recharts */
 .chart-container .recharts-text {
   fill: var(--text-color1);
-  font-family: var(--font-text), sans-serif;
-  font-size: var(--font-size2);
+  font-family: var(--font-text, var(--text-font));
+  font-size: var(--font-size2, var(--text-size1));
 }
 
 /* Customização da legenda do Recharts */
 .chart-container .recharts-default-legend {
-  font-family: var(--font-text), sans-serif;
-  font-size: var(--font-size2) !important;
+  font-family: var(--font-text, var(--text-font)), sans-serif;
+  font-size: var(--font-size2, 12px) !important;
   padding-top: 10px;
 }
 
 .chart-container .recharts-legend-item-text {
   color: var(--text-color1) !important;
+  font-family: var(--font-text, var(--text-font));
+  font-size: var(--font-size2, 12px) !important;
 }
 
 /* Estilização interna do Pop-up (Tooltip) */
 .chart-tooltip {
   background-color: var(--bg-color2);
   border: var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-default, 6px);
   padding: 8px 12px;
   box-shadow: var(--box-shadow);
-  pointer-events: none; /* Evita interferência no toque do usuário em mobile */
+  pointer-events: none; /* Evita interferência no toque em mobile */
   max-width: 220px;
 }
 
 .chart-tooltip-label {
   margin: 0 0 4px 0;
   font-weight: 600;
-  font-size: var(--font-size1);
+  font-size: var(--font-size1, 14px);
   color: var(--text-color1);
 }
 
 .chart-tooltip-item {
   margin: 0;
-  font-size: var(--font-size2);
+  font-size: var(--font-size2, 12px);
   color: var(--text-color1);
 }
-
 
 /* ==========================================
    REGRAS DE RESPONSIVIDADE (MOBILE / TABLET)
@@ -63,10 +67,9 @@
 
 @media (max-width: 768px) {
   .chart-container {
-    height: 280px; /* Reduz a altura para economizar espaço vertical no mobile */
+    height: 280px; /* Reduz a altura para economizar espaço vertical */
   }
 
-  /* Reduz levemente as fontes dos rótulos e eixos para não sobrepor */
   .chart-container .recharts-text {
     font-size: 10px;
   }
@@ -91,6 +94,6 @@
 
 @media (max-width: 480px) {
   .chart-container {
-    height: 250px; /* Redução adicional para telas de smartphones menores */
+    height: 250px;
   }
 }
