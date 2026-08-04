@@ -25,7 +25,7 @@ export default function TableDRE({
             <table className="table-dre">
                 <thead>
                     <tr>
-                        <th className="dre-th-main">DRE GERENCIAL</th>
+                        <th className="dre-th-main"></th>
                         {meses.map((mes, idx) => (
                             <th key={idx} className="dre-th-mes">{mes}</th>
                         ))}

@@ -1,89 +1,124 @@
 /* Container que controla o scroll lateral e vertical */
 .table-wrapper {
-    width: 100%;
-    max-height: 390px;
-    overflow-x: auto;
-    overflow-y: auto;
-    border-radius: 8px;
-    margin-top: 10px;
-    box-shadow: var(--box-shadow);
-    background-color: var(--bg-color2); 
+  width: 100%;
+  max-height: 390px;
+  overflow-x: auto;
+  overflow-y: auto;
+  border-radius: 8px;
+  margin-top: 10px;
+  box-shadow: var(--box-shadow);
+  background-color: var(--bg-color2); 
+  -webkit-overflow-scrolling: touch; /* Rolagem inercial suave em iPhones/iPads */
 }
 
 /* Estrutura da tabela */
 .table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: var(--text-font);
-    font-size: var(--text-size1);
-    text-align: left;
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-text);
+  font-size: var(--font-size2);
+  text-align: left;
 }
 
 /* Cabeçalho da Tabela */
-.table thead tr th{
-    background-color: var(--bg-color1); 
-    border-bottom: var(--border-color);
+.table thead tr th {
+  background-color: var(--bg-color1); 
+  border-bottom: var(--border-color);
 }
 
 .table th {
-    position: sticky;
-    top: 0;
-    background-color: var(--bg-color1); /* Evita transparência ao rolar a página */
-    z-index: 1;
-    padding: 14px 12px;
-    font-weight: 600;
-    color: var(--text-color2);
-    font-size: var(--font-size1);
-    letter-spacing: 0.05em;
-    white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-color1); /* Evita transparência ao rolar verticalmente */
+  z-index: 2;
+  padding: 12px 10px;
+  font-weight: 600;
+  color: var(--text-color2);
+  font-size: var(--font-size2);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 /* Linhas do Corpo */
 .table tbody tr {
-    border-bottom: var(--border-color);
-    background-color: var(--bg-color2); /* Fundo base escuro para as linhas */
-    transition: background-color 0.15s ease;
+  border-bottom: var(--border-color);
+  background-color: var(--bg-color2);
+  transition: background-color 0.15s ease;
 }
 
-/* Efeito Zebrado (Aproveitado da Table.css, adaptado para tema escuro) */
+/* Efeito Zebrado */
 .table tbody tr:nth-child(even) {
-    background-color: rgba(39, 39, 39, 0.02); /* Tom levemente diferente para alternar */
+  background-color: rgba(0, 0, 0, 0.02);
 }
 
-/* Efeito hover para destacar a linha sob o mouse */
-.table tbody tr:hover {
-    background-color: var(--hover-color) !important;
-}
-
-.table tbody tr:hover td,
-.table tbody tr:hover td * {
-    color: var(--text-color2) !important;
-}
-
-/* Células de dados - CORRIGIDO: Agora legível em fundo escuro */
+/* Células de dados */
 .table td {
-    padding: 12px 8px;
-    color: var(--text-color1); /* Cinza claro suave real para leitura no escuro */
-    vertical-align: middle;
+  padding: 10px 8px;
+  color: var(--text-color1);
+  vertical-align: middle;
+  white-space: nowrap; /* Impede a quebra indesejada de textos de colunas */
 }
 
-/* Estilo para linhas de usuários inativos (menor opacidade e tom apagado) */
+/* Coluna Fixa à Esquerda (Opcional para 1ª coluna de relatórios longos) */
+.table .sticky-col {
+  position: sticky;
+  left: 0;
+  background-color: var(--bg-color2);
+  z-index: 1;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.05); /* Sombra suave indicando rolagem por baixo */
+}
+
+.table thead th.sticky-col {
+  z-index: 3; /* Garante que o cruzamento do topo com a esquerda fique por cima */
+  background-color: var(--bg-color1);
+}
+
+/* Estilo para linhas de usuários inativos */
 .table tbody tr.usuario-inativo {
-    opacity: 0.5;
+  opacity: 0.5;
 }
+
 .table tbody tr.usuario-inativo td {
-    color: #64748b; /* Texto cinza escuro/fosco para indicar inatividade */
+  color: #64748b;
 }
 
-/* Classes de Alinhamento de Texto (Aproveitadas e consolidadas) */
-.table .text-left, .text-left {
-    text-align: left !important;
+/* Classes de Alinhamento de Texto */
+.table .text-left, .text-left { text-align: left !important; }
+.table .text-right, .text-right { text-align: right !important; }
+.table .text-center, .text-center { text-align: center !important; }
+
+
+/* ==========================================
+   HOVER (Apenas para dispositivos com Mouse)
+   ========================================== */
+@media (hover: hover) {
+  .table tbody tr:hover {
+    background-color: var(--hover-color) !important;
+  }
+
+  .table tbody tr:hover td,
+  .table tbody tr:hover td * {
+    color: var(--text-color2) !important;
+  }
 }
 
-.table .text-right, .text-right {
-    text-align: right !important;
-}
 
-.table .text-center, .text-center {
-    text-align: center !important;
+/* ==========================================
+   REGRAS DE RESPONSIVIDADE (MOBILE / TABLET)
+   ========================================== */
+@media (max-width: 768px) {
+  .table-wrapper {
+    max-height: 320px; /* Reduz levemente a altura máxima para não tomar toda a tela do celular */
+    border-radius: 6px;
+  }
+
+  .table th {
+    padding: 10px 8px;
+    font-size: 11px;
+  }
+
+  .table td {
+    padding: 8px 6px;
+    font-size: 11px;
+  }
 }

@@ -23,35 +23,49 @@
   --hover-color: #273264;
 }
 
-*{box-sizing:border-box;margin:0;padding:0}
-body{
-  font-family:var(--font-text);
-  background-color:var(--bg-color2);
-  font-size:var(--font-size2);
-  line-height:1.55;
-  min-height:100vh;
+@media (max-width: 768px) {
+  :root {
+    --font-size1: 14px;
+    --font-size2: 11px;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  overflow-x: hidden; /* Evita rolagem horizontal indesejada na tela principal */
+}
+
+body {
+  font-family: var(--font-text);
+  background-color: var(--bg-color2);
+  font-size: var(--font-size2);
+  line-height: 1.55;
+  min-height: 100vh;
 }
 
 /* PAGES */
-/* Container que cuida do espaçamento de cima para baixo de toda a página */
+/* Container que cuida do espaçamento vertical da página */
 .page-container {
-    display: flex;
-    flex-direction: column;
-    gap: 10px; /* Controla facilmente a distância vertical entre o Card da DRE e a Grid */
-    width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 10px; /* Garante que o conteúdo não cole nas bordas da tela no mobile */
 }
 
+/* Grid do Dashboard ajustado para Grid responsivo */
 .dashboard-grid {
-    display: flex;       /* Ativa o Flexbox para alinhar lado a lado */
-    gap: 10px;           /* Cria um espaçamento de 20px entre um card e outro */
-    width: 100%;         /* Garante que o container use toda a largura disponível */
-    align-items: flex-start; /* Evita que um card estique a altura do outro se um for menor */
-    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-}
-/* Opcional: Se você quiser que cada Card ocupe o mesmo espaço ou tenha tamanhos proporcionais */
-.dashboard-grid > * {
-    flex: 1;             /* Faz com que ambos dividam o espaço disponível igualmente (50% / 50%) */
-    min-width: 300px;    /* Evita que eles fiquem esmagados demais em telas muito pequenas */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Empilha se menor que 280px */
+  gap: 10px;
+  width: 100%;
+  align-items: start;
 }
 
 /* Container Principal dos Filtros */
@@ -88,6 +102,7 @@ body{
   background-color: #fff;
   outline: none;
   font-size: 14px;
+  min-height: 40px; /* Altura confortável para o toque em telas mobile */
 }
 
 .filtro-input:disabled {
@@ -108,4 +123,43 @@ body{
   margin-left: auto;
   display: flex;
   gap: 10px;
+}
+
+
+/* ==========================================
+   REGRAS DE RESPONSIVIDADE (MOBILE / TABLET)
+   ========================================== */
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 8px;
+  }
+
+  /* Ajusta os filtros para ocuparem a tela inteira de forma empilhada */
+  .filtro-bar-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .filtro-campo {
+    width: 100%;
+  }
+
+  .filtro-input, 
+  .filtro-input-text {
+    width: 100%;
+    min-width: 0; /* Remove a limitação para não estourar a tela */
+  }
+
+  .filtro-acoes {
+    margin-left: 0; /* Remove o alinhamento à direita no celular */
+    width: 100%;
+    flex-direction: column; /* Empilha os botões se houver mais de um */
+  }
+
+  .filtro-acoes button {
+    width: 100%; /* Botão em largura total para facilitar o clique */
+    min-height: 44px;
+  }
 }

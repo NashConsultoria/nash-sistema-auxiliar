@@ -7,37 +7,65 @@
   font-size: var(--font-size2);
   font-weight: 500;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease;
-}
-
-.btn {
   background-color: var(--bnt-color);
   color: white;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  user-select: none; /* Evita que o texto do botão seja selecionado sem querer ao dar toques rápidos */
 }
 
 .btn svg {
   flex-shrink: 0;
+  width: 20px;
+  height: 20px;
 }
 
-.btn:hover {
-  background-color: var(--hover-color);
-}
-
+/* Efeito ao Clicar/Tocar */
 .btn:active {
-  transform: scale(0.95);
+  transform: scale(0.96);
 }
 
+/* Estado Desabilitado */
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Botão Redondo com Ícone */
 .btn-icon {
   padding: 0;
   background-color: transparent;
   width: 40px;
   height: 40px;
-  border-radius: 50%;        /* Redondo: 50%/ Quadrado: 4px */
+  border-radius: 50%;
+  color: inherit;
 }
 
-.btn svg {
-  width: 20px;          /* Altera a largura do ícone */
-  height: 20px;         /* Altera a altura do ícone */
+
+/* ==========================================
+   HOVER (Apenas para telas com mouse)
+   ========================================== */
+@media (hover: hover) {
+  .btn:hover {
+    background-color: var(--hover-color);
+  }
+}
+
+
+/* ==========================================
+   REGRAS DE RESPONSIVIDADE (MOBILE / TABLET)
+   ========================================== */
+@media (max-width: 768px) {
+  .btn {
+    min-height: 44px; /* Tamanho mínimo padrão da indústria para toque confortável */
+    padding: 0.6rem 1.2rem;
+    font-size: 14px; /* Leve ajuste para melhorar a leitura do texto no botão */
+  }
+
+  .btn-icon {
+    width: 44px;
+    height: 44px; /* Garante área de toque recomendada no mobile */
+  }
 }

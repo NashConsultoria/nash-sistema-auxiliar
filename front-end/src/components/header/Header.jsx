@@ -31,38 +31,21 @@ export default function Header() {
     return (
         <header className="header">
             <div className="header-left">
-                <img 
-                    src={logo} 
-                    alt="NashLogo" 
-                    style={{ 
-                        height: "50px",
-                        width: "auto",
-                        objectFit: "contain"
-                    }} 
-                    />
+                <img src={logo} alt="NashLogo"/>
             </div>
 
             <div className="header-midle">
-
                 <h1>NashBI</h1>
-
             </div>
 
             {!estaNoLogin && usuario && (
                 <div className="header-right">
-                    
                     {/* Informações textuais do usuário */}
-                    <div style={{ display: "flex", flexDirection: "column", textAlign: "right" }}>
-                        <span 
-                            className="header-username" 
-                            style={{ fontSize: "14px", fontWeight: "600", color: "#ffffff", lineHeight: "1.2" }}
-                        >
+                    <div className="header-user-info">
+                        <span className="header-username">
                             {usuario.nome}
                         </span>
-                        <span 
-                            className="header-usertype" 
-                            style={{ fontSize: "11px", color: "#ffffff", fontWeight: "500" }}
-                        >
+                        <span className="header-usertype">
                             {obterNomePerfil()}
                         </span>
                     </div>

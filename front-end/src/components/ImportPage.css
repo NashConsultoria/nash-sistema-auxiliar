@@ -1,209 +1,248 @@
-/* Layout Principal em duas colunas */
+/* Layout Principal */
 .import-container {
-    display: grid;
-    grid-template-columns: 280px 1fr; /* Esquerda fixa, direita ocupa o resto */
-    gap: 20px;
-    padding: 0px;
-    align-items: start;
-    font-family: sans-serif;
+  display: grid;
+  grid-template-columns: 280px 1fr; /* Esquerda fixa, direita ocupa o resto */
+  gap: 20px;
+  padding: 0;
+  align-items: start;
+  font-family: var(--font-text), sans-serif;
 }
 
-/* Coluna Esquerda: Garante o espaçamento vertical entre os dois cards */
+/* Coluna Esquerda: Sidebar */
 .import-sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-/* Customização interna dos seletores da esquerda */
+/* Customização interna dos seletores */
 .database-selector-box {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .import-select {
-    width: 100%;
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid #cbd5e1;
-    background-color: #f8fafc;
-    font-size: 14px;
-    color: #334155;
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: var(--border-color);
+  background-color: var(--bg-color5);
+  font-size: var(--font-size2);
+  color: var(--text-color1);
 }
 
 .database-size {
-    font-size: 12px;
-    color: #64748b;
-    text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--title-color2);
+  text-align: center;
 }
 
 .context-subtitle {
-    font-size: 12px;
-    color: #94a3b8;
-    display: block;
-    margin-bottom: 12px;
+  font-size: var(--font-size-sm);
+  color: var(--title-color2);
+  display: block;
+  margin-bottom: 12px;
 }
 
-/* Lista de Tabelas (Item ativo azul sutil como na imagem) */
+/* Lista de Tabelas */
 .tables-list {
-    list-style: none;
-    max-height: 320px;
-    overflow-y: auto;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    color: #475569;
-    transition: all 0.2s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: var(--font-size2);
+  color: var(--text-color1);
+  transition: all 0.2s ease;
 }
 
 .table-item:hover {
-    background-color: #f1f5f9;
+  background-color: var(--bg-color4);
 }
 
 .table-item.active {
-    background-color: #eff6ff; /* Azul bem clarinho de seleção */
-    color: #1e40af;
-    font-weight: 500;
+  background-color: #eff6ff; /* Azul leve de seleção */
+  color: #1e40af;
+  font-weight: 600;
 }
 
 .table-badge {
-    font-size: 11px;
-    background-color: #f1f5f9;
-    color: #64748b;
-    padding: 2px 6px;
-    border-radius: 10px;
+  font-size: var(--font-size-sm);
+  background-color: var(--bg-color4);
+  color: var(--title-color2);
+  padding: 2px 6px;
+  border-radius: 10px;
 }
 
 .table-item.active .table-badge {
-    background-color: #dbeafe;
-    color: #1e40af;
+  background-color: #dbeafe;
+  color: #1e40af;
 }
 
 /* Coluna Direita: Conteúdo */
 .import-main-content {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
 /* Abas estilo Navegador */
 .import-tabs {
-    display: flex;
-    gap: 8px;
-    border-bottom: 1px solid #e2e8f0;
-    padding-bottom: 8px;
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--bg-color4);
+  padding-bottom: 8px;
+  overflow-x: auto; /* Permite rolar horizontalmente se houver muitas abas no mobile */
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab-button {
-    padding: 8px 16px;
-    border: none;
-    background: transparent;
-    font-size: 14px;
-    color: #64748b;
-    cursor: pointer;
-    border-radius: 6px;
-    font-weight: 500;
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  font-size: var(--font-size2);
+  color: var(--title-color2);
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 500;
+  flex-shrink: 0;
 }
 
 .tab-button.active {
-    background-color: #f1f5f9;
-    color: #0f172a;
+  background-color: var(--bg-color4);
+  color: var(--text-color1);
+  font-weight: 600;
 }
 
-/* Barra de Status e Cabeçalho de Informações da Tabela */
+/* Barra de Status e Cabeçalho de Informações */
 .table-status-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
 }
 
 .status-meta h2 {
-    margin: 0 0 4px 0;
-    font-size: 18px;
-    color: #0f172a;
+  margin: 0 0 4px 0;
+  font-size: var(--font-size-title);
+  color: var(--title-color1);
 }
 
 .status-records {
-    font-size: 12px;
-    color: #64748b;
-    display: block;
-    margin-bottom: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--title-color2);
+  display: block;
+  margin-bottom: 6px;
 }
 
 .status-badge-success {
-    font-size: 12px;
-    color: #16a34a;
-    font-weight: 500;
+  font-size: var(--font-size-sm);
+  color: #16a34a;
+  font-weight: 500;
 }
 
 /* Botão Atualizar */
 .btn-refresh {
-    padding: 8px 14px;
-    background-color: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    font-size: 13px;
-    color: #334155;
-    cursor: pointer;
-    font-weight: 500;
+  padding: 8px 14px;
+  background-color: var(--bg-color2);
+  border: var(--border-color);
+  border-radius: 6px;
+  font-size: var(--font-size2);
+  color: var(--text-color1);
+  cursor: pointer;
+  font-weight: 500;
 }
 
 .btn-refresh:hover {
-    background-color: #f8fafc;
+  background-color: var(--bg-color5);
 }
 
 /* ==========================================
    SISTEMA DE SCROLL E BLINDAGEM DA TABELA 
    ========================================== */
 
-/* Container unificado que controla os scrolls sem esticar a tela */
 .table-container {
-    max-width: 100%;       /* Impede o estouro horizontal do card */
-    max-height: 550px;     /* Altura máxima confortável para o scroll vertical */
-    overflow-x: auto;      /* Ativa o scroll horizontal se faltar espaço */
-    overflow-y: auto;      /* Ativa o scroll vertical se houver muitas linhas */
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    position: relative;    /* Garante consistência para o posicionamento do header */
+  max-width: 100%;       
+  max-height: 550px;    
+  overflow-x: auto;      
+  overflow-y: auto;      
+  border: var(--border-color);
+  border-radius: 6px;
+  position: relative;    
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Alvo duplo: Aplica a largura confortável tanto na sua classe quanto em tabelas geradas internamente */
 .import-table,
 .table-container table {
-    width: max-content;
-    min-width: 100%;
-    border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
 }
 
-/* Fixa os cabeçalhos (th) no topo enquanto o usuário rola as linhas para baixo */
 .import-table th,
 .table-container th {
-    position: sticky;
-    top: 0;
-    background-color: #f8fafc; /* Preenchimento sólido para o conteúdo de baixo não vazar por trás */
-    z-index: 10;
-    box-shadow: inset 0 -1px 0 #e2e8f0; /* Cria a linha divisória de baixo do header de forma persistente */
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-color5); 
+  z-index: 10;
+  box-shadow: inset 0 -1px 0 var(--bg-color4); 
 }
 
-/* Evita que textos gigantes de descrição ou obs estiquem células desnecessariamente */
 .text-truncate {
-    max-width: 200px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis; /* Adiciona os famosos "..." se o texto passar de 200px */
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; 
+}
+
+
+/* ==========================================
+   REGRAS DE RESPONSIVIDADE (MOBILE / TABLET)
+   ========================================== */
+
+@media (max-width: 768px) {
+  /* Transforma a grade de 2 colunas em 1 coluna única stacked */
+  .import-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .tables-list {
+    max-height: 200px; /* Reduz a altura da lista de tabelas para economizar tela */
+  }
+
+  .table-status-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .btn-refresh {
+    width: 100%; /* Botão em largura cheia no mobile para facilitar o clique */
+    text-align: center;
+  }
+
+  .table-container {
+    max-height: 360px; /* Reduz a altura da visualização de dados */
+  }
+
+  .text-truncate {
+    max-width: 130px; /* Diminui a truncagem de texto em telas de celulares */
+  }
 }

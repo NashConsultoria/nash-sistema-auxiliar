@@ -1,71 +1,85 @@
 /* Container que gerencia o scroll de uma planilha grande */
 .table-dre-wrapper {
-    width: 100%;
-    max-height: 600px;
-    overflow-x: auto;
-    overflow-y: auto;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-    background-color: var(--bg-color4);
+  width: 100%;
+  max-height: 600px;
+  overflow-x: auto;
+  overflow-y: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  background-color: var(--bg-color4);
+  -webkit-overflow-scrolling: touch; /* Rolagem suave em dispositivos iOS */
 }
 
 .table-dre {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    text-align: left;
+  width: 100%;
+  border-collapse: separate; /* Necessário para manter o efeito sticky limpo */
+  border-spacing: 0;
+  font-size: var(--font-size2);
+  text-align: left;
 }
 
-/* Cabeçalhos Fixos ao Rolar */
+/* Cabeçalhos Fixos ao Rolar Verticalmente */
 .table-dre th {
-    position: sticky;
-    top: 0;
-    background-color: var(--bg-color1);
-    color: var(--text-color2);
-    padding: 12px 14px;
-    font-weight: 600;
-    z-index: 1;
-    white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-color1);
+  color: var(--text-color2);
+  padding: 12px 14px;
+  font-weight: 600;
+  z-index: 2;
+  white-space: nowrap;
 }
 
-.dre-th-main {
-    min-width: 260px;
+/* 1ª COLUNA (DESCRIÇÃO DA CONTA): Fixa na esquerda ao rolar na horizontal */
+.table-dre .dre-th-main,
+.table-dre .dre-td-descricao {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.08); /* Sombra para indicar que os meses passam por baixo */
+}
+
+.table-dre th.dre-th-main {
+  z-index: 4; /* Garante que a junção Topo + Esquerda fique acima de tudo */
+  background-color: var(--bg-color1);
+  min-width: 240px;
 }
 
 .dre-th-mes {
-    text-align: center;
-    min-width: 120px;
+  text-align: center;
+  min-width: 110px;
 }
 
 /* Base das linhas e células */
 .table-dre td {
-    padding: 10px 12px;
-    vertical-align: middle;
-    border-bottom: var(--border-box);
-    user-select: none;
+  padding: 10px 12px;
+  vertical-align: middle;
+  border-bottom: var(--border-color);
+  user-select: none;
+  white-space: nowrap;
 }
 
 /* Alinhamento dos valores nos meses */
 .dre-td-valor {
-    text-align: center;
+  text-align: center;
 }
 
 /* Classes de Interação */
 .dre-row-clicavel {
-    cursor: pointer;
+  cursor: pointer;
 }
 
 /* Indentações/Recuos por Nível */
 .dre-td-descricao.nivel-1 { padding-left: 12px; }
 .dre-td-descricao.nivel-2 { padding-left: 28px; }
-.dre-td-descricao.nivel-3 { padding-left: 48px; }
+.dre-td-descricao.nivel-3 { padding-left: 44px; }
 
 /* Ícones de expandir e de cálculo */
 .dre-icon-calculo, .dre-icon-toggle {
-    margin-right: 8px;
-    display: inline-block;
-    width: 16px;
-    text-align: center;
+  margin-right: 8px;
+  display: inline-block;
+  width: 16px;
+  text-align: center;
 }
 .dre-icon-calculo { color: var(--text-color2); font-weight: bold; }
 .dre-icon-toggle { color: var(--bg-color6); font-size: var(--font-size2); }
@@ -76,57 +90,80 @@
    ========================================================================== */
 
 /* Linhas de Resultado/Cálculo (Ex: Lucro Líquido, Margem Bruta) */
-.dre-row-calculo {
-    background-color: var(--bg-color6) !important;
-    font-weight: bold;
-}
 .dre-row-calculo td {
-    color: var(--text-color2) !important; /* Destaca o resultado com um tom azul claro/neon */
-    border-bottom: var(--border-color); /* Linha dupla de fechamento contábil */
+  background-color: var(--bg-color6) !important;
+  font-weight: bold;
+  color: var(--text-color2) !important;
+  border-bottom: var(--border-color);
 }
 
-/* Grupos Principais Nível 1 (Ex: Receita Bruta, Custos) */
-.dre-row-pai {
-    background-color: var(--bg-color3);
-    font-weight: bold;
-}
+/* Grupos Principais Nível 1 */
 .dre-row-pai td {
-    color: var(--text-color2);
+  background-color: var(--bg-color3);
+  font-weight: bold;
+  color: var(--text-color2);
 }
 
-.dre-row-pai:hover td {
-    background-color: var(--hover-color);
-    color: var(--text-color2);
-}
-
-/* Subgrupos Nível 2 (Ex: Impostos, Deduções) */
-.dre-row-subgrupo {
-    background-color: var(--bg-color4);
-}
+/* Subgrupos Nível 2 */
 .dre-row-subgrupo td {
-    color: var(--text-color1);
+  background-color: var(--bg-color4);
+  color: var(--text-color1);
 }
 
-.dre-row-subgrupo:hover td {
-    background-color: var(--hover-color);
-    color: var(--text-color2);
-}
-
-/* Contas Analíticas Nível 3 (Lançamentos finais) */
-.dre-row-nivel3 {
-    background-color: var(--bg-color5);
-}
+/* Contas Analíticas Nível 3 */
 .dre-row-nivel3 td {
-    color: var(--text-color1);
-}
-.dre-row-nivel3:hover td{
-    background-color: var(--hover-color);
-    color: var(--text-color2);
+  background-color: var(--bg-color5);
+  color: var(--text-color1);
 }
 
 /* Mensagem de fallback */
 .dre-vazia {
-    padding: 24px;
-    text-align: center;
-    color: var(--text-color2);
+  padding: 24px;
+  text-align: center;
+  color: var(--text-color2);
+}
+
+
+/* ==========================================
+   HOVER (Apenas para dispositivos com Mouse)
+   ========================================== */
+@media (hover: hover) {
+  .dre-row-pai:hover td,
+  .dre-row-subgrupo:hover td,
+  .dre-row-nivel3:hover td {
+    background-color: var(--hover-color) !important;
+    color: var(--text-color2) !important;
+  }
+}
+
+
+/* ==========================================
+   REGRAS DE RESPONSIVIDADE (MOBILE / TABLET)
+   ========================================== */
+@media (max-width: 768px) {
+  .table-dre-wrapper {
+    max-height: 450px;
+  }
+
+  .table-dre th {
+    padding: 10px 8px;
+  }
+
+  .table-dre td {
+    padding: 8px 10px;
+  }
+
+  .table-dre th.dre-th-main {
+    min-width: 180px; /* Reduz a largura mínima da coluna fixa no mobile para dar mais área aos meses */
+    max-width: 200px;
+  }
+
+  .dre-th-mes {
+    min-width: 95px;
+  }
+
+  /* Compacta os recuos no mobile para economizar espaço horizontal */
+  .dre-td-descricao.nivel-1 { padding-left: 8px; }
+  .dre-td-descricao.nivel-2 { padding-left: 18px; }
+  .dre-td-descricao.nivel-3 { padding-left: 28px; }
 }
