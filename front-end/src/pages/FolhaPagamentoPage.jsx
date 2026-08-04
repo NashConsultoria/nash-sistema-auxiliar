@@ -119,7 +119,7 @@ export default function FolhaPagamentoPage() {
     }, [contratanteSel, contratantes, token]);
 
     // ==================================================================
-    // 3. BUSCA DADOS DA FOLHA DE PAGAMENTO (AJUSTADO PARA UTILIZAR DATA INÍCIO / FIM)
+    // 3. BUSCA DADOS DA FOLHA DE PAGAMENTO
     // ==================================================================
     useEffect(() => {
         if (!token || !usuario || !usuario.id || !requisicaoContratantesConcluida) return;
@@ -181,21 +181,37 @@ export default function FolhaPagamentoPage() {
                 `Período: ${dataInicio} até ${dataFim}`
             ]
         });
-    }, [contratanteSel, unidadeSel, dataInicio, dataFim]);
+    }, [contratanteSel, unidadeSel, dataInicio, dataFim, setPrintData]);
 
     // ==================================================================
-    // 4. PROCESSAMENTO DA ÁRVORE (ATÉ 4 NÍVEIS)
+    // 4. PROCESSAMENTO DA ÁRVORE (APENAS ESTRUTURA DOS DADOS)
     // ==================================================================
+    const normalizarTexto = (texto) =>
+        (texto || "")
+            .toUpperCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+
     const dadosAchatados = useMemo(() => {
         if (!dadosFolha || !Array.isArray(dadosFolha) || dadosFolha.length === 0) return [];
 
+        const ordemPrioridade = (nome) => {
+            const txt = normalizarTexto(nome);
+            if (txt.includes("PROVENTO")) return 1;
+            if (txt.includes("ENCARGO")) return 2;
+            if (txt.includes("DESCONTO")) return 3;
+            if (txt.includes("PROVISA") || txt.includes("PROVISO")) return 4;
+            return 99;
+        };
+
+        const dadosFolhaOrdenados = [...dadosFolha].sort(
+            (a, b) => ordemPrioridade(a.nome) - ordemPrioridade(b.nome)
+        );
+
         const lista = [];
 
-        dadosFolha.forEach((n1, indexN1) => {
-            // Ignora apenas o 'NAO APLICA'
-            if (n1.nome && n1.nome.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes("NAO APLICA")) {
-                return; 
-            }
+        dadosFolhaOrdenados.forEach((n1, indexN1) => {
+            if (n1.nome && normalizarTexto(n1.nome).includes("NAO APLICA")) return;
 
             const idN1 = `n1-${indexN1}-${n1.nome}`;
             lista.push({
@@ -265,7 +281,6 @@ export default function FolhaPagamentoPage() {
 
     const mesesBase = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-    // Cálculo dinâmico dos meses contidos nas datas do filtro
     const mesesAtivosIdx = useMemo(() => {
         if (!dataInicio || !dataFim) return Array.from({ length: 12 }, (_, i) => i);
 
@@ -294,8 +309,8 @@ export default function FolhaPagamentoPage() {
     const dadosComMetricasFiltrados = useMemo(() => {
         const linhasNivel1 = dadosAchatados.filter((r) => r.level === 1);
 
-        const linhaProventos = linhasNivel1.find((r) => r.descricao.toUpperCase().includes("PROVENTO"));
-        const linhaDescontos = linhasNivel1.find((r) => r.descricao.toUpperCase().includes("DESCONTO"));
+        const linhaProventos = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("PROVENTO"));
+        const linhaDescontos = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("DESCONTO"));
 
         const valoresProventos = linhaProventos ? linhaProventos.valores : new Array(12).fill(0);
         const valoresDescontos = linhaDescontos ? linhaDescontos.valores : new Array(12).fill(0);
@@ -310,30 +325,88 @@ export default function FolhaPagamentoPage() {
     }, [dadosAchatados, mesesAtivosIdx]);
 
     const linhasParaRenderizar = useMemo(() => {
-        const linhasVisiveis = [];
+        // 1. Identifica os grupos principais
+        const linhasNivel1 = dadosAchatados.filter((r) => r.level === 1);
+        const grupoProventos = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("PROVENTO"));
+        const grupoEncargos = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("ENCARGO"));
+        const grupoDescontos = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("DESCONTO"));
+        const grupoProvisoes = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("PROVISA") || normalizarTexto(r.descricao).includes("PROVISO"));
 
-        dadosAchatados.forEach((linha) => {
-            if (linha.level === 1) {
-                linhasVisiveis.push(linha);
-            } else if (linha.level === 2) {
-                if (expandedRows.has(linha.parentId)) {
-                    linhasVisiveis.push(linha);
+        // 2. Valores dos Totais
+        const vProventos = grupoProventos ? grupoProventos.valores : new Array(12).fill(0);
+        const vEncargos = grupoEncargos ? grupoEncargos.valores : new Array(12).fill(0);
+        const vDescontos = grupoDescontos ? grupoDescontos.valores : new Array(12).fill(0);
+        const vProvisoes = grupoProvisoes ? grupoProvisoes.valores : new Array(12).fill(0);
+
+        const vTotal = vProventos.map((p, idx) => p + vEncargos[idx] + vDescontos[idx]);
+        const vTotalComProvisao = vTotal.map((t, idx) => t + vProvisoes[idx]);
+
+        // Função auxiliar para capturar um grupo Nível 1 e todos os seus filhos ativos
+        const obterLinhasDoGrupo = (grupoId) => {
+            if (!grupoId) return [];
+            const resultado = [];
+            let capturando = false;
+
+            for (const linha of dadosAchatados) {
+                if (linha.level === 1) {
+                    if (linha.id === grupoId) {
+                        capturando = true;
+                    } else if (capturando) {
+                        break; // Chegou no próximo grupo Nível 1, encerra a captura deste bloco
+                    }
                 }
-            } else if (linha.level === 3) {
-                const n2Obj = dadosAchatados.find(x => x.id === linha.parentId);
-                if (n2Obj && expandedRows.has(n2Obj.parentId) && expandedRows.has(n2Obj.id)) {
-                    linhasVisiveis.push(linha);
-                }
-            } else if (linha.level === 4) {
-                const n3Obj = dadosAchatados.find(x => x.id === linha.parentId);
-                const n2Obj = n3Obj ? dadosAchatados.find(x => x.id === n3Obj.parentId) : null;
-                if (n3Obj && n2Obj && expandedRows.has(n2Obj.parentId) && expandedRows.has(n2Obj.id) && expandedRows.has(n3Obj.id)) {
-                    linhasVisiveis.push(linha);
+
+                if (capturando) {
+                    let exibir = false;
+                    if (linha.level === 1) {
+                        exibir = true;
+                    } else if (linha.level === 2) {
+                        exibir = expandedRows.has(linha.parentId);
+                    } else if (linha.level === 3) {
+                        const n2Obj = dadosAchatados.find(x => x.id === linha.parentId);
+                        exibir = n2Obj && expandedRows.has(n2Obj.parentId) && expandedRows.has(n2Obj.id);
+                    } else if (linha.level === 4) {
+                        const n3Obj = dadosAchatados.find(x => x.id === linha.parentId);
+                        const n2Obj = n3Obj ? dadosAchatados.find(x => x.id === n3Obj.parentId) : null;
+                        exibir = n3Obj && n2Obj && expandedRows.has(n2Obj.parentId) && expandedRows.has(n2Obj.id) && expandedRows.has(n3Obj.id);
+                    }
+
+                    if (exibir) resultado.push(linha);
                 }
             }
-        });
+            return resultado;
+        };
 
-        return filtrarMesesDosDados(linhasVisiveis);
+        // 3. Monta a lista sequencial na ordem exata solicitada:
+        const linhasFinais = [
+            ...obterLinhasDoGrupo(grupoProventos?.id),
+            ...obterLinhasDoGrupo(grupoEncargos?.id),
+            ...obterLinhasDoGrupo(grupoDescontos?.id),
+            
+            // (=) TOTAL entra logo após o bloco de Descontos (com ou sem filhos visíveis)
+            {
+                id: "calc-total",
+                descricao: "Total",
+                level: 1,
+                tipo: "calculo",
+                valores: vTotal,
+                parentId: null
+            },
+
+            ...obterLinhasDoGrupo(grupoProvisoes?.id),
+
+            // (=) TOTAL COM PROVISÃO entra logo após o bloco de Provisão
+            {
+                id: "calc-total-com-provisao",
+                descricao: "Total com Provisão",
+                level: 1,
+                tipo: "calculo",
+                valores: vTotalComProvisao,
+                parentId: null
+            }
+        ];
+
+        return filtrarMesesDosDados(linhasFinais);
     }, [dadosAchatados, expandedRows, mesesAtivosIdx]);
 
     return (
