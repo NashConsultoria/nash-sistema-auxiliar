@@ -168,6 +168,7 @@ async def processar_importacao_movimentacoes(
             "fornecedor": "FORNECEDORES",
             "cpf": "CPF_CNPJ",
             "planoConta": "PLANO DE CONTA",
+            "grupoConta": "GRUPO DE CONTA"
         }
 
         # 1. Validação da coluna Contratante
@@ -288,13 +289,13 @@ async def processar_importacao_movimentacoes(
             conexao.close()
             return {"sucesso": False, "mensagem": "Erro de validação nas datas:\n" + "\n".join(erros_data)}
 
-        # 6. Validação do Plano de Contas
+        # 6. Validação do Plano de Contas Específico para DRE
         cursor.execute("SELECT UPPER(TRIM(planoConta)) FROM dbo.PlanoContas")
         planos_no_banco = {normalizar_texto(row[0]) for row in cursor.fetchall()}
 
         erros_encontrados = []
         for index, row_data in df.iterrows():
-            conta_excel = normalizar_texto(row_data.get(mapeamento_colunas["planoConta"], ""))
+            conta_excel = normalizar_texto(str(row_data.get(mapeamento_colunas["planoConta"], "")))
             if conta_excel and conta_excel not in ["NAN", "NONE"]:
                 if conta_excel not in planos_no_banco:
                     erros_encontrados.append(f"Linha {index + 2}: O plano de contas '{row_data.get(mapeamento_colunas['planoConta'])}' não está cadastrado no sistema.")
@@ -326,7 +327,7 @@ async def processar_importacao_movimentacoes(
                         return Decimal("0.00")
                 
                 valor_str = str(row_data[col_real]).strip()
-                return normalizar_texto(valor_str)
+                return valor_str if valor_str.upper() not in ["NAN", "NONE"] else None
                 
             return pd.Timestamp("2026-01-01").to_pydatetime() if coluna_excel == "data" else (Decimal("0.00") if tipo_dado == "float" else None)
 
@@ -340,6 +341,7 @@ async def processar_importacao_movimentacoes(
             fornecedor_nome = obtener_valor(row, "fornecedor")
             cpf_cnpj = obtener_valor(row, "cpf")
             p_conta = obtener_valor(row, "planoConta")
+            g_conta = obtener_valor(row, "grupoConta")
 
             # Unidade
             if nome_unidade:
@@ -385,13 +387,49 @@ async def processar_importacao_movimentacoes(
             else:
                 fornecedor_id = None
 
-            # PlanoContas
-            cursor.execute(
-                "SELECT id FROM dbo.PlanoContas WHERE UPPER(TRIM(planoConta)) = UPPER(TRIM(?))", 
-                (p_conta,)
-            )
-            plano_row = cursor.fetchone()
-            plano_conta_id = plano_row[0] if plano_row else None
+            # PlanoContas: Busca garantindo que o vínculo seja da modalidade DRE
+            p_conta_raw = str(row[mapeamento_colunas["planoConta"]]).strip() if pd.notna(row.get(mapeamento_colunas["planoConta"])) else None
+            p_conta_norm = normalizar_texto(p_conta_raw) if p_conta_raw else None
+            
+            has_grupo = "grupoConta" in mapeamento_colunas and mapeamento_colunas["grupoConta"] in df.columns
+            g_conta_raw = str(row[mapeamento_colunas["grupoConta"]]).strip() if has_grupo and pd.notna(row.get(mapeamento_colunas["grupoConta"])) else None
+            g_conta_norm = normalizar_texto(g_conta_raw) if g_conta_raw else None
+
+            plano_conta_id = None
+
+            if p_conta_raw and p_conta_raw.upper() not in ["NAN", "NONE"]:
+                # 1ª Tentativa: Busca exata combinando Plano + Grupo
+                if g_conta_raw and g_conta_raw.upper() not in ["NAN", "NONE"]:
+                    cursor.execute("""
+                        SELECT id FROM dbo.PlanoContas 
+                        WHERE UPPER(TRIM(REPLACE(planoConta, CHAR(160), ' '))) = UPPER(TRIM(REPLACE(?, CHAR(160), ' ')))
+                          AND UPPER(TRIM(REPLACE(grupoConta, CHAR(160), ' '))) = UPPER(TRIM(REPLACE(?, CHAR(160), ' ')))
+                    """, (p_conta_raw, g_conta_raw))
+                    plano_row = cursor.fetchone()
+                    if plano_row:
+                        plano_conta_id = plano_row[0]
+
+                # 2ª Tentativa: Busca exata apenas pelo Plano (priorizando DRE)
+                if not plano_conta_id:
+                    cursor.execute("""
+                        SELECT id FROM dbo.PlanoContas 
+                        WHERE UPPER(TRIM(REPLACE(planoConta, CHAR(160), ' '))) = UPPER(TRIM(REPLACE(?, CHAR(160), ' ')))
+                        ORDER BY CASE WHEN UPPER(TRIM(edre)) <> 'NAO APLICA' THEN 1 ELSE 2 END
+                    """, (p_conta_raw,))
+                    plano_row = cursor.fetchone()
+                    if plano_row:
+                        plano_conta_id = plano_row[0]
+
+                # 3ª Tentativa (Fallback de Acentuação): Se ainda não encontrou, compara insensível a acentos (usando Collation do SQL)
+                if not plano_conta_id:
+                    cursor.execute("""
+                        SELECT id FROM dbo.PlanoContas 
+                        WHERE planoConta COLLATE Latin1_General_CI_AI = ?
+                        ORDER BY CASE WHEN UPPER(TRIM(edre)) <> 'NAO APLICA' THEN 1 ELSE 2 END
+                    """, (p_conta_norm,))
+                    plano_row = cursor.fetchone()
+                    if plano_row:
+                        plano_conta_id = plano_row[0]
 
             # Movimentacao
             cursor.execute("""
@@ -428,7 +466,7 @@ async def processar_importacao_movimentacoes(
         if conexao:
             conexao.rollback()
             conexao.close()
-        return {"sucesso": False, "mensagem": f"Erro interno ao importar base: {str(e)}"}     
+        return {"sucesso": False, "mensagem": f"Erro interno ao importar base: {str(e)}"}
 
 async def processar_importacao_movimentacoes_folha(
     conteudo: bytes,
@@ -446,7 +484,7 @@ async def processar_importacao_movimentacoes_folha(
         mapeamento_colunas = {
             "contratante": "CONTRATANTE",
             "unidadeRegistro": "UNIDADE REGISTRO",
-            "unidadeAtuacao": "UNIDADE ATUAÇÃO",
+            "unidadeAtuacao": "UNIDADE ATUACAO",
             "nome": "NOME",
             "cpf": "CPF",
             "dataNascimento": "DATA NASCIMENTO",
@@ -460,6 +498,7 @@ async def processar_importacao_movimentacoes_folha(
             "tipo": "TIPO",
             "valor": "VALOR",
             "planoConta": "PLANO DE CONTA",
+            "grupoConta": "GRUPO DE CONTA"
         }
 
         # 1. Validação da coluna Contratante
@@ -530,7 +569,6 @@ async def processar_importacao_movimentacoes_folha(
 
         if lote_existente:
             lote_id = lote_existente[0]
-            # Deleta registros antigos da tabela de Folha associados ao lote
             cursor.execute(
                 "DELETE FROM dbo.MovimentacaoFolhaPagamento WHERE importacaoLoteId = ?",
                 (lote_id,),
@@ -626,7 +664,7 @@ async def processar_importacao_movimentacoes_folha(
         erros_encontrados = []
         for index, row_data in df.iterrows():
             conta_excel = normalizar_texto(
-                row_data.get(mapeamento_colunas["planoConta"], "")
+                str(row_data.get(mapeamento_colunas["planoConta"], ""))
             )
             if conta_excel and conta_excel not in ["NAN", "NONE"]:
                 if conta_excel not in planos_no_banco:
@@ -644,7 +682,7 @@ async def processar_importacao_movimentacoes_folha(
                 + "\n".join(erros_encontrados),
             }
 
-        # Função interna de conversão e extração de dados da linha
+        # Função interna de conversão e extração de dados
         def obtener_valor(row_data, coluna_excel, tipo_dado="string"):
             col_real = mapeamento_colunas.get(coluna_excel)
             if col_real and col_real in df.columns and pd.notna(row_data[col_real]):
@@ -669,7 +707,8 @@ async def processar_importacao_movimentacoes_folha(
                     except:
                         return Decimal("0.00")
 
-                return str(row_data[col_real]).strip()
+                valor_str = str(row_data[col_real]).strip()
+                return valor_str if valor_str.upper() not in ["NAN", "NONE"] else None
 
             return Decimal("0.00") if tipo_dado == "float" else None
 
@@ -678,7 +717,6 @@ async def processar_importacao_movimentacoes_folha(
         for _, row in df.iterrows():
             unidade_reg_nome = obtener_valor(row, "unidadeRegistro")
             unidade_atu_nome = obtener_valor(row, "unidadeAtuacao")
-            p_conta = obtener_valor(row, "planoConta")
 
             # Unidade Registro
             if unidade_reg_nome:
@@ -717,12 +755,49 @@ async def processar_importacao_movimentacoes_folha(
                 unidade_atu_id = unidade_reg_id
 
             # PlanoContas
-            cursor.execute(
-                "SELECT id FROM dbo.PlanoContas WHERE UPPER(TRIM(planoConta)) = UPPER(TRIM(?))",
-                (p_conta,),
-            )
-            plano_row = cursor.fetchone()
-            plano_conta_id = plano_row[0] if plano_row else None
+            p_conta_raw = str(row[mapeamento_colunas["planoConta"]]).strip() if pd.notna(row.get(mapeamento_colunas["planoConta"])) else None
+            p_conta_norm = normalizar_texto(p_conta_raw) if p_conta_raw else None
+
+            has_grupo = "grupoConta" in mapeamento_colunas and mapeamento_colunas["grupoConta"] in df.columns
+            g_conta_raw = str(row[mapeamento_colunas["grupoConta"]]).strip() if has_grupo and pd.notna(row.get(mapeamento_colunas["grupoConta"])) else None
+            g_conta_norm = normalizar_texto(g_conta_raw) if g_conta_raw else None
+
+            plano_conta_id = None
+
+            if p_conta_raw and p_conta_raw.upper() not in ["NAN", "NONE"]:
+                # 1ª Tentativa: Busca combinando Plano + Grupo (priorizando efolha ativo)
+                if g_conta_raw and g_conta_raw.upper() not in ["NAN", "NONE"]:
+                    cursor.execute("""
+                        SELECT id FROM dbo.PlanoContas 
+                        WHERE UPPER(TRIM(REPLACE(planoConta, CHAR(160), ' '))) = UPPER(TRIM(REPLACE(?, CHAR(160), ' ')))
+                          AND UPPER(TRIM(REPLACE(grupoConta, CHAR(160), ' '))) = UPPER(TRIM(REPLACE(?, CHAR(160), ' ')))
+                        ORDER BY CASE WHEN UPPER(TRIM(efolha)) <> 'NAO APLICA' THEN 1 ELSE 2 END
+                    """, (p_conta_raw, g_conta_raw))
+                    plano_row = cursor.fetchone()
+                    if plano_row:
+                        plano_conta_id = plano_row[0]
+
+                # 2ª Tentativa: Busca apenas pelo Plano (priorizando efolha ativo)
+                if not plano_conta_id:
+                    cursor.execute("""
+                        SELECT id FROM dbo.PlanoContas 
+                        WHERE UPPER(TRIM(REPLACE(planoConta, CHAR(160), ' '))) = UPPER(TRIM(REPLACE(?, CHAR(160), ' ')))
+                        ORDER BY CASE WHEN UPPER(TRIM(efolha)) <> 'NAO APLICA' THEN 1 ELSE 2 END
+                    """, (p_conta_raw,))
+                    plano_row = cursor.fetchone()
+                    if plano_row:
+                        plano_conta_id = plano_row[0]
+
+                # 3ª Tentativa (Fallback por Collation/Sem acentos, priorizando efolha ativo):
+                if not plano_conta_id:
+                    cursor.execute("""
+                        SELECT id FROM dbo.PlanoContas 
+                        WHERE planoConta COLLATE Latin1_General_CI_AI = ?
+                        ORDER BY CASE WHEN UPPER(TRIM(efolha)) <> 'NAO APLICA' THEN 1 ELSE 2 END
+                    """, (p_conta_norm,))
+                    plano_row = cursor.fetchone()
+                    if plano_row:
+                        plano_conta_id = plano_row[0]
 
             # Inserção na MovimentacaoFolhaPagamento
             cursor.execute(

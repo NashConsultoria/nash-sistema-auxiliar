@@ -5,8 +5,8 @@ from app.config import ORDEM_EFOLHA
 
 def normalizar_texto(texto) -> str:
     """
-    Normaliza strings removendo acentos, caracteres especiais, 
-    espaços extras e convertendo para maiúsculas.
+    Normaliza strings removendo acentos, caracteres especiais indesejados, 
+    colapsando múltiplos espaços em um só e convertendo para maiúsculas.
     """
     if pd.isna(texto) or texto is None:
         return ""
@@ -16,20 +16,25 @@ def normalizar_texto(texto) -> str:
     if texto_str.lower() in ["nan", "none", "", "null"]:
         return ""
     
-    # 1. Normalização Unicode (Decompõe caracteres acentuados)
+    # 1. Substitui espaços inquebráveis do Excel (CHAR(160) / \xa0) por espaço normal
+    texto_str = texto_str.replace('\xa0', ' ')
+
+    # 2. Normalização Unicode (Decompõe e remove marcas de acentuação)
     nfkd = unicodedata.normalize('NFD', texto_str)
-    # Remove marcas de combinação de acentos (Mn = Mark, Nonspacing)
     texto_sem_acento = "".join(c for c in nfkd if unicodedata.category(c) != 'Mn')
     
-    # 2. Mapeamento manual de segurança para garantia extra (fallback)
+    # 3. Fallback de segurança para caracteres com cedilha/acentos residuais
     tabela_substituicao = str.maketrans(
         "ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇáàâãäéèêëíìîïóòôõöúùûüç",
         "AAAAAEEEEIIIIOOOOOUUUUCaaaaaeeeeiiiiooooouuuuc"
     )
     texto_limpo = texto_sem_acento.translate(tabela_substituicao)
     
-    # 3. Remove caracteres invisíveis/especiais e padroniza para maiúsculo
-    texto_limpo = re.sub(r'[^\w\s]', '', texto_limpo) # Mantém apenas letras, números e espaços
+    # 4. Remove caracteres especiais Mantendo letras, números, hífen e espaço
+    texto_limpo = re.sub(r'[^\w\s\-]', '', texto_limpo)
+    
+    # 5. Reduz múltiplos espaços/quebras de linha seguidos para um único espaço
+    texto_limpo = re.sub(r'\s+', ' ', texto_limpo)
     
     return texto_limpo.strip().upper()
 
@@ -42,10 +47,11 @@ def obter_ordem_efolha(nome_efolha: str) -> int:
     if not nome_efolha:
         return 99
 
-    nome_limpo = str(nome_efolha).strip().upper()
+    # Normaliza removendo acentos e convertendo para maiúsculo
+    nome_limpo = normalizar_texto(str(nome_efolha))
 
     for chave, ordem in ORDEM_EFOLHA.items():
-        if chave in nome_limpo:
+        if normalizar_texto(chave) in nome_limpo:
             return ordem
 
     return 99
