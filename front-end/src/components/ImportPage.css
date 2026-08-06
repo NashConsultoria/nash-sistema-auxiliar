@@ -5,7 +5,7 @@
   gap: 20px;
   padding: 0;
   align-items: start;
-  font-family: var(--font-text), sans-serif;
+  font-family: var(--font-text);
 }
 
 /* Coluna Esquerda: Sidebar */

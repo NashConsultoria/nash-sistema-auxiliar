@@ -9,6 +9,7 @@
   overflow: visible; 
   transition: all 0.3s ease;
   width: 100%; /* Garante ocupar o contêiner em qualquer resolução */
+  min-width: 0;
 }
 
 .card-header {
@@ -35,6 +36,7 @@
 .card-body {
   padding: 16px;
   color: var(--text-color1);
+  min-width: 0;
 }
 
 .card-actions {

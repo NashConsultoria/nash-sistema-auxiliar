@@ -131,10 +131,13 @@ export default function DREPage() {
                 const contratanteId = contratantes.find((c) => c.nome === contratanteSel)?.id;
                 const filtradas = data.filter((u) => u.contratanteId === contratanteId);
                 setUnidades(filtradas);
-                setUnidadeSel([]);
             })
             .catch((err) => console.error("Erro ao buscar unidades:", err));
-    }, [contratanteSel, contratantes, token]);
+    }, [contratanteSel, token]); 
+
+    useEffect(() => {
+        setUnidadeSel([]);
+    }, [contratanteSel]);
 
     // ==================================================================
     // 3. RECARREGA OS DADOS DA DRE
@@ -162,8 +165,13 @@ export default function DREPage() {
             url += `&contratante=${encodeURIComponent(nomesVinculados.join(","))}`;
         }
 
+        // --- CORREÇÃO DO ENVIO DAS UNIDADES ---
         if (Array.isArray(unidadeSel) && unidadeSel.length > 0) {
-            url += `&unidade=${encodeURIComponent(unidadeSel.join(","))}`;
+            // Envia como: &unidade=UnidadeA&unidade=UnidadeB
+            const queryUnidades = unidadeSel
+                .map((u) => `unidade=${encodeURIComponent(u)}`)
+                .join("&");
+            url += `&${queryUnidades}`;
         }
 
         fetch(url, {

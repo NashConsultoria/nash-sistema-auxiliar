@@ -59,20 +59,37 @@ body {
   padding: 10px; /* Garante que o conteúdo não cole nas bordas da tela no mobile */
 }
 
-.pag-left {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  padding: 10px;
+.page-horizontal {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 20px;
+  padding: 0;
+  align-items: start;
+  font-family: var(--font-text);
 }
 
-.pag-right {
+.page-left {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 20px;
+}
+
+.page-right {
+  display: grid;
+  flex-direction: column;
+  gap: 20px;
   width: 100%;
-  padding: 10px;
+  min-width: 0;
+  padding: 0;
+  align-items: start;
+  font-family: var(--font-text);
+}
+
+/* Container utilitário para tabelas grandes */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch; /* Melhora a rolagem suave no iOS */
 }
 
 /* Grid do Dashboard ajustado para Grid responsivo */
@@ -89,7 +106,8 @@ body {
    ========================================== */
 
 @media (max-width: 768px) {
-  .page-container {
-    padding: 8px;
+  .page-horizontal {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 }

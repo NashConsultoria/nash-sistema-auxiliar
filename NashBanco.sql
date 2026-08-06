@@ -63,7 +63,10 @@ create table PlanoContas
 	edre				varchar(100)		not null,						-- Nível 1 (Ex: RECEIRA OPERACIONAL)
 	dfc					varchar(100)		not null,						-- Nivel 1 (Ex: XX)
 	efolha				varchar(100)		not null,						-- Nivel 1 (Ex: XX)
-	criadoEm			datetime							default			getdate()
+	criadoEm			datetime							default			getdate(),
+	importacaoLoteId	int,
+
+	foreign key (importacaoLoteId) references ImportacaoLote(id)
 )
 
 create table Movimentacao
@@ -111,6 +114,19 @@ create table MovimentacaoFolhaPagamento
 	foreign key (unidadeAtuacaoId) references Unidade(id),
     foreign key (planoContaId) references PlanoContas(id),
     foreign key (importacaoLoteId) references ImportacaoLote(id)
+)
+
+create table Conversor
+(
+	id                      int					not null		primary key		identity,
+	banco					varchar(255),
+	agencia					varchar(50),
+	conta					varchar(50),
+	data					datetime,
+	descricao				varchar(max),
+	valor					decimal(38,2),
+	tipo					varchar(50),
+	fornecedor				varchar(255),
 )
 
 create table Usuario
@@ -163,6 +179,7 @@ select * from ImportacaoLote
 select * from PlanoContas
 select * from Movimentacao
 select * from MovimentacaoFolhaPagamento
+select * from Conversor
 select * from Usuario
 select * from UsuarioContratante
 select * from LogUsuario

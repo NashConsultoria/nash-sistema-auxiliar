@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import "../styles/global.css";
 
 export default function ConversorPage() {
-  const { token, selectedDb } = useAuth(); // Assume o uso do banco selecionado no contexto
+  const { token } = useAuth();
   
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -20,31 +20,99 @@ export default function ConversorPage() {
     { key: "conta", label: "Conta" },
     { key: "data", label: "Data" },
     { key: "descricao", label: "Descrição" },
+    { key: "obs", label: "Observação" },
     { key: "valor", label: "Valor" },
     { key: "tipo", label: "Tipo" },
     { key: "fornecedor", label: "Fornecedor" },
   ];
 
+  useEffect(() => {
+    return () => {
+      setData([]);
+    };
+  }, []);
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (!file.name.toLowerCase().endsWith(".ofx")) {
+        alert("Apenas arquivos no formato .ofx são permitidos!");
+        return;
+      }
       setFileSelected(file);
-      // Aqui você poderá chamar a função de preview do back-end futuramente
+      setData([]);
     }
   };
 
-  const handleExport = () => {
-    if (!data.length) return;
-    // Lógica futura para acionar o download/exportação
+  const handleConverter = async () => {
+    if (!fileSelected) return;
+
+    setLoading(true);
+    const formData = new FormData();
+    formData.append("file", fileSelected);
+
+    try {
+      const response = await fetch(`${API_URL}/NashBancoConsultoria/conversor/preview`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Erro ao processar o arquivo OFX.");
+
+      const result = await response.json();
+      setData(result.transacoes || []);
+    } catch (err) {
+      console.error("Erro na conversão:", err);
+      alert("Não foi possível converter o arquivo.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (!fileSelected) return;
+
+    const formData = new FormData();
+    formData.append("file", fileSelected);
+
+    try {
+      const response = await fetch(`${API_URL}/NashBancoConsultoria/conversor/download`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Erro ao gerar o arquivo Excel.");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "extrato_convertido.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      setData([]);
+      setFileSelected(null);
+    } catch (err) {
+      console.error("Erro ao baixar o arquivo:", err);
+      alert("Erro ao realizar o download da planilha.");
+    }
   };
 
   return (
-    <div className="import-container">
-      {/* COLUNA DA ESQUERDA: BARRA LATERAL */}
-      <aside className="import-sidebar">
+    <div className="page-horizontal">
+      {/* COLUNA DA ESQUERDA: BARRA LATERAL DE AÇÕES */}
+      <aside className="page-left">
         <Card title="Ações">
-          <div className="database-selector-box" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {/* Input de arquivo escondido acionado pelo botão */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <input
               type="file"
               id="file-upload"
@@ -58,10 +126,14 @@ export default function ConversorPage() {
             </Button>
 
             {fileSelected && (
-              <span style={{ fontSize: "12px", color: "var(--text-color1)", wordBreak: "break-all" }}>
+              <span style={{ fontSize: "var(--font-size2)", color: "var(--text-color1)", wordBreak: "break-all" }}>
                 📄 {fileSelected.name}
               </span>
             )}
+
+            <Button onClick={handleConverter} disabled={!fileSelected || loading}>
+              Converter Arquivo
+            </Button>
 
             <Button 
               onClick={handleExport} 
@@ -74,30 +146,28 @@ export default function ConversorPage() {
         </Card>
       </aside>
 
-      {/* COLUNA DA DIREITA: CONTEÚDO PRINCIPAL */}
-      <main className="page-container">
-        {loading ? (
-          <Card title="Pré-Visualização">
-            <div className="loading-box" style={{ textAlign: "center", padding: "40px 20px" }}>
-              <p style={{ color: "var(--text-color1)" }}>Carregando dados...</p>
+      {/* COLUNA DA DIREITA: CONTEÚDO PRINCIPAL DE PRÉ-VISUALIZAÇÃO */}
+      <main className="page-right">
+        <Card title="Pré-Visualização">
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "40px 20px" }}>
+              <p style={{ color: "var(--text-color1)", fontSize: "var(--font-size1)" }}>Carregando dados...</p>
             </div>
-          </Card>
-        ) : data && data.length > 0 ? (
-          <Card title="Pré-Visualização">
-            <Table columns={columns} data={data} />
-          </Card>
-        ) : (
-          <Card title="Pré-Visualização">
-            <div className="empty-state-box" style={{ textAlign: "center", padding: "40px 20px" }}>
-              <p style={{ color: "var(--text-color1)", fontSize: "15px", marginBottom: "8px" }}>
-                Nenhum dado encontrado para conversão nesta base.
+          ) : data && data.length > 0 ? (
+            <div style={{ width: "100%", overflowX: "auto", minHeight: "470px", maxHeight: "70vh", overflowY: "auto" }}>
+              <Table columns={columns} data={data} />
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "40px 20px" }}>
+              <p style={{ color: "var(--text-color1)", fontSize: "var(--font-size1)", marginBottom: "8px" }}>
+                Nenhum dado convertido para conversão nesta base.
               </p>
-              <span style={{ fontSize: "13px", color: "#888" }}>
-                Clique em <strong>Importar Arquivo</strong> para carregar os dados a serem exportados.
+              <span style={{ fontSize: "var(--font-size2)", color: "var(--title-color2)" }}>
+                Clique em <strong>Importar Arquivo</strong> e depois em <strong>Converter Arquivo</strong> para visualizar os dados.
               </span>
             </div>
-          </Card>
-        )}
+          )}
+        </Card>
       </main>
     </div>
   );

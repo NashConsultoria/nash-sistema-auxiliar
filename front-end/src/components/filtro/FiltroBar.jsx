@@ -106,32 +106,32 @@ export default function FiltroBar({
                             {dropdownAberto && contratanteSel && (
                                 <div className="multiselect-dropdown">
                                     {unidades.length > 0 && (
-                                        <div 
+                                        <label 
                                             className="multiselect-item multiselect-item-all"
-                                            onClick={selecionarTodasUnidades}
+                                            style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                                         >
                                             <input
                                                 type="checkbox"
                                                 checked={listaUnidadesSelecionadas.length === unidades.length && unidades.length > 0}
-                                                readOnly
+                                                onChange={selecionarTodasUnidades}
                                             />
                                             <strong>Selecionar Todas</strong>
-                                        </div>
+                                        </label>
                                     )}
 
                                     {unidades.map((u) => (
-                                        <div 
+                                        <label 
                                             key={u.id} 
                                             className="multiselect-item"
-                                            onClick={() => toggleUnidade(u.nome)}
+                                            style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                                         >
                                             <input
                                                 type="checkbox"
                                                 checked={listaUnidadesSelecionadas.includes(u.nome)}
-                                                readOnly
+                                                onChange={() => toggleUnidade(u.nome)}
                                             />
                                             <span>{u.nome}</span>
-                                        </div>
+                                        </label>
                                     ))}
 
                                     {unidades.length === 0 && (

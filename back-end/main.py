@@ -1,7 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import (auth, contratantes, dados, exportacao, importacao, logs, lotes, relatorios, usuarios)
+# 1. Adicionado 'conversor' na importação
+from app.routers import (
+    auth,
+    conversor,
+    contratantes,
+    dados,
+    exportacao,
+    importacao,
+    logs,
+    lotes,
+    relatorios,
+    usuarios,
+)
 from app.security import criar_admin_padrao_se_necessario
 
 app = FastAPI(title="NASH Valuation API")
@@ -18,13 +30,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Startup
 @app.on_event("startup")
 def startup_db():
-    criar_admin_padrao_se_necessario()
+  criar_admin_padrao_se_necessario()
 
-# Inclusão dos Roteadores
 app.include_router(auth.router)
+app.include_router(
+    conversor.router, prefix="/api"
+)
 app.include_router(contratantes.router)
 app.include_router(dados.router, prefix="/api")
 app.include_router(exportacao.router)
@@ -35,5 +50,8 @@ app.include_router(relatorios.router, prefix="/api")
 app.include_router(usuarios.router)
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True, log_level="info")
+  import uvicorn
+
+  uvicorn.run(
+      "main:app", host="127.0.0.1", port=8000, reload=True, log_level="info"
+  )
