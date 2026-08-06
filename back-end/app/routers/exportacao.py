@@ -2,6 +2,7 @@ import io
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from openpyxl.styles import PatternFill, Font, Alignment
 import pandas as pd
 
 from app.config import BANCO_AUTENTICACAO, TABELAS_PERMITIDAS
@@ -35,6 +36,15 @@ def exportar_excel(
         config_tabela = TABELAS_PERMITIDAS[tabela_alias_lower]
         query_base = config_tabela["query_customizada"]
 
+        # Define o nome da aba (Sheet). Busca de config_tabela["nome_aba"] se existir, 
+        # senão define com base no alias da tabela
+        nome_aba = config_tabela.get("nome_aba")
+        if not nome_aba:
+            if "folha" in tabela_alias_lower:
+                nome_aba = "FOLHA_PAGAMENTO"
+            else:
+                nome_aba = "BASE"
+
         # 1. Aplicação do Filtro via Subquery
         if coluna_filtro and valor_filtro:
             coluna_sanitizada = "".join(
@@ -65,10 +75,33 @@ def exportar_excel(
             if colunas_validas:
                 df = df[colunas_validas]
 
-        # 3. Gerar Excel em memória
+        # 2.1 Transformar todos os nomes das colunas para MAIÚSCULO
+        df.columns = [str(col).upper() for col in df.columns]
+
+        # 3. Gerar Excel em memória com formatação de cores e nome da aba personalizado
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="Dados")
+            df.to_excel(writer, index=False, sheet_name=nome_aba)
+            
+            # Acessa a planilha (worksheet) pelo nome configurado
+            worksheet = writer.sheets[nome_aba]
+
+            fill_header = PatternFill(start_color="35448A", end_color="35448A", fill_type="solid")
+            font_header = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+            alignment_center = Alignment(horizontal="center", vertical="center")
+
+            # Aplica estilo no cabeçalho (Linha 1)
+            for cell in worksheet[1]:
+                cell.fill = fill_header
+                cell.font = font_header
+                cell.alignment = alignment_center
+
+            # Ajusta a largura das colunas dinamicamente
+            for col in worksheet.columns:
+                max_len = max(len(str(cell.value or '')) for cell in col)
+                col_letter = col[0].column_letter
+                worksheet.column_dimensions[col_letter].width = max(max_len + 10, 12)
+
         output.seek(0)
 
         # 4. Log com IP e Detalhes

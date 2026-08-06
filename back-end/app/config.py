@@ -40,6 +40,7 @@ ORDEM_EFOLHA = {
 TABELAS_PERMITIDAS = {
     "planocontas": {
         "query_customizada": "SELECT id, planoConta, grupoConta, edre, dfc, efolha, criadoEm FROM dbo.PlanoContas",
+        "nome_aba": "PLANO_CONTA",
         "coluna_padrao_id": "id"
     },
     "movimentacao": {
@@ -67,6 +68,7 @@ TABELAS_PERMITIDAS = {
             LEFT JOIN dbo.Fornecedor f ON m.fornecedorId = f.id
             LEFT JOIN dbo.PlanoContas p ON m.planoContaId = p.id
         """,
+        "nome_aba": "BASE",
         "coluna_padrao_id": "importacaoLoteId"
     },
     "movimentacaofolhapagamento": {
@@ -99,6 +101,7 @@ TABELAS_PERMITIDAS = {
             LEFT JOIN dbo.Contratante c ON u_reg.contratanteId = c.id
             LEFT JOIN dbo.PlanoContas p ON m.planoContaId = p.id
         """,
+        "nome_aba": "FOLHA_PAGAMENTO",
         "coluna_padrao_id": "importacaoLoteId"
     },
 }

@@ -116,19 +116,6 @@ create table MovimentacaoFolhaPagamento
     foreign key (importacaoLoteId) references ImportacaoLote(id)
 )
 
-create table Conversor
-(
-	id                      int					not null		primary key		identity,
-	banco					varchar(255),
-	agencia					varchar(50),
-	conta					varchar(50),
-	data					datetime,
-	descricao				varchar(max),
-	valor					decimal(38,2),
-	tipo					varchar(50),
-	fornecedor				varchar(255),
-)
-
 create table Usuario
 (
 	id					int					not null		primary key		identity,

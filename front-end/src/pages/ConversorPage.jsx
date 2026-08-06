@@ -154,7 +154,7 @@ export default function ConversorPage() {
               <p style={{ color: "var(--text-color1)", fontSize: "var(--font-size1)" }}>Carregando dados...</p>
             </div>
           ) : data && data.length > 0 ? (
-            <div style={{ width: "100%", overflowX: "auto", minHeight: "470px", maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ width: "100%", minHeight: "470px", maxHeight: "470px", overflow: "auto" }}>
               <Table columns={columns} data={data} />
             </div>
           ) : (

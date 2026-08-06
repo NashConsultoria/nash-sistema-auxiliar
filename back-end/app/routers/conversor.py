@@ -27,6 +27,7 @@ def gerar_fornecedor_com_filtro(descricao_texto):
       "cred",
       "transf",
       "recebida",
+      "TRANSFRECEBIDA"
   ]
   pattern = re.compile(
       r"\b(" + "|".join(palavras_remover) + r")\b", flags=re.IGNORECASE
@@ -75,7 +76,13 @@ def processar_conteudo_ofx(conteudo_texto):
     payee_match = re.search(r"<NAME>(.*?)(?:<|$)", bloco, re.IGNORECASE)
     checknum_match = re.search(r"<CHECKNUM>(.*?)(?:<|$)", bloco, re.IGNORECASE)
 
-    tipo = tipo_match.group(1).strip() if tipo_match else "OTHER"
+    tipo_bruto = tipo_match.group(1).strip().upper() if tipo_match else "OTHER"
+    if tipo_bruto == "CREDIT":
+      tipo = "RECEBIMENTO"
+    elif tipo_bruto == "DEBIT":
+      tipo = "PAGAMENTO"
+    else:
+      tipo = tipo_bruto
 
     data_str = data_match.group(1).strip() if data_match else ""
     data_formatada = data_str
@@ -121,7 +128,7 @@ def processar_conteudo_ofx(conteudo_texto):
         "obs": checknum_val,
         "valor": valor,
         "tipo": tipo,
-        "fornecedor": fornecedor_val,
+        "fornecedores": fornecedor_val,
     })
 
   return transacoes_dados
@@ -158,60 +165,98 @@ async def converter_preview(file: UploadFile = File(...)):
 
 @router.post("/download")
 async def converter_download(file: UploadFile = File(...)):
-  if not file.filename.lower().endswith(".ofx"):
-    raise HTTPException(
-        status_code=400, detail="Apenas arquivos .ofx são permitidos."
+    if not file.filename.lower().endswith(".ofx"):
+        raise HTTPException(
+            status_code=400, detail="Apenas arquivos .ofx são permitidos."
+        )
+
+    conteudo_bytes = await file.read()
+    conteudo_texto = None
+    for encoding in ["cp1252", "latin-1", "utf-8"]:
+        try:
+            conteudo_texto = conteudo_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if not conteudo_texto:
+        raise HTTPException(
+            status_code=400, detail="Não foi possível decodificar o arquivo."
+        )
+
+    transacoes = processar_conteudo_ofx(conteudo_texto)
+
+    df = pd.DataFrame(transacoes)
+
+    # -----------------------------------------------------------------
+    # REORDENAGEM E ADIÇÃO DE COLUNAS EXTRAS
+    # -----------------------------------------------------------------
+    # 1. Adiciona as colunas extras vazias
+    df["CONTRATANTE"] = ""
+    df["UNIDADE"] = ""
+    df["CPF_CNPJ"] = ""
+    df["PLANO DE CONTA"] = ""
+    df["GRUPO DE CONTA"] = ""
+    df["E-DRE"] = ""
+
+    # 2. Reordena as colunas para que as colunas extras fiquem no início (ou na ordem que preferir)
+    ordem_colunas = [
+        "CONTRATANTE",
+        "UNIDADE",
+        "banco",
+        "agencia",
+        "conta",
+        "data",
+        "descricao",
+        "obs",
+        "valor",
+        "tipo",
+        "fornecedores",
+        "CPF_CNPJ",
+        "PLANO DE CONTA",
+        "GRUPO DE CONTA",
+        "E-DRE"
+    ]
+
+    # Aplica a ordem e garante que apenas as colunas existentes sejam mantidas
+    df = df[[col for col in ordem_colunas if col in df.columns]]
+
+    # 3. Transforma TODOS os cabeçalhos para MAIÚSCULO
+    df.columns = [str(col).upper() for col in df.columns]
+
+    # -----------------------------------------------------------------
+    # GERAÇÃO DO EXCEL COM FORMATAÇÃO E CORES PADRÃO
+    # -----------------------------------------------------------------
+    nome_aba = "BASE"
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name=nome_aba)
+        worksheet = writer.sheets[nome_aba]
+
+        # Estilo visual padronizado (#35448A)
+        fill_azul = PatternFill(
+            start_color="35448A", end_color="35448A", fill_type="solid"
+        )
+        fonte_branca = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+        alinhamento_centro = Alignment(horizontal="center", vertical="center")
+
+        # Aplica estilo no cabeçalho (Linha 1)
+        for cell in worksheet[1]:
+            cell.fill = fill_azul
+            cell.font = fonte_branca
+            cell.alignment = alinhamento_centro
+
+        # Largura automática das colunas
+        for col in worksheet.columns:
+            max_len = max(len(str(cell.value or "")) for cell in col)
+            col_letter = col[0].column_letter
+            worksheet.column_dimensions[col_letter].width = max(max_len + 10, 12)
+
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=extrato_convertido.xlsx"},
     )
-
-  conteudo_bytes = await file.read()
-  conteudo_texto = None
-  for encoding in ["cp1252", "latin-1", "utf-8"]:
-    try:
-      conteudo_texto = conteudo_bytes.decode(encoding)
-      break
-    except UnicodeDecodeError:
-      continue
-
-  if not conteudo_texto:
-    raise HTTPException(
-        status_code=400, detail="Não foi possível decodificar o arquivo."
-    )
-
-  transacoes = processar_conteudo_ofx(conteudo_texto)
-
-  df = pd.DataFrame(transacoes)
-
-  # Gera o excel em memória RAM (sem salvar arquivo físico no servidor)
-  output = io.BytesIO()
-  with pd.ExcelWriter(output, engine="openpyxl") as writer:
-    df.to_excel(writer, index=False, sheet_name="Extrato")
-    worksheet = writer.sheets["Extrato"]
-
-    fill_azul_escuro = PatternFill(
-        start_color="1F497D", end_color="1F497D", fill_type="solid"
-    )
-    fonte_branca = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-
-    for col in range(1, len(df.columns) + 1):
-      cell = worksheet.cell(row=1, column=col)
-      cell.fill = fill_azul_escuro
-      cell.font = fonte_branca
-      cell.alignment = Alignment(horizontal="center", vertical="center")
-
-    for column in worksheet.columns:
-      max_len = max(len(str(cell.value or "")) for cell in column)
-      col_letter = column[0].column_letter
-      worksheet.column_dimensions[col_letter].width = max(max_len + 3, 12)
-
-  output.seek(0)
-
-  # AQUI VOCÊ FAZ A LIMPEZA/EXCLUSÃO DOS DADOS DA TABELA 'Conversor' NO BANCO DE DADOS
-  # Exemplo: db.query(Conversor).delete(); db.commit() cumprindo a regra de exclusão
-
-  return StreamingResponse(
-      output,
-      media_type=(
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      ),
-      headers={"Content-Disposition": "attachment; filename=extrato_convertido.xlsx"},
-  )

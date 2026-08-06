@@ -18,7 +18,8 @@ export default function FolhaPagamentoPage() {
     const [unidades, setUnidades] = useState([]);
 
     const [contratanteSel, setContratanteSel] = useState("");
-    const [unidadeSel, setUnidadeSel] = useState("");
+    // 1. unidadeSel passa a ser um Array para suportar múltipla seleção
+    const [unidadeSel, setUnidadeSel] = useState([]);
 
     // 1. Data Início e Fim
     const [dataInicio, setDataInicio] = useState(() => {
@@ -93,12 +94,12 @@ export default function FolhaPagamentoPage() {
     }, [token, usuario]);
 
     // ==================================================================
-    // 2. FILTRO EM CASCATA: UNIDADES
+    // 2. FILTRO EM CASCATA: UNIDADES (Ajustado para Resetar Array)
     // ==================================================================
     useEffect(() => {
         if (!contratanteSel || !token) {
             setUnidades([]);
-            setUnidadeSel("");
+            setUnidadeSel([]);
             return;
         }
 
@@ -113,13 +114,13 @@ export default function FolhaPagamentoPage() {
                 const contratanteId = contratantes.find((c) => c.nome === contratanteSel)?.id;
                 const filtradas = (data || []).filter((u) => u.contratanteId === contratanteId);
                 setUnidades(filtradas);
-                setUnidadeSel("");
+                setUnidadeSel([]); // Reseta para array vazio
             })
             .catch((err) => console.error("Erro ao buscar unidades:", err));
     }, [contratanteSel, contratantes, token]);
 
     // ==================================================================
-    // 3. BUSCA DADOS DA FOLHA DE PAGAMENTO
+    // 3. BUSCA DADOS DA FOLHA DE PAGAMENTO (Suporte a múltiplas unidades)
     // ==================================================================
     useEffect(() => {
         if (!token || !usuario || !usuario.id || !requisicaoContratantesConcluida) return;
@@ -144,7 +145,10 @@ export default function FolhaPagamentoPage() {
             url += `&contratante=${encodeURIComponent(nomesVinculados.join(","))}`;
         }
 
-        if (unidadeSel) {
+        // Se houver unidades selecionadas no Array, formata como string separada por vírgula
+        if (Array.isArray(unidadeSel) && unidadeSel.length > 0) {
+            url += `&unidade=${encodeURIComponent(unidadeSel.join(","))}`;
+        } else if (typeof unidadeSel === "string" && unidadeSel.trim() !== "") {
             url += `&unidade=${encodeURIComponent(unidadeSel)}`;
         }
 
@@ -173,18 +177,22 @@ export default function FolhaPagamentoPage() {
     const { setPrintData } = usePrint();
 
     useEffect(() => {
+        const textoUnidades = Array.isArray(unidadeSel) && unidadeSel.length > 0
+            ? unidadeSel.join(", ")
+            : "Todas";
+
         setPrintData({
             titulo: "Demonstrativo da Folha de Pagamento",
             detalhes: [
                 `Contratante: ${contratanteSel || "Todos"}`,
-                `Unidade: ${unidadeSel || "Todas"}`,
+                `Unidade: ${textoUnidades}`,
                 `Período: ${dataInicio} até ${dataFim}`
             ]
         });
     }, [contratanteSel, unidadeSel, dataInicio, dataFim, setPrintData]);
 
     // ==================================================================
-    // 4. PROCESSAMENTO DA ÁRVORE (APENAS ESTRUTURA DOS DADOS)
+    // 4. PROCESSAMENTO DA ÁRVORE (Estrutura mantida)
     // ==================================================================
     const normalizarTexto = (texto) =>
         (texto || "")
@@ -325,14 +333,12 @@ export default function FolhaPagamentoPage() {
     }, [dadosAchatados, mesesAtivosIdx]);
 
     const linhasParaRenderizar = useMemo(() => {
-        // 1. Identifica os grupos principais
         const linhasNivel1 = dadosAchatados.filter((r) => r.level === 1);
         const grupoProventos = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("PROVENTO"));
         const grupoEncargos = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("ENCARGO"));
         const grupoDescontos = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("DESCONTO"));
         const grupoProvisoes = linhasNivel1.find((r) => normalizarTexto(r.descricao).includes("PROVISA") || normalizarTexto(r.descricao).includes("PROVISO"));
 
-        // 2. Valores dos Totais
         const vProventos = grupoProventos ? grupoProventos.valores : new Array(12).fill(0);
         const vEncargos = grupoEncargos ? grupoEncargos.valores : new Array(12).fill(0);
         const vDescontos = grupoDescontos ? grupoDescontos.valores : new Array(12).fill(0);
@@ -341,7 +347,6 @@ export default function FolhaPagamentoPage() {
         const vTotal = vProventos.map((p, idx) => p + vEncargos[idx] + vDescontos[idx]);
         const vTotalComProvisao = vTotal.map((t, idx) => t + vProvisoes[idx]);
 
-        // Função auxiliar para capturar um grupo Nível 1 e todos os seus filhos ativos
         const obterLinhasDoGrupo = (grupoId) => {
             if (!grupoId) return [];
             const resultado = [];
@@ -352,7 +357,7 @@ export default function FolhaPagamentoPage() {
                     if (linha.id === grupoId) {
                         capturando = true;
                     } else if (capturando) {
-                        break; // Chegou no próximo grupo Nível 1, encerra a captura deste bloco
+                        break;
                     }
                 }
 
@@ -377,13 +382,10 @@ export default function FolhaPagamentoPage() {
             return resultado;
         };
 
-        // 3. Monta a lista sequencial na ordem exata solicitada:
         const linhasFinais = [
             ...obterLinhasDoGrupo(grupoProventos?.id),
             ...obterLinhasDoGrupo(grupoEncargos?.id),
             ...obterLinhasDoGrupo(grupoDescontos?.id),
-            
-            // (=) TOTAL entra logo após o bloco de Descontos (com ou sem filhos visíveis)
             {
                 id: "calc-total",
                 descricao: "Total",
@@ -392,10 +394,7 @@ export default function FolhaPagamentoPage() {
                 valores: vTotal,
                 parentId: null
             },
-
             ...obterLinhasDoGrupo(grupoProvisoes?.id),
-
-            // (=) TOTAL COM PROVISÃO entra logo após o bloco de Provisão
             {
                 id: "calc-total-com-provisao",
                 descricao: "Total com Provisão",
