@@ -1,12 +1,13 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
+import "./FiltroBar.css"
 
 export default function FiltroBar({
     contratanteSel,
     setContratanteSel,
     contratantes = [],
-    unidadeSel,
+    unidadeSel = [],
     setUnidadeSel,
     unidades = [],
     dataInicio,
@@ -17,6 +18,43 @@ export default function FiltroBar({
     acoesAdicionais,
     datalistSuffix = "default"
 }) {
+    const [dropdownAberto, setDropdownAberto] = useState(false);
+    const dropdownRef = useRef(null);
+
+    // Garante que unidadeSel seja SEMPRE processado como Array seguro
+    const listaUnidadesSelecionadas = Array.isArray(unidadeSel) ? unidadeSel : [];
+
+    // Fecha o dropdown de unidades ao clicar fora
+    useEffect(() => {
+        function handleClickOut(e) {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setDropdownAberto(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOut);
+        return () => document.removeEventListener("mousedown", handleClickOut);
+    }, []);
+
+    const toggleUnidade = (nomeUnidade) => {
+        if (!setUnidadeSel) return;
+        
+        if (listaUnidadesSelecionadas.includes(nomeUnidade)) {
+            setUnidadeSel(listaUnidadesSelecionadas.filter((u) => u !== nomeUnidade));
+        } else {
+            setUnidadeSel([...listaUnidadesSelecionadas, nomeUnidade]);
+        }
+    };
+
+    const selecionarTodasUnidades = () => {
+        if (!setUnidadeSel) return;
+
+        if (listaUnidadesSelecionadas.length === unidades.length && unidades.length > 0) {
+            setUnidadeSel([]);
+        } else {
+            setUnidadeSel(unidades.map((u) => u.nome));
+        }
+    };
+
     return (
         <div className="no-print">
             <Card title="Filtros de Pesquisa">
@@ -30,12 +68,12 @@ export default function FiltroBar({
                             className="filtro-input filtro-input-text"
                             placeholder="Digite para buscar..."
                             disabled={desabilitarContratante}
-                            value={contratanteSel}
+                            value={contratanteSel || ""}
                             onChange={(e) => {
                                 const valorDigitado = e.target.value;
                                 setContratanteSel(valorDigitado);
                                 if (!valorDigitado && setUnidadeSel) {
-                                    setUnidadeSel("");
+                                    setUnidadeSel([]);
                                 }
                             }}
                         />
@@ -46,24 +84,61 @@ export default function FiltroBar({
                         </datalist>
                     </div>
 
-                    {/* 2. FILTRO DE UNIDADE */}
+                    {/* 2. FILTRO DE MULTI-SELEÇÃO DE UNIDADES */}
                     {setUnidadeSel && (
-                        <div className="filtro-campo">
-                            <label>Unidade:</label>
-                            <input
-                                type="text"
-                                list={`list-unidades-${datalistSuffix}`}
-                                className="filtro-input filtro-input-text"
-                                placeholder={!contratanteSel ? "Selecione um contratante..." : "Digite a unidade..."}
+                        <div className="filtro-campo" ref={dropdownRef} style={{ position: "relative" }}>
+                            <label>Unidades:</label>
+                            
+                            <button
+                                type="button"
+                                className="filtro-input filtro-input-text filtro-multiselect-btn"
                                 disabled={!contratanteSel}
-                                value={unidadeSel}
-                                onChange={(e) => setUnidadeSel(e.target.value)}
-                            />
-                            <datalist id={`list-unidades-${datalistSuffix}`}>
-                                {unidades.map((u) => (
-                                    <option key={u.id} value={u.nome} />
-                                ))}
-                            </datalist>
+                                onClick={() => setDropdownAberto(!dropdownAberto)}
+                            >
+                                {!contratanteSel
+                                    ? "Selecione um contratante..."
+                                    : listaUnidadesSelecionadas.length === 0
+                                    ? "Todas as unidades"
+                                    : `${listaUnidadesSelecionadas.length} unidade(s) selecionada(s)`}
+                            </button>
+
+                            {/* Dropdown com checkboxes */}
+                            {dropdownAberto && contratanteSel && (
+                                <div className="multiselect-dropdown">
+                                    {unidades.length > 0 && (
+                                        <div 
+                                            className="multiselect-item multiselect-item-all"
+                                            onClick={selecionarTodasUnidades}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={listaUnidadesSelecionadas.length === unidades.length && unidades.length > 0}
+                                                readOnly
+                                            />
+                                            <strong>Selecionar Todas</strong>
+                                        </div>
+                                    )}
+
+                                    {unidades.map((u) => (
+                                        <div 
+                                            key={u.id} 
+                                            className="multiselect-item"
+                                            onClick={() => toggleUnidade(u.nome)}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={listaUnidadesSelecionadas.includes(u.nome)}
+                                                readOnly
+                                            />
+                                            <span>{u.nome}</span>
+                                        </div>
+                                    ))}
+
+                                    {unidades.length === 0 && (
+                                        <div className="multiselect-item-empty">Nenhuma unidade encontrada</div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -93,7 +168,7 @@ export default function FiltroBar({
                         </div>
                     )}
 
-                    {/* BOTÕES / AÇÕES ADICIONAIS DE CADA PÁGINA */}
+                    {/* BOTÕES / AÇÕES ADICIONAIS */}
                     {acoesAdicionais && (
                         <div className="filtro-acoes">
                             {acoesAdicionais}

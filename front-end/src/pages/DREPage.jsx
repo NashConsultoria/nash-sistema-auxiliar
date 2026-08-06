@@ -19,7 +19,7 @@ export default function DREPage() {
     const [contratanteSel, setContratanteSel] = useState("");
 
     const [unidades, setUnidades] = useState([]);
-    const [unidadeSel, setUnidadeSel] = useState("");
+    const [unidadeSel, setUnidadeSel] = useState([]);
 
     // 1. Data Início e Fim
     const [dataInicio, setDataInicio] = useState(() => {
@@ -116,7 +116,7 @@ export default function DREPage() {
     useEffect(() => {
         if (!contratanteSel || !token) {
             setUnidades([]);
-            setUnidadeSel("");
+            setUnidadeSel([]);
             return;
         }
 
@@ -131,7 +131,7 @@ export default function DREPage() {
                 const contratanteId = contratantes.find((c) => c.nome === contratanteSel)?.id;
                 const filtradas = data.filter((u) => u.contratanteId === contratanteId);
                 setUnidades(filtradas);
-                setUnidadeSel("");
+                setUnidadeSel([]);
             })
             .catch((err) => console.error("Erro ao buscar unidades:", err));
     }, [contratanteSel, contratantes, token]);
@@ -162,8 +162,8 @@ export default function DREPage() {
             url += `&contratante=${encodeURIComponent(nomesVinculados.join(","))}`;
         }
 
-        if (unidadeSel) {
-            url += `&unidade=${encodeURIComponent(unidadeSel)}`;
+        if (Array.isArray(unidadeSel) && unidadeSel.length > 0) {
+            url += `&unidade=${encodeURIComponent(unidadeSel.join(","))}`;
         }
 
         fetch(url, {
@@ -188,11 +188,16 @@ export default function DREPage() {
     const { setPrintData } = usePrint();
     
     useEffect(() => {
+        const textoUnidade = 
+            !Array.isArray(unidadeSel) || unidadeSel.length === 0 
+                ? "Todas" 
+                : unidadeSel.join(", ");
+
         setPrintData({
             titulo: "Demonstração do Resultado do Exercício (DRE)",
             detalhes: [
                 `Contratante: ${contratanteSel || "Todos"}`,
-                `Unidade: ${unidadeSel || "Todas"}`,
+                `Unidade: ${textoUnidade}`,
                 `Período: ${dataInicio} até ${dataFim}`
             ]
         });
@@ -265,11 +270,9 @@ export default function DREPage() {
     const mesesBase = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
         "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-    // 2. Detecta quais meses estão contidos no período selecionado (dataInicio até dataFim)
     const mesesAtivosIdx = useMemo(() => {
         if (!dataInicio || !dataFim) return Array.from({ length: 12 }, (_, i) => i);
 
-        // Converte YYYY-MM-DD para índices de mês (0=Jan, 11=Dez)
         const mesInicio = parseInt(dataInicio.split("-")[1], 10) - 1;
         const mesFim = parseInt(dataFim.split("-")[1], 10) - 1;
 
@@ -277,7 +280,6 @@ export default function DREPage() {
         if (mesInicio <= mesFim) {
             for (let i = mesInicio; i <= mesFim; i++) indices.push(i);
         } else {
-            // Se virar o ano (ex: Nov a Mar)
             for (let i = mesInicio; i < 12; i++) indices.push(i);
             for (let i = 0; i <= mesFim; i++) indices.push(i);
         }

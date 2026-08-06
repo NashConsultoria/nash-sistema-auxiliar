@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { FaCalculator, FaChartLine, FaFileAlt, FaMoneyBill, FaBox, FaCoins, FaBalanceScale, FaTable, FaFileImport, FaRegFileAlt } from "react-icons/fa";
+import { FaArrowRotateRight } from "react-icons/fa6";
 import "./NavBar.css";
 import { useAuth } from "../../context/AuthContext";
 
@@ -63,6 +64,12 @@ const menu = [
         path: "/importacao",
         icon: <FaFileImport />,
         perfisPermitidos: [1]
+    },
+    {
+        label: "Conversor",
+        path: "/conversor",
+        icon: <FaArrowRotateRight />,
+        perfisPermitidos: [1, 2]
     },
 ];
 

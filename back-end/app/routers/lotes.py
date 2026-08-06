@@ -8,7 +8,6 @@ from app.security import exigir_perfil, obter_usuario_atual, registrar_log
 
 router = APIRouter(prefix="/api", tags=["Lotes de Importação"])
 
-
 @router.get("/{banco}/lotes")
 def listar_lotes_importacao(
     banco: str,

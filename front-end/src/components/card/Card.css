@@ -6,7 +6,7 @@
   box-shadow: var(--box-shadow);
   display: flex;
   flex-direction: column;
-  overflow: hidden; 
+  overflow: visible; 
   transition: all 0.3s ease;
   width: 100%; /* Garante ocupar o contêiner em qualquer resolução */
 }
@@ -20,6 +20,8 @@
   color: var(--text-color2);
   background: var(--bg-color1);
   gap: 10px;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
 }
 
 .card-header h1 {
