@@ -26,12 +26,17 @@ def listar_lotes_importacao(
                 l.criadoEm,
                 CASE 
                     WHEN l.contratanteId IS NULL THEN (SELECT COUNT(*) FROM dbo.PlanoContas)
-                    ELSE COUNT(m.id)
+                    ELSE (
+                        ISNULL((SELECT COUNT(*) FROM dbo.Movimentacao WHERE importacaoLoteId = l.id), 0) +
+                        ISNULL((SELECT COUNT(*) FROM dbo.MovimentacaoFolhaPagamento WHERE importacaoLoteId = l.id), 0)
+                    )
                 END AS totalMovimentacoes,
-                SUM(ISNULL(m.valor, 0)) AS valorTotal
+                (
+                    ISNULL((SELECT SUM(ISNULL(valor, 0)) FROM dbo.Movimentacao WHERE importacaoLoteId = l.id), 0) +
+                    ISNULL((SELECT SUM(ISNULL(valor, 0)) FROM dbo.MovimentacaoFolhaPagamento WHERE importacaoLoteId = l.id), 0)
+                ) AS valorTotal
             FROM dbo.ImportacaoLote l
             LEFT JOIN dbo.Contratante c ON l.contratanteId = c.id
-            LEFT JOIN dbo.Movimentacao m ON m.importacaoLoteId = l.id
             WHERE 1=1
         """
         params = []
@@ -44,9 +49,7 @@ def listar_lotes_importacao(
             query += " AND l.contratanteId = ?"
             params.append(contratante_id)
 
-        # l.contratanteId no GROUP BY para compatibilidade com SQL Server
         query += """ 
-            GROUP BY l.id, l.nomeArquivo, c.nome, l.criadoEm, l.contratanteId 
             ORDER BY l.criadoEm DESC
         """
 

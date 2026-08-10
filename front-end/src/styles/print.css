@@ -159,7 +159,7 @@
   .dashboard-grid .apexcharts-canvas,
   .dashboard-grid canvas {
     width: 100% !important;
-    height: 220px !important;         /* Fixa altura segura para impressão A4 landscape */
+    height: 350px !important;         /* Fixa altura segura para impressão A4 landscape */
     max-width: 100% !important;
     margin: 0 auto !important;
   }

@@ -38,6 +38,17 @@ def normalizar_texto(texto) -> str:
     
     return texto_limpo.strip().upper()
 
+def corrigir_encoding(texto: str) -> str:
+    """Corrige caracteres corrompidos por encoding (ex: LiquidaÃ§Ã£o -> Liquidação)"""
+    if not texto:
+        return ""
+    try:
+        # Tenta re-codificar o texto quebrado para ISO-8859-1 e decodificar em UTF-8
+        return texto.encode("latin1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        # Se falhar ou o texto já estiver correto, retorna o texto original
+        return texto
+    
 def obter_ordem_efolha(nome_efolha: str) -> int:
     """
     Retorna o número de ordenação do grupo E-FOLHA.

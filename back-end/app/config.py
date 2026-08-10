@@ -106,6 +106,52 @@ TABELAS_PERMITIDAS = {
     },
 }
 
+PALAVRAS_REMOVIDAS = [
+    "recebimento",
+    "pagamento",
+    "pix",
+    "saque",
+    "outra if",
+    "recebido",
+    "emitido",
+    "deb",
+    "cred",
+    "transf",
+    "recebida",
+    "TRANSFRECEBIDA"
+]
+
+REGRAS_FORNECEDORES = [
+    ("debconvtributos federais - rfb", "RECEITA FEDERAL"),
+    ("tarifa", "BANCO"),
+    ("pagamento agua", "SABESP"),
+    ("luz copel", "COPEL"),
+    ("CEF MATRIZ", "CAIXA ECNOMICA FEDERAL"),
+    ("SALDO", "SALDO"),
+    ("SIMPLES NACIONAL", "RECEITA FEDERAL"),
+    ("IOF", "RECEITA FEDERAL"),
+    ("DARF", "RECEITA FEDERAL"),
+    ("Rende Facil", "(NOME DO BANCO)"),
+    ("Tar. agrupadas", "(NOME DO BANCO)"),
+    ("Pacote de Serviços", "(NOME DO BANCO)"),
+    ("TARIFA MANUTENCAO", "(NOME DO BANCO)"),
+    ("Tarifa Pix Recebido", "(NOME DO BANCO)"),
+    ("NASH CONSULTORIA", "NASH CONSULTORIA EMPRESARIAL"),
+    ("Pagamento de Impostos - DAS", "RECEITA FEDERAL"),
+    ("DAS - SIMPLES NACIONAL", "RECEITA FEDERAL"),
+    ("RFB", "RECEITA FEDERAL"),
+    ("Mensalidade", "(NOME DO BANCO)"),
+    ("Tar DOC/TED PESSOAL", "(NOME DO BANCO)"),
+    ("Tarifa (Saída)", "(NOME DO BANCO)"),
+    ("DÉB.CONV.TRIBUTOS FEDERAIS - RFB", "RECEITA FEDERAL"),
+    ("TRIBUTOS FEDERAIS", "RECEITA FEDERAL"),
+    ("PRONAMPE", "(NOME DO BANCO)"),
+    ("PFL CIA PAULISTA DE FORC", "CPFL PAULISTA"),
+    ("SEM PARAR INSTITUICAO", "SEM PARAR INSTITUICAO"),
+    ("TELEFONICA BRASIL S.A", "VIVO FIXO/BRASIL"),
+    ("ZOOP BRASIL", "IFOOD"),
+]
+
 MAPA_BANCOS = {
     "332": "ACESSO SOLUCOES DE PAGAMENTO S.A.",
     "117": "ADVANCED CORRETORA DE CAMBIO LTDA",

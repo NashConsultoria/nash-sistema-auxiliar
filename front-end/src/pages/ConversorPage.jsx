@@ -23,7 +23,7 @@ export default function ConversorPage() {
     { key: "obs", label: "Observação" },
     { key: "valor", label: "Valor" },
     { key: "tipo", label: "Tipo" },
-    { key: "fornecedor", label: "Fornecedor" },
+    { key: "fornecedores", label: "Fornecedor" },
   ];
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function ConversorPage() {
     const file = e.target.files[0];
     if (file) {
       if (!file.name.toLowerCase().endsWith(".ofx")) {
-        alert("Apenas arquivos no formato .ofx são permitidos!");
+        alert("Apenas arquivos no formato .ofx ou .pdf são permitidos!");
         return;
       }
       setFileSelected(file);
@@ -93,7 +93,7 @@ export default function ConversorPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "extrato_convertido.xlsx";
+      a.download = "BASE_FINANCEIRA_CONTRATANTE_MES.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();

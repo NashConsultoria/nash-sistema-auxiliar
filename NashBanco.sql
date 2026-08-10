@@ -58,11 +58,11 @@ create table ImportacaoLote
 create table PlanoContas
 (
 	id					int					not null		primary key		identity,
-	planoConta			varchar(100)		not null,						-- Nível 3 (Ex: RECEITA SERVIÇOS)
-	grupoConta			varchar(100)		not null,						-- Nível 2 (Ex: RECEITA OPERACIONAL BRUTA)
-	edre				varchar(100)		not null,						-- Nível 1 (Ex: RECEIRA OPERACIONAL)
-	dfc					varchar(100)		not null,						-- Nivel 1 (Ex: XX)
-	efolha				varchar(100)		not null,						-- Nivel 1 (Ex: XX)
+	planoConta			varchar(100)		not null,						-- Nível 1
+	grupoConta			varchar(100)		not null,						-- Nível 2
+	edre				varchar(100)		not null,						-- Nível 3
+	dfc					varchar(100)		not null,						-- Nivel 3
+	efolha				varchar(100)		not null,						-- Nivel 3
 	criadoEm			datetime							default			getdate(),
 	importacaoLoteId	int,
 
@@ -166,7 +166,6 @@ select * from ImportacaoLote
 select * from PlanoContas
 select * from Movimentacao
 select * from MovimentacaoFolhaPagamento
-select * from Conversor
 select * from Usuario
 select * from UsuarioContratante
 select * from LogUsuario

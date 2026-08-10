@@ -6,8 +6,8 @@ import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 
 # Supondo que esses imports venham da sua estrutura atual
-from app.config import MAPA_BANCOS
-from app.utils import normalizar_texto
+from app.config import MAPA_BANCOS, REGRAS_FORNECEDORES, PALAVRAS_REMOVIDAS
+from app.utils import corrigir_encoding
 
 router = APIRouter(prefix="/NashBancoConsultoria/conversor", tags=["Conversor OFX"])
 
@@ -39,99 +39,102 @@ def gerar_fornecedor_com_filtro(descricao_texto):
   fornecedor_limpo = re.sub(r"\s+", " ", fornecedor_limpo).strip()
   return fornecedor_limpo
 
-
 def processar_conteudo_ofx(conteudo_texto):
-  bankid_match = re.search(r"<BANKID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
-  if bankid_match:
-    banco_codigo = bankid_match.group(1).strip().lstrip("0")
-    banco_val = MAPA_BANCOS.get(banco_codigo)
-    if not banco_val and banco_codigo.isdigit():
-      banco_val = MAPA_BANCOS.get(banco_codigo.zfill(3))
-    if not banco_val:
-      banco_val = banco_codigo.upper()
-  else:
-    banco_val = "DESCONHECIDO"
+    bankid_match = re.search(r"<BANKID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
+    if bankid_match:
+        banco_codigo = bankid_match.group(1).strip().lstrip("0")
+        banco_val = MAPA_BANCOS.get(banco_codigo)
+        if not banco_val and banco_codigo.isdigit():
+            banco_val = MAPA_BANCOS.get(banco_codigo.zfill(3))
+        if not banco_val:
+            banco_val = banco_codigo.upper()
+    else:
+        banco_val = "DESCONHECIDO"
 
-  agencia_match = re.search(r"<BRANCHID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
-  conta_match = re.search(r"<ACCTID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
+    agencia_match = re.search(r"<BRANCHID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
+    conta_match = re.search(r"<ACCTID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
 
-  agencia_val = agencia_match.group(1).strip() if agencia_match else ""
-  conta_val = conta_match.group(1).strip() if conta_match else ""
+    agencia_val = agencia_match.group(1).strip() if agencia_match else ""
+    conta_val = conta_match.group(1).strip() if conta_match else ""
 
-  blocos_transacao = re.findall(
-      r"<STMTTRN>(.*?)</STMTTRN>", conteudo_texto, re.DOTALL | re.IGNORECASE
-  )
-  if not blocos_transacao:
     blocos_transacao = re.findall(
-        r"<TRN>(.*?)</TRN>", conteudo_texto, re.DOTALL | re.IGNORECASE
+        r"<STMTTRN>(.*?)</STMTTRN>", conteudo_texto, re.DOTALL | re.IGNORECASE
     )
+    if not blocos_transacao:
+        blocos_transacao = re.findall(
+            r"<TRN>(.*?)</TRN>", conteudo_texto, re.DOTALL | re.IGNORECASE
+        )
 
-  transacoes_dados = []
+    transacoes_dados = []
 
-  for bloco in blocos_transacao:
-    tipo_match = re.search(r"<TRNTYPE>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-    data_match = re.search(r"<DTPOSTED>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-    valor_match = re.search(r"<TRNAMT>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-    memo_match = re.search(r"<MEMO>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-    payee_match = re.search(r"<NAME>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-    checknum_match = re.search(r"<CHECKNUM>(.*?)(?:<|$)", bloco, re.IGNORECASE)
+    for bloco in blocos_transacao:
+        tipo_match = re.search(r"<TRNTYPE>(.*?)(?:<|$)", bloco, re.IGNORECASE)
+        data_match = re.search(r"<DTPOSTED>(.*?)(?:<|$)", bloco, re.IGNORECASE)
+        valor_match = re.search(r"<TRNAMT>(.*?)(?:<|$)", bloco, re.IGNORECASE)
+        memo_match = re.search(r"<MEMO>(.*?)(?:<|$)", bloco, re.IGNORECASE)
+        payee_match = re.search(r"<NAME>(.*?)(?:<|$)", bloco, re.IGNORECASE)
+        checknum_match = re.search(r"<CHECKNUM>(.*?)(?:<|$)", bloco, re.IGNORECASE)
 
-    tipo_bruto = tipo_match.group(1).strip().upper() if tipo_match else "OTHER"
-    if tipo_bruto == "CREDIT":
-      tipo = "RECEBIMENTO"
-    elif tipo_bruto == "DEBIT":
-      tipo = "PAGAMENTO"
-    else:
-      tipo = tipo_bruto
+        tipo_bruto = tipo_match.group(1).strip().upper() if tipo_match else "OTHER"
+        if tipo_bruto == "CREDIT":
+            tipo = "RECEBIMENTO"
+        elif tipo_bruto == "DEBIT":
+            tipo = "PAGAMENTO"
+        else:
+            tipo = tipo_bruto
 
-    data_str = data_match.group(1).strip() if data_match else ""
-    data_formatada = data_str
-    if len(data_str) >= 8:
-      ano = data_str[0:4]
-      mes = data_str[4:6]
-      dia = data_str[6:8]
-      data_formatada = f"{dia}/{mes}/{ano}"
+        data_str = data_match.group(1).strip() if data_match else ""
+        data_formatada = data_str
+        if len(data_str) >= 8:
+            ano = data_str[0:4]
+            mes = data_str[4:6]
+            dia = data_str[6:8]
+            data_formatada = f"{dia}/{mes}/{ano}"
 
-    valor_str = valor_match.group(1).strip() if valor_match else "0"
-    valor_str = valor_str.replace(",", ".")
-    try:
-      valor = float(valor_str)
-    except ValueError:
-      valor = 0.0
+        valor_str = valor_match.group(1).strip() if valor_match else "0"
+        valor_str = valor_str.replace(",", ".")
+        try:
+            valor = float(valor_str)
+        except ValueError:
+            valor = 0.0
 
-    memo = normalizar_texto(memo_match.group(1).strip() if memo_match else "")
-    payee = normalizar_texto(payee_match.group(1).strip() if payee_match else "")
-    checknum_val = (
-        normalizar_texto(checknum_match.group(1).strip())
-        if checknum_match
-        else ""
-    )
+        # Aplica a correção de encoding mantendo acentos e pontuações originais
+        memo = corrigir_encoding(memo_match.group(1).strip() if memo_match else "")
+        payee = corrigir_encoding(payee_match.group(1).strip() if payee_match else "")
+        checknum_val = corrigir_encoding(checknum_match.group(1).strip() if checknum_match else "")
 
-    if payee and memo:
-      descricao_original = f"{payee} - {memo}"
-    elif payee:
-      descricao_original = payee
-    else:
-      descricao_original = memo
+        if payee and memo:
+            descricao_original = f"{payee} - {memo}"
+        elif payee:
+            descricao_original = payee
+        else:
+            descricao_original = memo
 
-    if "tarifa" in descricao_original.lower():
-      fornecedor_val = banco_val
-    else:
-      fornecedor_val = gerar_fornecedor_com_filtro(descricao_original)
+        # Regra para FORNECEDORES (Compara sem alterar o texto guardado)
+        desc_lower = descricao_original.lower()
+        fornecedor_val = None
 
-    transacoes_dados.append({
-        "banco": banco_val,
-        "agencia": agencia_val,
-        "conta": conta_val,
-        "data": data_formatada,
-        "descricao": descricao_original,
-        "obs": checknum_val,
-        "valor": valor,
-        "tipo": tipo,
-        "fornecedores": fornecedor_val,
-    })
+        for termo, fornecedor in REGRAS_FORNECEDORES:
+            if termo.lower() in desc_lower:
+                fornecedor_val = banco_val if fornecedor == "BANCO" else fornecedor
+                break
 
-  return transacoes_dados
+        if not fornecedor_val:
+            fornecedor_val = gerar_fornecedor_com_filtro(descricao_original)
+
+        transacoes_dados.append({
+            "banco": banco_val,
+            "agencia": agencia_val,
+            "conta": conta_val,
+            "data": data_formatada,
+            "descricao": descricao_original,
+            "obs": checknum_val,
+            "valor": valor,
+            "tipo": tipo,
+            "fornecedores": fornecedor_val,
+        })
+
+    return transacoes_dados
 
 
 @router.post("/preview")
@@ -258,5 +261,5 @@ async def converter_download(file: UploadFile = File(...)):
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=extrato_convertido.xlsx"},
+        headers={"Content-Disposition": "attachment; filename=BASE_FINANCEIRA_CONTRATANTE_MES.xlsx"},
     )

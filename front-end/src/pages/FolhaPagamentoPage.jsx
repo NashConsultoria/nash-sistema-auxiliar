@@ -18,7 +18,6 @@ export default function FolhaPagamentoPage() {
     const [unidades, setUnidades] = useState([]);
 
     const [contratanteSel, setContratanteSel] = useState("");
-    // 1. unidadeSel passa a ser um Array para suportar múltipla seleção
     const [unidadeSel, setUnidadeSel] = useState([]);
 
     // 1. Data Início e Fim
@@ -94,7 +93,7 @@ export default function FolhaPagamentoPage() {
     }, [token, usuario]);
 
     // ==================================================================
-    // 2. FILTRO EM CASCATA: UNIDADES (Ajustado para Resetar Array)
+    // 2. FILTRO EM CASCATA: UNIDADES
     // ==================================================================
     useEffect(() => {
         if (!contratanteSel || !token) {
@@ -102,6 +101,10 @@ export default function FolhaPagamentoPage() {
             setUnidadeSel([]);
             return;
         }
+
+        // Busca o ID do contratante atual
+        const contratanteObj = contratantes.find((c) => c.nome === contratanteSel);
+        const contratanteId = contratanteObj?.id;
 
         fetch("http://127.0.0.1:8000/api/NashBancoConsultoria/dados/Unidade", {
             headers: { Authorization: `Bearer ${token}` },
@@ -111,16 +114,16 @@ export default function FolhaPagamentoPage() {
                 return res.json();
             })
             .then((data) => {
-                const contratanteId = contratantes.find((c) => c.nome === contratanteSel)?.id;
                 const filtradas = (data || []).filter((u) => u.contratanteId === contratanteId);
                 setUnidades(filtradas);
-                setUnidadeSel([]); // Reseta para array vazio
+                // NÃO resete o setUnidadeSel([]) aqui se ele já estiver preenchido com as unidades do mesmo contratante
             })
             .catch((err) => console.error("Erro ao buscar unidades:", err));
-    }, [contratanteSel, contratantes, token]);
+
+    }, [contratanteSel, token]);
 
     // ==================================================================
-    // 3. BUSCA DADOS DA FOLHA DE PAGAMENTO (Suporte a múltiplas unidades)
+    // 3. BUSCA DADOS DA FOLHA DE PAGAMENTO
     // ==================================================================
     useEffect(() => {
         if (!token || !usuario || !usuario.id || !requisicaoContratantesConcluida) return;
@@ -136,21 +139,32 @@ export default function FolhaPagamentoPage() {
         setCarregando(true);
         setErro(null);
 
-        let url = `http://127.0.0.1:8000/api/NashBancoConsultoria/relatorio-folha-pagamento?data_inicio=${dataInicio}&data_fim=${dataFim}`;
+        // Montagem segura dos parâmetros usando URLSearchParams
+        const params = new URLSearchParams();
+        params.append("data_inicio", dataInicio);
+        params.append("data_fim", dataFim);
 
         if (contratanteSel) {
-            url += `&contratante=${encodeURIComponent(contratanteSel)}`;
+            params.append("contratante", contratanteSel);
         } else if (!ehAdminOuSupremo && contratantes.length > 0) {
             const nomesVinculados = contratantes.map(c => c.nome);
-            url += `&contratante=${encodeURIComponent(nomesVinculados.join(","))}`;
+            params.append("contratante", nomesVinculados.join(","));
         }
 
-        // Se houver unidades selecionadas no Array, formata como string separada por vírgula
+        // Tratamento das Unidades
         if (Array.isArray(unidadeSel) && unidadeSel.length > 0) {
-            url += `&unidade=${encodeURIComponent(unidadeSel.join(","))}`;
+            // Envia cada unidade individualmente se o backend esperar &unidade=A&unidade=B,
+            // ou separadas por vírgula limpa de acordo com a sua API:
+            unidadeSel.forEach((u) => params.append("unidade", u));
+            
+            // NOTA: Se seu backend espera explicitamente em uma única string separada por vírgula,
+            // use a linha abaixo no lugar da de cima:
+            // params.append("unidade", unidadeSel.join(","));
         } else if (typeof unidadeSel === "string" && unidadeSel.trim() !== "") {
-            url += `&unidade=${encodeURIComponent(unidadeSel)}`;
+            params.append("unidade", unidadeSel);
         }
+
+        const url = `http://127.0.0.1:8000/api/NashBancoConsultoria/relatorio-folha-pagamento?${params.toString()}`;
 
         fetch(url, {
             headers: { Authorization: `Bearer ${token}` },
@@ -468,6 +482,7 @@ export default function FolhaPagamentoPage() {
                         data={dadosComMetricasFiltrados}
                         series={[
                             { descricao: "Proventos", type: "bar", color: "#35448a" },
+                            { descricao: "Descontos", type: "line", color: "#FF6200" },
                         ]}
                     />
                 </div>

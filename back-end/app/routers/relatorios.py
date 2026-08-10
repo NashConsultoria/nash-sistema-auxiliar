@@ -42,8 +42,13 @@ def obter_dre(
                     condicoes.append(f"UPPER(TRIM(c.nome)) IN ({placeholders})")
                     parametros.extend(nomes)
             if unidade:
-                condicoes.append("UPPER(TRIM(u.nome)) = UPPER(TRIM(?))")
-                parametros.append(unidade)
+                unidades_list = [
+                    u.strip().upper() for u in unidade.split(",") if u.strip()
+                ]
+                if unidades_list:
+                    placeholders_u = ",".join(["?"] * len(unidades_list))
+                    condicoes.append(f"UPPER(TRIM(u.nome)) IN ({placeholders_u})")
+                    parametros.extend(unidades_list)
 
         clausula_where = " AND ".join(condicoes)
 
@@ -288,8 +293,13 @@ def obter_folha_pagamento(
                     parametros.extend(nomes)
 
             if unidade:
-                condicoes.append("UPPER(TRIM(u.nome)) = UPPER(TRIM(?))")
-                parametros.append(unidade)
+                unidades_list = [
+                    u.strip().upper() for u in unidade.split(",") if u.strip()
+                ]
+                if unidades_list:
+                    placeholders_u = ",".join(["?"] * len(unidades_list))
+                    condicoes.append(f"UPPER(TRIM(u.nome)) IN ({placeholders_u})")
+                    parametros.extend(unidades_list)
 
         clausula_where = ("WHERE " + " AND ".join(condicoes)) if condicoes else ""
 
