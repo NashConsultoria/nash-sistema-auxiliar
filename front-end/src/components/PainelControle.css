@@ -24,6 +24,12 @@
   margin-top: 12px;
 }
 
+/* Define o tamanho de qualquer ícone dentro dos botões de menu */
+.sidebar-menu .menu-btn svg {
+    font-size: 20px; /* ou width: 20px; height: 20px; */
+    flex-shrink: 0;  /* evita que o ícone esmague se o texto for grande */
+}
+
 .menu-btn {
   display: flex;
   align-items: center;
