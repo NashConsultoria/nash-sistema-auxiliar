@@ -7,7 +7,7 @@ import Button from "../components/button/Button";
 import { useAuth } from "../context/AuthContext";
 import { usePrint } from "../context/PrintContext";
 
-export default function FolhaPagamentoPage() {
+export default function FolhaPagamento() {
     const { usuario, token } = useAuth();
 
     const [dadosFolha, setDadosFolha] = useState([]);

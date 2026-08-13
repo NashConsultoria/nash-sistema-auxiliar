@@ -24,7 +24,7 @@ def processar_importacao_plano_contas(
         buffer = io.BytesIO(conteudo_arquivo)
         
         try:
-            df = pd.read_excel(buffer, sheet_name='BASE_PLANO')
+            df = pd.read_excel(buffer, sheet_name='PLANO_CONTA')
         except Exception:
             buffer.seek(0)
             df = pd.read_excel(buffer)
@@ -150,8 +150,7 @@ async def processar_importacao_movimentacoes(
 ):
     conexao = None
     try:
-        NOME_DA_ABA = "BASE"
-        df = pd.read_excel(io.BytesIO(conteudo), sheet_name=NOME_DA_ABA)
+        df = pd.read_excel(io.BytesIO(conteudo), sheet_name="BASE_FINANCEIRA")
         df.columns = [c.strip() for c in df.columns]
 
         mapeamento_colunas = {
@@ -477,8 +476,7 @@ async def processar_importacao_movimentacoes_folha(
 ):
     conexao = None
     try:
-        NOME_DA_ABA = "FOLHA_PAGAMENTO"
-        df = pd.read_excel(io.BytesIO(conteudo), sheet_name=NOME_DA_ABA)
+        df = pd.read_excel(io.BytesIO(conteudo), sheet_name="FOLHA_PAGAMENTO")
         df.columns = [c.strip() for c in df.columns]
 
         mapeamento_colunas = {

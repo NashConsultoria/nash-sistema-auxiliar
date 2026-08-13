@@ -1,6 +1,6 @@
 .card {
   background-color: var(--bg-color2); 
-  color: var(--text-color1);
+  color: var(--text-color4);
   border-radius: 8px;
   padding: 0; 
   box-shadow: var(--box-shadow);
@@ -18,7 +18,7 @@
   align-items: center;
   padding: 14px 16px;
   border-bottom: var(--border-color);
-  color: var(--text-color2);
+  color: var(--text-color4);
   background: var(--bg-color1);
   gap: 10px;
   border-top-left-radius: 8px;
@@ -29,13 +29,13 @@
   margin: 0;
   font-size: var(--font-size1);
   font-weight: 600;
-  color: var(--text-color2);
+  color: var(--text-color4);
   line-height: 1.2;
 }
 
 .card-body {
   padding: 16px;
-  color: var(--text-color1);
+  color: var(--text-color3);
   min-width: 0;
 }
 
@@ -61,35 +61,6 @@
   font-size: 0.85rem;
   opacity: 0.8;
 }
-
-/* ==================================================================== */
-/* 2. NOVO COMPONENTE: O Subcard Azul Claro Interno                     */
-/* ==================================================================== */
-.subcard-azul-claro {
-  background-color: rgba(30, 58, 138, 0.25); 
-  border: 1px solid rgba(59, 130, 246, 0.15); 
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Título de dentro do subcard azul */
-.subcard-azul-claro h4 {
-  color: #93c5fd; 
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0;
-}
-
-/* Número de dentro do subcard azul */
-.subcard-azul-claro .card-kpi-value {
-  color: #ffffff; 
-  font-size: 1.6rem;
-  margin-top: 6px;
-}
-
 
 /* ==========================================
    REGRAS DE RESPONSIVIDADE (MOBILE / TABLET)

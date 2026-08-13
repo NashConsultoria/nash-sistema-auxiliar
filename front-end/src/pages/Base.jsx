@@ -3,7 +3,7 @@ import Table from "../components/table/Table";
 import Card from "../components/card/Card";
 import { useAuth } from "../context/AuthContext";
 
-export default function BasePage() {
+export default function Base() {
     const { usuario, token } = useAuth();
     
     const [tipoVisao, setTipoVisao] = useState("dre");
@@ -66,7 +66,7 @@ export default function BasePage() {
                 { key: "cboCargo", label: "CBO Cargo" },
                 { key: "cargo", label: "Cargo" },
                 { key: "departamento", label: "Departamento" },
-                { key: "dataAdmissao", label: "Admissão" },
+                { key: "dataAdmissao", label: "Data Admissão" },
                 { key: "descricao", label: "Descrição" },
                 { key: "planoConta", label: "Plano de Conta" },
                 { key: "grupoConta", label: "Grupo de Conta" },

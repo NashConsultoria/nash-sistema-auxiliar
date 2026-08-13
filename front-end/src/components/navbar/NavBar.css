@@ -5,8 +5,7 @@
   align-items: center;
   padding: 0 32px;
   border-bottom: var(--border-color);
-  overflow-x: auto;                  /* Ativa o scroll horizontal caso os itens excedam a tela */
-  overflow-y: hidden;
+  overflow-y: visible !important;
   -webkit-overflow-scrolling: touch; /* Rolagem inercial suave em iPhones/iPads */
   scrollbar-width: none;             /* Esconde a barra de scroll no Firefox */
 }
@@ -28,7 +27,7 @@
   align-items: center;
   gap: 6px;
   text-decoration: none;
-  color: var(--title-color1);
+  color: var(--text-color1);
   font-size: var(--font-size2);
   font-weight: 500;
   cursor: pointer;
@@ -61,6 +60,48 @@
   flex-shrink: 0;
 }
 
+.modulo-seletor-container {
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.modulo-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0;
+}
+
+.modulo-dropdown-item {
+    background: none;
+    border: none;
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    width: 100%;
+}
+
+.modulo-dropdown-item:hover {
+    background-color: #f5f5f5;
+    color: #000;
+}
+
+.modulo-dropdown-item.active {
+    font-weight: bold;
+    background-color: #eef2ff;
+    color: #1d4ed8;
+}
 
 /* ==========================================
    HOVER (Apenas para dispositivos com Mouse)

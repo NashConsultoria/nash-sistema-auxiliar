@@ -39,7 +39,7 @@ ORDEM_EFOLHA = {
 
 TABELAS_PERMITIDAS = {
     "planocontas": {
-        "query_customizada": "SELECT id, planoConta, grupoConta, edre, dfc, efolha, criadoEm FROM dbo.PlanoContas",
+        "query_customizada": "SELECT id, planoConta AS [PLANO DE CONTAS], grupoConta AS [GRUPO DE CONTAS], edre, dfc, efolha, criadoEm FROM dbo.PlanoContas",
         "nome_aba": "PLANO_CONTA",
         "coluna_padrao_id": "id"
     },
@@ -57,9 +57,11 @@ TABELAS_PERMITIDAS = {
                 m.obs AS OBSERVACAO,
                 m.valor AS VALOR,
                 m.tipo AS TIPO,
-                f.nome AS FORNECEDOR,
+                f.nome AS FORNECEDORES,
                 f.cpf_cnpj AS CPF_CNPJ,
                 p.planoConta AS [PLANO DE CONTA],
+                p.grupoConta AS [GRUPO DE CONTA],
+                p.edre AS [E-DRE],
                 m.importacaoLoteId
             FROM dbo.Movimentacao m
             LEFT JOIN dbo.Unidade u ON m.unidadeId = u.id
@@ -68,7 +70,7 @@ TABELAS_PERMITIDAS = {
             LEFT JOIN dbo.Fornecedor f ON m.fornecedorId = f.id
             LEFT JOIN dbo.PlanoContas p ON m.planoContaId = p.id
         """,
-        "nome_aba": "BASE",
+        "nome_aba": "BASE_FINANCEIRA",
         "coluna_padrao_id": "importacaoLoteId"
     },
     "movimentacaofolhapagamento": {
@@ -118,7 +120,14 @@ PALAVRAS_REMOVIDAS = [
     "cred",
     "transf",
     "recebida",
-    "TRANSFRECEBIDA"
+    "TRANSFRECEBIDA",
+    " de boleto",
+    "compra",
+    "enviado",
+    "compra com cartão",
+    "compra com cartao",
+    "com cartao"
+    "ocorrencia"
 ]
 
 REGRAS_FORNECEDORES = [

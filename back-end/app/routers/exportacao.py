@@ -36,14 +36,12 @@ def exportar_excel(
         config_tabela = TABELAS_PERMITIDAS[tabela_alias_lower]
         query_base = config_tabela["query_customizada"]
 
-        # Define o nome da aba (Sheet). Busca de config_tabela["nome_aba"] se existir, 
-        # senão define com base no alias da tabela
         nome_aba = config_tabela.get("nome_aba")
         if not nome_aba:
             if "folha" in tabela_alias_lower:
                 nome_aba = "FOLHA_PAGAMENTO"
             else:
-                nome_aba = "BASE"
+                nome_aba = "BASE_FINANCEIRA"
 
         # 1. Aplicação do Filtro via Subquery
         if coluna_filtro and valor_filtro:

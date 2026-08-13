@@ -1,3 +1,4 @@
+/* Configuração Padrão (Tema Claro) */
 :root{
   /* Background */
   --bg-color1: #35448a;
@@ -6,6 +7,7 @@
   --bg-color4: #cbd5e1;
   --bg-color5: #f8fafc;
   --bg-color6: #183e7c;
+  --bg-color7: #FF6200;
   --box-shadow: 0 5px 6px -1px #0000001a, 0 2px 4px -1px #00000099;
   --border-color: 1px solid #d9d9d9;
   
@@ -13,14 +15,39 @@
   --font-text: 'Arial';
   --font-size1: 18px;
   --font-size2: 12px;
-  --title-color1: #273264;
-  --title-color2: #666;
-  --text-color1: #000000;
-  --text-color2: #ffffff;
+  --font-size3: 14px;
+  --text-color1: #273264;
+  --text-color2: #666;
+  --text-color3: #000000;
+  --text-color4: #ffffff;
 
   /* Botão*/
   --bnt-color: #35448a;
   --hover-color: #273264;
+}
+
+/* Tema Escuro */
+.dark-theme {
+  /* Backgrounds: invertidos para tons de cinza/grafite escuro */
+  --bg-color1: #1e293b;        /* Header / Áreas de destaque primárias */
+  --bg-color2: #0f172a;        /* Fundo principal da página (bem escuro) */
+  --bg-color3: #183e7c;
+  --bg-color4: #cbd5e1;
+  --bg-color5: #f8fafc;        /* Fundo dos Cards e Modais */
+  --bg-color6: #0f172a;        /* Fundo em azul escuro/profundo */
+  
+  --box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --border-color: 1px solid #334155;
+
+  /* Textos: invertidos para leitura no escuro */
+  --text-color1: #f1f5f9;     /* Títulos principais em quase-branco */
+  --text-color2: #f8fafc;     /* Subtítulos/Rótulos secundários em cinza claro */
+  --text-color3: #ffffff;      /* Texto do corpo em branco suave */
+  --text-color4: #f8fafc;      /* Mantém branco para textos sobre cores de contraste */
+
+  /* Botões: ajustados com destaque em tom azul suave */
+  --bnt-color: #35448a;        /* Azul um pouco mais vivo/claro para destacar no escuro */
+  --hover-color: #4558ac;      /* Estado de hover do botão */
 }
 
 @media (max-width: 768px) {

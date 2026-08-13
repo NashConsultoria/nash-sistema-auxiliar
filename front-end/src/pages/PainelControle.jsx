@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/global.css";
-import "../components/UsuarioPage.css"; 
+import "../components/PainelControle.css"; 
 import Card from "../components/card/Card";
 import Button from "../components/button/Button"
 import Table from "../components/table/Table"
@@ -15,7 +15,7 @@ import { IoMdSettings } from "react-icons/io";
 import { GrUserManager } from "react-icons/gr";
 import { BiImport } from "react-icons/bi";
 
-export default function PainelControlePage() {
+export default function PainelControle() {
     const navigate = useNavigate();
     const { logout, usuario, setUsuario, token } = useAuth();
 
@@ -360,8 +360,8 @@ export default function PainelControlePage() {
             ExportarExcel({
                 tabela: "planocontas",
                 colunas: [
-                    "planoConta", 
-                    "grupoConta", 
+                    "PLANO DE CONTAS", 
+                    "GRUPO DE CONTAS",
                     "edre", 
                     "dfc",
                     "efolha"
@@ -384,7 +384,7 @@ export default function PainelControlePage() {
                     "CBO CARGO",
                     "CARGO",
                     "DEPARTAMENTO",
-                    "ADMISSAO",
+                    "DATA ADMISSAO",
                     "DESCRICAO",
                     "PLANO DE CONTA",
                     "GRUPO DE CONTA",
@@ -413,9 +413,11 @@ export default function PainelControlePage() {
                     "OBSERVACAO",
                     "VALOR",
                     "TIPO",
-                    "FORNECEDOR",
+                    "FORNECEDORES",
                     "CPF_CNPJ",
-                    "PLANO DE CONTA"
+                    "PLANO DE CONTA",
+                    "GRUPO DE CONTA",
+                    "E-DRE"
                 ],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });
@@ -536,8 +538,8 @@ export default function PainelControlePage() {
             width: "25%",
             Cell: ({ row }) => (
                 <div>
-                    <div style={{ fontWeight: "600", color: "#1e293b" }}>{row.usuario_nome}</div>
-                    <div style={{ fontSize: "12px", color: "#64748b" }}>{row.usuario_email}</div>
+                    <div style={{ fontWeight: "600" }}>{row.usuario_nome}</div>
+                    <div style={{ fontSize: "12px"}}>{row.usuario_email}</div>
                 </div>
             )
         },
@@ -582,7 +584,7 @@ export default function PainelControlePage() {
             key: "tabela",
             width: "15%",
             Cell: ({ row }) => row.tabela ? (
-                <span style={{ fontFamily: "monospace", color: "#000000" }}>{row.tabela}</span>
+                <span style={{ fontFamily: "monospace" }}>{row.tabela}</span>
             ) : "-"
         },
         {

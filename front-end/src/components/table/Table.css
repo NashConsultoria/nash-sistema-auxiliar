@@ -33,7 +33,7 @@
   z-index: 2;
   padding: 12px 10px;
   font-weight: 600;
-  color: var(--text-color2);
+  color: var(--text-color4);
   font-size: var(--font-size2);
   letter-spacing: 0.05em;
   white-space: nowrap;
@@ -54,7 +54,7 @@
 /* Células de dados */
 .table td {
   padding: 10px 8px;
-  color: var(--text-color1);
+  color: var(--text-color3);
   vertical-align: middle;
   white-space: nowrap; /* Impede a quebra indesejada de textos de colunas */
 }
@@ -98,7 +98,7 @@
 
   .table tbody tr:hover td,
   .table tbody tr:hover td * {
-    color: var(--text-color2) !important;
+    color: var(--text-color4) !important;
   }
 }
 

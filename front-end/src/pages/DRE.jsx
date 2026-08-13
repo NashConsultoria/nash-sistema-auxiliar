@@ -8,7 +8,7 @@ import FiltroBar from "../components/filtro/FiltroBar";
 import { useAuth } from "../context/AuthContext";
 import { usePrint } from "../context/PrintContext";
 
-export default function DREPage() {
+export default function DRE() {
     const { usuario, token } = useAuth();
 
     const [dadosDRE, setDadosDRE] = useState([]);
@@ -111,7 +111,7 @@ export default function DREPage() {
     }, [token, usuario]);
 
     // ==================================================================
-    // 2. FILTRO EM CASCATA: CARREGA AS UNIDADES
+    // 2. FILTRO EM CASCATA: CARREGA AS UNIDADES DO CONTRATANTE
     // ==================================================================
     useEffect(() => {
         if (!contratanteSel || !token) {
@@ -133,17 +133,110 @@ export default function DREPage() {
                 setUnidades(filtradas);
             })
             .catch((err) => console.error("Erro ao buscar unidades:", err));
-    }, [contratanteSel, token]); 
+    }, [contratanteSel, token, contratantes]); 
 
     useEffect(() => {
         setUnidadeSel([]);
     }, [contratanteSel]);
+
+    // 2.1 FILTRAGEM DINÂMICA DAS UNIDADES (Oculta unidades sem movimento)
+    const unidadesExibidas = useMemo(() => {
+        if (!dadosDRE || !Array.isArray(dadosDRE) || dadosDRE.length === 0) {
+            return unidades;
+        }
+
+        const unidadesComValoresSet = new Set();
+
+        const possuiMovimento = (valores) => {
+            return Array.isArray(valores) && valores.some((v) => v !== 0 && v !== null && v !== undefined);
+        };
+
+        dadosDRE.forEach((n1) => {
+            if (n1.unidade && possuiMovimento(n1.valores)) {
+                unidadesComValoresSet.add(n1.unidade.trim().toUpperCase());
+            }
+
+            n1.grupos_contas?.forEach((n2) => {
+                if (n2.unidade && possuiMovimento(n2.valores)) {
+                    unidadesComValoresSet.add(n2.unidade.trim().toUpperCase());
+                }
+
+                n2.contas?.forEach((n3) => {
+                    if (n3.unidade && possuiMovimento(n3.valores)) {
+                        unidadesComValoresSet.add(n3.unidade.trim().toUpperCase());
+                    }
+                });
+            });
+        });
+
+        if (unidadesComValoresSet.size > 0) {
+            return unidades.filter((u) => 
+                u.nome && unidadesComValoresSet.has(u.nome.trim().toUpperCase())
+            );
+        }
+
+        return unidades;
+    }, [unidades, dadosDRE]);
+
+    // ==================================================================
+    // GERAÇÃO DINÂMICA DE MESES / ANOS A PARTIR DO PERÍODO SELECIONADO
+    // ==================================================================
+    const mesesColunas = useMemo(() => {
+        if (!dataInicio || !dataFim) return [];
+
+        const anoInicio = parseInt(dataInicio.split("-")[0], 10);
+        const anoFim = parseInt(dataFim.split("-")[0], 10);
+
+        // Evita calcular colunas para datas incompletas/inválidas
+        if (isNaN(anoInicio) || anoInicio < 1900 || isNaN(anoFim) || anoFim < 1900) {
+            return [];
+        }
+
+        const inicio = new Date(dataInicio + "T00:00:00");
+        const fim = new Date(dataFim + "T00:00:00");
+
+        // Trava para evitar loops infinitos se a data inicial for maior que a final por engano
+        if (inicio > fim) return [];
+
+        const resultado = [];
+        const nomesMeses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+        let atual = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
+        const limite = new Date(fim.getFullYear(), fim.getMonth(), 1);
+
+        while (atual <= limite) {
+            const mesNome = nomesMeses[atual.getMonth()];
+            const anoCurto = atual.getFullYear().toString().slice(-2);
+            
+            resultado.push({
+                label: `${mesNome}/${anoCurto}`,
+                ano: atual.getFullYear(),
+                mes: atual.getMonth() + 1
+            });
+
+            atual.setMonth(atual.getMonth() + 1);
+        }
+
+        return resultado;
+    }, [dataInicio, dataFim]);
+
+    // Labels formatados para o cabeçalho (ex: ["Jan/25", "Fev/25", ...])
+    const mesesLabels = useMemo(() => mesesColunas.map(m => m.label), [mesesColunas]);
 
     // ==================================================================
     // 3. RECARREGA OS DADOS DA DRE
     // ==================================================================
     useEffect(() => {
         if (!token || !usuario || !usuario.id || !requisicaoContratantesConcluida) return;
+
+        // --- TRAVA DE SEGURANÇA CONTRA ANOS INCOMPLETOS ---
+        const anoInicio = parseInt(dataInicio.split("-")[0], 10);
+        const anoFim = parseInt(dataFim.split("-")[0], 10);
+
+        // Só dispara se os anos tiverem 4 dígitos válidos (ex: entre 1900 e 2099)
+        if (isNaN(anoInicio) || anoInicio < 1900 || isNaN(anoFim) || anoFim < 1900) {
+            return; 
+        }
 
         const ehAdminOuSupremo = usuario.perfil === 1 || Number(usuario.protegido) === 1;
 
@@ -165,13 +258,9 @@ export default function DREPage() {
             url += `&contratante=${encodeURIComponent(nomesVinculados.join(","))}`;
         }
 
-        // --- CORREÇÃO DO ENVIO DAS UNIDADES ---
         if (Array.isArray(unidadeSel) && unidadeSel.length > 0) {
-            // Envia como: &unidade=UnidadeA&unidade=UnidadeB
-            const queryUnidades = unidadeSel
-                .map((u) => `unidade=${encodeURIComponent(u)}`)
-                .join("&");
-            url += `&${queryUnidades}`;
+            const unidadesFormatadas = unidadeSel.map(u => encodeURIComponent(u)).join(",");
+            url += `&unidade=${unidadesFormatadas}&unidades=${unidadesFormatadas}`;
         }
 
         fetch(url, {
@@ -217,6 +306,23 @@ export default function DREPage() {
     const dadosAchatados = useMemo(() => {
         if (!dadosDRE || !Array.isArray(dadosDRE)) return [];
 
+        // Função para recortar/filtrar os valores com base no tamanho do intervalo filtrado
+        const adequarValores = (valoresOriginais) => {
+            if (!Array.isArray(valoresOriginais)) {
+                return new Array(mesesColunas.length).fill(0);
+            }
+
+            // Se a API envia 12 meses fixos (Jan..Dez do ano), recortamos do mês inicial ao final do filtro
+            if (valoresOriginais.length === 12 && mesesColunas.length <= 12) {
+                const mesInicialIdx = mesesColunas.length > 0 ? mesesColunas[0].mes - 1 : 0;
+                const mesFinalIdx = mesInicialIdx + mesesColunas.length;
+                return valoresOriginais.slice(mesInicialIdx, mesFinalIdx);
+            }
+
+            // Se a API já enviar do tamanho exato ou maior
+            return valoresOriginais.slice(0, mesesColunas.length);
+        };
+
         const lista = [];
 
         dadosDRE.forEach((n1) => {
@@ -226,7 +332,7 @@ export default function DREPage() {
                 descricao: n1.nome,
                 level: 1,
                 tipo: n1.tipo || "grupo",
-                valores: n1.valores || new Array(12).fill(0), 
+                valores: adequarValores(n1.valores), 
                 parentId: null
             });
 
@@ -238,7 +344,7 @@ export default function DREPage() {
                         descricao: n2.nome,
                         level: 2,
                         tipo: "subgrupo",
-                        valores: n2.valores || new Array(12).fill(0),
+                        valores: adequarValores(n2.valores),
                         parentId: idN1
                     });
 
@@ -250,7 +356,7 @@ export default function DREPage() {
                                 descricao: n3.nome,
                                 level: 3,
                                 tipo: "conta_folha",
-                                valores: n3.valores || new Array(12).fill(0),
+                                valores: adequarValores(n3.valores),
                                 parentId: idN2
                             });
                         });
@@ -260,7 +366,7 @@ export default function DREPage() {
         });
 
         return lista;
-    }, [dadosDRE]);
+    }, [dadosDRE, mesesColunas]);
 
     const handleToggleExpandirTudo = () => {
         if (expandido) {
@@ -275,35 +381,8 @@ export default function DREPage() {
         }
     };
 
-    const mesesBase = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-        "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-
-    const mesesAtivosIdx = useMemo(() => {
-        if (!dataInicio || !dataFim) return Array.from({ length: 12 }, (_, i) => i);
-
-        const mesInicio = parseInt(dataInicio.split("-")[1], 10) - 1;
-        const mesFim = parseInt(dataFim.split("-")[1], 10) - 1;
-
-        const indices = [];
-        if (mesInicio <= mesFim) {
-            for (let i = mesInicio; i <= mesFim; i++) indices.push(i);
-        } else {
-            for (let i = mesInicio; i < 12; i++) indices.push(i);
-            for (let i = 0; i <= mesFim; i++) indices.push(i);
-        }
-
-        return indices;
-    }, [dataInicio, dataFim]);
-
-    const mesesFiltrados = useMemo(() => mesesAtivosIdx.map((i) => mesesBase[i]), [mesesAtivosIdx]);
-
-    const filtrarMesesDosDados = (linhas) =>
-        linhas.map((linha) => ({
-            ...linha,
-            valores: mesesAtivosIdx.map((i) => linha.valores[i]),
-        }));
-
     const dadosComMetricasFiltrados = useMemo(() => {
+        const totalColunas = mesesColunas.length || 12;
         const linhasNivel1 = dadosAchatados.filter((r) => r.level === 1);
 
         const linhaReceitaBruta = linhasNivel1.find(
@@ -316,19 +395,17 @@ export default function DREPage() {
             (r) => r.descricao.toUpperCase() === "RESULTADO FINAL"
         );
 
-        const valoresReceitaBruta = linhaReceitaBruta ? linhaReceitaBruta.valores : new Array(12).fill(0);
-        const valoresResultadoOperacional = linhaResultadoOperacional ? linhaResultadoOperacional.valores : new Array(12).fill(0);
-        const valoresResultadoFinal = linhaResultadoFinal ? linhaResultadoFinal.valores : new Array(12).fill(0);
+        const valoresReceitaBruta = linhaReceitaBruta ? linhaReceitaBruta.valores : new Array(totalColunas).fill(0);
+        const valoresResultadoOperacional = linhaResultadoOperacional ? linhaResultadoOperacional.valores : new Array(totalColunas).fill(0);
+        const valoresResultadoFinal = linhaResultadoFinal ? linhaResultadoFinal.valores : new Array(totalColunas).fill(0);
 
-        const rawData = [
+        return [
             ...dadosAchatados,
             { id: "chart-receita-bruta", descricao: "Receita Bruta", level: 0, type: "metric", valores: valoresReceitaBruta },
             { id: "chart-res-operacional", descricao: "Resultado Operacional", level: 0, type: "metric", valores: valoresResultadoOperacional },
             { id: "chart-res-final", descricao: "Resultado Final", level: 0, type: "metric", valores: valoresResultadoFinal },
         ];
-
-        return filtrarMesesDosDados(rawData);
-    }, [dadosAchatados, mesesAtivosIdx]);
+    }, [dadosAchatados, mesesColunas]);
 
     const linhasParaRenderizar = useMemo(() => {
         const linhasVisiveis = [];
@@ -351,8 +428,8 @@ export default function DREPage() {
             }
         });
 
-        return filtrarMesesDosDados(linhasVisiveis);
-    }, [dadosAchatados, expandedRows, mesesAtivosIdx]);
+        return linhasVisiveis;
+    }, [dadosAchatados, expandedRows]);
 
     return (
         <div className="page-container">
@@ -363,7 +440,7 @@ export default function DREPage() {
                 contratantes={contratantes}
                 unidadeSel={unidadeSel}
                 setUnidadeSel={setUnidadeSel}
-                unidades={unidades}
+                unidades={unidadesExibidas}
                 dataInicio={dataInicio}
                 setDataInicio={setDataInicio}
                 dataFim={dataFim}
@@ -397,7 +474,7 @@ export default function DREPage() {
                 ) : (
                     <TableDRE
                         data={linhasParaRenderizar}
-                        meses={mesesFiltrados}
+                        meses={mesesLabels}
                         expandedRows={expandedRows}
                         onToggleRow={toggleRow}
                     />
@@ -408,11 +485,11 @@ export default function DREPage() {
                 <div className="chart-card">
                     <Chart
                         title="Análise de Resultado"
-                        meses={mesesFiltrados}
+                        meses={mesesLabels}
                         data={dadosComMetricasFiltrados}
                         series={[
-                            { descricao: "Resultado Operacional", type: "line", color: "#FF6200" },
-                            { descricao: "Resultado Final", type: "line", color: "#35448a" }
+                            { descricao: "Resultado Operacional", type: "line", color: "var(--bg-color7)" },
+                            { descricao: "Resultado Final", type: "line", color: "var(--bg-color1)" }
                         ]}
                     />
                 </div>
@@ -420,11 +497,11 @@ export default function DREPage() {
                 <div className="chart-card">
                     <Chart
                         title="Receita x Resultado Operacional"
-                        meses={mesesFiltrados}
+                        meses={mesesLabels}
                         data={dadosComMetricasFiltrados}
                         series={[
-                            { descricao: "Receita Bruta", type: "bar", color: "#35448a" },
-                            { descricao: "Resultado Operacional", type: "line", color: "#FF6200" }
+                            { descricao: "Receita Bruta", type: "bar", color: "var(--bg-color1)" },
+                            { descricao: "Resultado Operacional", type: "line", color: "var(--bg-color7)" }
                         ]}
                     />
                 </div>

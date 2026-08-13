@@ -17,7 +17,7 @@ export default function TableDRE({
     };
 
     if (data.length === 0) {
-        return <p className="dre-vazia">Nenhum dado de DRE gerado.</p>;
+        return <p className="dre-vazia">Nenhum dado gerado.</p>;
     }
 
     return (

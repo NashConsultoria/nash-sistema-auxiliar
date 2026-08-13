@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
-import "./FiltroBar.css"
+import "./FiltroBar.css";
 
 export default function FiltroBar({
     contratanteSel,
@@ -72,7 +72,8 @@ export default function FiltroBar({
                             onChange={(e) => {
                                 const valorDigitado = e.target.value;
                                 setContratanteSel(valorDigitado);
-                                if (!valorDigitado && setUnidadeSel) {
+                                // Limpa unidades selecionadas ao alterar o contratante
+                                if (setUnidadeSel) {
                                     setUnidadeSel([]);
                                 }
                             }}
@@ -97,6 +98,8 @@ export default function FiltroBar({
                             >
                                 {!contratanteSel
                                     ? "Selecione um contratante..."
+                                    : unidades.length === 0
+                                    ? "Nenhuma unidade com movimento"
                                     : listaUnidadesSelecionadas.length === 0
                                     ? "Todas as unidades"
                                     : `${listaUnidadesSelecionadas.length} unidade(s) selecionada(s)`}
@@ -135,7 +138,9 @@ export default function FiltroBar({
                                     ))}
 
                                     {unidades.length === 0 && (
-                                        <div className="multiselect-item-empty">Nenhuma unidade encontrada</div>
+                                        <div className="multiselect-item-empty" style={{ padding: "8px 12px", color: "#666", fontSize: "13px" }}>
+                                            Nenhuma unidade com movimentação encontrada.
+                                        </div>
                                     )}
                                 </div>
                             )}

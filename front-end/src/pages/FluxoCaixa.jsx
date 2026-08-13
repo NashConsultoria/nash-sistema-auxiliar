@@ -9,7 +9,7 @@ import FiltroBar from "../components/filtro/FiltroBar";
 import { useAuth } from "../context/AuthContext";
 import { usePrint } from "../context/PrintContext";
 
-export default function FluxoCaixaPage() {
+export default function FluxoCaixa() {
 
     const { usuario, token } = useAuth();
 

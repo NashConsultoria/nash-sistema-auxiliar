@@ -33,7 +33,7 @@
   border: 1px solid transparent;
   border-radius: 6px;
   background-color: transparent;
-  color: var(--text-color1);
+  color: var(--text-color3);
   font-size: var(--font-size2);
   font-weight: 500;
   text-align: left;
@@ -45,14 +45,14 @@
 /* Estilo para o botão que estiver selecionado */
 .menu-btn.active {
   background-color: var(--bg-color1); 
-  color: var(--text-color2);
+  color: var(--text-color4);
   font-weight: 600;
 }
 
 .perfil-info p {
   margin-bottom: 12px;
   font-size: var(--font-size1);
-  color: var(--text-color1);
+  color: var(--text-color3);
 }
 
 
@@ -62,7 +62,7 @@
 @media (hover: hover) {
   .menu-btn:hover {
     background-color: var(--hover-color);
-    color: var(--text-color2);
+    color: var(--text-color4);
   }
 
   /* Estilo especial vermelho para o botão Sair */

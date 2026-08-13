@@ -4,7 +4,7 @@ import Table from "../components/table/Table"
 import Chart from "../components/chart/Chart"
 import PieChart from "../components/chart/PieChart"
 
-export default function BalancoPage() {
+export default function Balanco() {
 
     const colunas = [
         { label: "Data", key: "data" },

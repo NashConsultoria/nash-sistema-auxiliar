@@ -4,7 +4,7 @@ import Table from "../components/table/Table"
 import Chart from "../components/chart/Chart"
 import PieChart from "../components/chart/PieChart"
 
-export default function ReceitaPage() {
+export default function Receita() {
 
     const colunas = [
         { label: "Data", key: "data" },

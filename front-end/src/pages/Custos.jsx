@@ -4,7 +4,7 @@ import Card from "../components/card/Card"
 import Chart from "../components/chart/Chart"
 import PieChart from "../components/chart/PieChart"
 
-export default function CustosPage() {
+export default function Custos() {
 
     const colunas = [
         { label: "Data", key: "data" },

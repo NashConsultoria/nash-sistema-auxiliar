@@ -5,7 +5,7 @@ import Button from "../components/button/Button";
 import { useAuth } from "../context/AuthContext";
 import "../styles/global.css";
 
-export default function ConversorPage() {
+export default function Conversor() {
   const { token } = useAuth();
   
   const [data, setData] = useState([]);
@@ -15,6 +15,7 @@ export default function ConversorPage() {
   const API_URL = "http://127.0.0.1:8000/api";
 
   const columns = [
+    { key: "unidade", label: "UNIDADE" },
     { key: "banco", label: "Banco" },
     { key: "agencia", label: "Agência" },
     { key: "conta", label: "Conta" },
@@ -23,7 +24,7 @@ export default function ConversorPage() {
     { key: "obs", label: "Observação" },
     { key: "valor", label: "Valor" },
     { key: "tipo", label: "Tipo" },
-    { key: "fornecedores", label: "Fornecedor" },
+    { key: "fornecedor", label: "Fornecedor" },
   ];
 
   useEffect(() => {
@@ -35,8 +36,8 @@ export default function ConversorPage() {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (!file.name.toLowerCase().endsWith(".ofx")) {
-        alert("Apenas arquivos no formato .ofx ou .pdf são permitidos!");
+      if (!file.name.toLowerCase().endsWith(".ofx") && !file.name.toLowerCase().endsWith(".pdf")) {
+        alert("Apenas arquivos no formato .ofx  e .pdf são permitidos!");
         return;
       }
       setFileSelected(file);
@@ -118,7 +119,7 @@ export default function ConversorPage() {
               id="file-upload"
               style={{ display: "none" }}
               onChange={handleFileChange}
-              accept=".ofx"
+              accept=".ofx,.pdf"
             />
             
             <Button onClick={() => document.getElementById("file-upload").click()}>
@@ -160,9 +161,9 @@ export default function ConversorPage() {
           ) : (
             <div style={{ textAlign: "center", padding: "40px 20px" }}>
               <p style={{ color: "var(--text-color1)", fontSize: "var(--font-size1)", marginBottom: "8px" }}>
-                Nenhum dado convertido para conversão nesta base.
+                Nenhum dado convertido para visualização da base.
               </p>
-              <span style={{ fontSize: "var(--font-size2)", color: "var(--title-color2)" }}>
+              <span style={{ fontSize: "var(--font-size2)", color: "var(--text-color2)" }}>
                 Clique em <strong>Importar Arquivo</strong> e depois em <strong>Converter Arquivo</strong> para visualizar os dados.
               </span>
             </div>

@@ -27,7 +27,7 @@ create table Unidade
 	contratanteId		int,
 	tipo				int					not null		default 1,		-- 1.Registro, 2.Atuação, 3.Ambos
 	status				int					not null		default 1		-- 1.Ativo, 2.Inativo
-	foreign key (contratanteId) references Contratante(id),
+	foreign key (contratanteId)				references Contratante(id),
 )
 
 create table BancoConta
@@ -36,7 +36,7 @@ create table BancoConta
 	banco				varchar(255),
 	agencia				varchar(50),
 	conta				varchar(50),
-	constraint UC_BancoConta unique (banco, agencia, conta)
+	constraint UC_BancoConta				unique (banco, agencia, conta)
 )
 
 create table Fornecedor 
@@ -44,7 +44,7 @@ create table Fornecedor
     id					int					not null		primary key		identity,
     nome				varchar(255)		not null,
     cpf_cnpj			varchar(50)				null,
-    CONSTRAINT UC_Fornecedor UNIQUE (cpf_cnpj, nome)						-- Evita cadastrar o mesmo cara duas vezes
+    CONSTRAINT UC_Fornecedor				unique (cpf_cnpj, nome)			-- Evita cadastrar o mesmo cara duas vezes
 );
 
 create table ImportacaoLote
@@ -66,8 +66,21 @@ create table PlanoContas
 	criadoEm			datetime							default			getdate(),
 	importacaoLoteId	int,
 
-	foreign key (importacaoLoteId) references ImportacaoLote(id)
+	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
+
+create table PlanoDePara 
+(
+    id					int					not null		primary key		identity,
+	contratanteId		int						null,						-- Se NULL, a regra vale para todos os clientes
+    termoBusca			varchar(255)		not null,						-- Ex: "POSTO SHELL", "ALUGUEL", "AMAZON"
+    campoOrigem			varchar(50)							default 'DESCRICAO_FORNECEDOR', -- Qual campo do extrato olhar
+    planoContaId		int					not null,						-- ID da conta em dbo.PlanoContas
+    ativo				BIT									default 1,
+
+    foreign key (planoContaId)				references PlanoContas(id),
+    foreign key (contratanteId)				references Contratante(id)
+);
 
 create table Movimentacao
 (
@@ -83,18 +96,18 @@ create table Movimentacao
 	planoContaId		int,
 	importacaoLoteId	int,
 
-	foreign key (unidadeId) references Unidade(id),
-	foreign key (bancoContaId) references BancoConta(id),
-	foreign key (fornecedorId) references Fornecedor(id),
-	foreign key (planoContaId) references PlanoContas(id),
-	foreign key (importacaoLoteId) references ImportacaoLote(id)
+	foreign key (unidadeId)					references Unidade(id),
+	foreign key (bancoContaId)				references BancoConta(id),
+	foreign key (fornecedorId)				references Fornecedor(id),
+	foreign key (planoContaId)				references PlanoContas(id),
+	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
 create table MovimentacaoFolhaPagamento
 (
-    id                      int					not null		primary key		identity,
-    unidadeRegistroId       int					not null,
-    unidadeAtuacaoId        int					not null,
+    id                      int				not null		primary key		identity,
+    unidadeRegistroId       int				not null,
+    unidadeAtuacaoId        int				not null,
     nome			        varchar(150),
     cpf						varchar(14),
     dataNascimento          DATE,
@@ -108,12 +121,12 @@ create table MovimentacaoFolhaPagamento
     dataCaixa               date,
 	tipo					varchar(50),
     valor                   DECIMAL(38,2),
-	importacaoLoteId        int					not null,
+	importacaoLoteId        int				not null,
 
-	foreign key (unidadeRegistroId) references Unidade(id),
-	foreign key (unidadeAtuacaoId) references Unidade(id),
-    foreign key (planoContaId) references PlanoContas(id),
-    foreign key (importacaoLoteId) references ImportacaoLote(id)
+	foreign key (unidadeRegistroId)			references Unidade(id),
+	foreign key (unidadeAtuacaoId)			references Unidade(id),
+    foreign key (planoContaId)				references PlanoContas(id),
+    foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
 create table Usuario
@@ -127,7 +140,7 @@ create table Usuario
 	status				int					not null		default 1,		-- 1.Ativo, 2.Inativo
 	protegido			int					not null		default 0,
 
-	foreign key (contratanteId) references Contratante(id)
+	foreign key (contratanteId)				references Contratante(id)
 )
 
 create table UsuarioContratante
@@ -136,10 +149,10 @@ create table UsuarioContratante
 	usuarioId			int					not null,
 	contratanteId		int					not null,
 
-	foreign key (usuarioId) references Usuario(id) on delete cascade,
-	foreign key (contratanteId) references Contratante(id) on delete cascade,
+	foreign key (usuarioId)					references Usuario(id) on delete cascade,
+	foreign key (contratanteId)				references Contratante(id) on delete cascade,
 
-	constraint UQ_UsuarioContratante unique (usuarioId, contratanteId)
+	constraint UQ_UsuarioContratante		unique (usuarioId, contratanteId)
 )
 
 create table LogUsuario
@@ -152,7 +165,7 @@ create table LogUsuario
 	detalhes			varchar(max)			null,						--JSON completo
 	criadoEm			datetime			default			getdate(),
 
-	foreign key (usuarioId) references Usuario(id) on delete cascade
+	foreign key (usuarioId)					references Usuario(id) on delete cascade
 )
 
 ---------------------------------------------------------------------------------
@@ -164,6 +177,7 @@ select * from BancoConta
 select * from Fornecedor
 select * from ImportacaoLote
 select * from PlanoContas
+select * from PlanoDePara
 select * from Movimentacao
 select * from MovimentacaoFolhaPagamento
 select * from Usuario

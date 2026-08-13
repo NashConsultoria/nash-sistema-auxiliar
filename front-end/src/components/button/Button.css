@@ -10,7 +10,7 @@
   border-radius: 6px;
   cursor: pointer;
   background-color: var(--bnt-color);
-  color: white;
+  color: var(--text-color4);
   transition: background-color 0.2s ease, transform 0.1s ease;
   user-select: none; /* Evita que o texto do botão seja selecionado sem querer ao dar toques rápidos */
 }
@@ -40,7 +40,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  color: inherit;
+  color: var(--bg-color5);
 }
 
 

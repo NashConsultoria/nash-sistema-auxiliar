@@ -4,7 +4,7 @@ import Card from "../components/card/Card"
 import "../components/ImportPage.css"
 import { useAuth } from "../context/AuthContext"
 
-export default function ImportacaoPage() {
+export default function Importacao() {
 
     const { token } = useAuth();
 

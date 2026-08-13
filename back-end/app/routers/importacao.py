@@ -22,9 +22,7 @@ async def importar_arquivo_generico(
     nome_arquivo_lower = file.filename.lower()
 
     if (
-        "plano" in nome_arquivo_lower
-        or "plano_contas" in nome_arquivo_lower
-        or "base_plano" in nome_arquivo_lower
+        "plano_contas" in nome_arquivo_lower
     ):
         return processar_importacao_plano_contas(
             conteudo_arquivo=conteudo,
@@ -34,9 +32,7 @@ async def importar_arquivo_generico(
         )
 
     if (
-        "folha" in nome_arquivo_lower
-        or "folha_pagamento" in nome_arquivo_lower
-        or "base_folha" in nome_arquivo_lower
+        "folha_pagamento" in nome_arquivo_lower
     ):
         return await processar_importacao_movimentacoes_folha(
             conteudo=conteudo,
@@ -46,10 +42,13 @@ async def importar_arquivo_generico(
             request=request,
         )
 
-    return await processar_importacao_movimentacoes(
-        conteudo=conteudo,
-        nome_arquivo=file.filename,
-        banco=BANCO_AUTENTICACAO,
-        usuario=admin,
-        request=request,
-    )
+    if (
+        "base_financeira" in nome_arquivo_lower
+    ):
+        return await processar_importacao_movimentacoes(
+            conteudo=conteudo,
+            nome_arquivo=file.filename,
+            banco=BANCO_AUTENTICACAO,
+            usuario=admin,
+            request=request,
+        )

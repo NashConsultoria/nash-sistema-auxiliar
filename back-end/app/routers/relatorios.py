@@ -1,5 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from dateutil.relativedelta import relativedelta
+from datetime import date
 
 from app.config import ORDEM_DRE, PERFIL_CLIENTE
 from app.database import obter_conexao
@@ -12,17 +14,42 @@ router = APIRouter(tags=["Relatórios"])
 @router.get("/{banco}/dre")
 def obter_dre(
     banco: str,
-    ano: int = 2026,
+    data_inicio: date,
+    data_fim: date,
     contratante: Optional[str] = None,
     unidade: Optional[str] = None,
     usuario: UsuarioToken = Depends(obter_usuario_atual),
 ):
     try:
+        if data_inicio.year < 1900 or data_fim.year < 1900:
+            return {"sucesso": True, "dre": []}
+        
         conexao = obter_conexao(banco)
         cursor = conexao.cursor()
 
-        condicoes = ["YEAR(m.data) = ?"]
-        parametros = [ano]
+        # 1. Calcula a lista de meses (ano, mes) dentro do intervalo solicitado
+        meses_intervalo = []
+        atual = date(data_inicio.year, data_inicio.month, 1)
+        limite = date(data_fim.year, data_fim.month, 1)
+
+        while atual <= limite:
+            meses_intervalo.append((atual.year, atual.month))
+            atual += relativedelta(months=1)
+
+            # Trava de segurança no backend: no máximo 120 meses (10 anos)
+            if len(meses_intervalo) > 120:
+                break
+
+        total_colunas = len(meses_intervalo)
+        if total_colunas == 0:
+            return {"sucesso": True, "dre": []}
+
+        # Mapeamento dinâmico (ano, mes) -> índice na lista
+        mapa_indices = {chave: i for i, chave in enumerate(meses_intervalo)}
+
+        # 2. Construção dos Filtros SQL baseados em DATAS REAIS
+        condicoes = ["m.data >= ?", "m.data <= ?"]
+        parametros = [data_inicio, data_fim]
 
         if usuario.perfil == PERFIL_CLIENTE:
             if not usuario.contratanteId:
@@ -34,17 +61,13 @@ def obter_dre(
             parametros.append(usuario.contratanteId)
         else:
             if contratante:
-                nomes = [
-                    n.strip().upper() for n in contratante.split(",") if n.strip()
-                ]
+                nomes = [n.strip().upper() for n in contratante.split(",") if n.strip()]
                 if nomes:
                     placeholders = ",".join(["?"] * len(nomes))
                     condicoes.append(f"UPPER(TRIM(c.nome)) IN ({placeholders})")
                     parametros.extend(nomes)
             if unidade:
-                unidades_list = [
-                    u.strip().upper() for u in unidade.split(",") if u.strip()
-                ]
+                unidades_list = [u.strip().upper() for u in unidade.split(",") if u.strip()]
                 if unidades_list:
                     placeholders_u = ",".join(["?"] * len(unidades_list))
                     condicoes.append(f"UPPER(TRIM(u.nome)) IN ({placeholders_u})")
@@ -57,6 +80,7 @@ def obter_dre(
                 pc.edre,
                 pc.grupoConta,
                 pc.planoConta,
+                YEAR(m.data) AS ano,
                 MONTH(m.data) AS mes,
                 SUM(ISNULL(m.valor, 0)) AS total
             FROM dbo.Movimentacao m
@@ -64,7 +88,7 @@ def obter_dre(
             LEFT JOIN dbo.Unidade u ON m.unidadeId = u.id
             LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
             WHERE {clausula_where}
-            GROUP BY pc.edre, pc.grupoConta, pc.planoConta, MONTH(m.data)
+            GROUP BY pc.edre, pc.grupoConta, pc.planoConta, YEAR(m.data), MONTH(m.data)
         """
 
         cursor.execute(query, parametros)
@@ -72,18 +96,26 @@ def obter_dre(
 
         estrutura_dre = {}
 
-        # 1. Agrupamento inicial dos dados do banco
+        # 3. Agrupamento inicial com vetores do tamanho DINÂMICO
         for row in linhas:
             edre = str(row[0]).strip() if row[0] else ""
             grupo_conta = str(row[1]).strip() if row[1] else ""
             plano_conta = str(row[2]).strip() if row[2] else ""
-            mes = int(row[3])
-            total_valor = float(row[4] or 0.0)
+            ano = int(row[3])
+            mes = int(row[4])
+            total_valor = float(row[5] or 0.0)
+
+            # Verifica se o (ano, mes) retornado faz parte do intervalo solicitado
+            key_data = (ano, mes)
+            if key_data not in mapa_indices:
+                continue
+
+            idx = mapa_indices[key_data]
 
             if edre not in estrutura_dre:
                 estrutura_dre[edre] = {
                     "nome": edre,
-                    "valores": [0.0] * 12,
+                    "valores": [0.0] * total_colunas,
                     "ordem": ORDEM_DRE.get(edre.upper(), 99),
                     "grupos_contas": {},
                 }
@@ -91,40 +123,33 @@ def obter_dre(
             if grupo_conta not in estrutura_dre[edre]["grupos_contas"]:
                 estrutura_dre[edre]["grupos_contas"][grupo_conta] = {
                     "nome": grupo_conta,
-                    "valores": [0.0] * 12,
+                    "valores": [0.0] * total_colunas,
                     "contas": {},
                 }
 
-            if (
-                plano_conta
-                not in estrutura_dre[edre]["grupos_contas"][grupo_conta]["contas"]
-            ):
-                estrutura_dre[edre]["grupos_contas"][grupo_conta]["contas"][
-                    plano_conta
-                ] = {"nome": plano_conta, "valores": [0.0] * 12}
+            if plano_conta not in estrutura_dre[edre]["grupos_contas"][grupo_conta]["contas"]:
+                estrutura_dre[edre]["grupos_contas"][grupo_conta]["contas"][plano_conta] = {
+                    "nome": plano_conta,
+                    "valores": [0.0] * total_colunas,
+                }
 
-            if 1 <= mes <= 12:
-                idx = mes - 1
-                estrutura_dre[edre]["valores"][idx] += total_valor
-                estrutura_dre[edre]["grupos_contas"][grupo_conta]["valores"][
-                    idx
-                ] += total_valor
-                estrutura_dre[edre]["grupos_contas"][grupo_conta]["contas"][
-                    plano_conta
-                ]["valores"][idx] += total_valor
+            # Somas acumuladas no índice correto do período
+            estrutura_dre[edre]["valores"][idx] += total_valor
+            estrutura_dre[edre]["grupos_contas"][grupo_conta]["valores"][idx] += total_valor
+            estrutura_dre[edre]["grupos_contas"][grupo_conta]["contas"][plano_conta]["valores"][idx] += total_valor
 
-        # 2. Inicialização dos vetores de cálculo DRE (12 meses)
-        valores_receita_bruta = [0.0] * 12
-        valores_deducoes = [0.0] * 12
-        valores_custos = [0.0] * 12
-        valores_despesas = [0.0] * 12
-        valores_retirada_socios = [0.0] * 12
-        valores_nao_operacional = [0.0] * 12
+        # 4. Vetores dinâmicos para totais calculados
+        valores_receita_bruta = [0.0] * total_colunas
+        valores_deducoes = [0.0] * total_colunas
+        valores_custos = [0.0] * total_colunas
+        valores_despesas = [0.0] * total_colunas
+        valores_retirada_socios = [0.0] * total_colunas
+        valores_nao_operacional = [0.0] * total_colunas
 
         for edre_nome, dados_op in estrutura_dre.items():
             nome_normalizado = normalizar_texto(edre_nome)
             
-            for i in range(12):
+            for i in range(total_colunas):
                 val = dados_op["valores"][i]
                 if "RECEITA OPERACIONAL" in nome_normalizado or "RECEITA" in nome_normalizado:
                     valores_receita_bruta[i] += val
@@ -139,14 +164,14 @@ def obter_dre(
                 elif "MOV" in nome_normalizado and "OPERACIONAL" in nome_normalizado:
                     valores_nao_operacional[i] += val
 
-        # Operações matemáticas
-        valores_receita_liquida = [round(valores_receita_bruta[i] + valores_deducoes[i], 2) for i in range(12)]
-        valores_lucro_bruto = [round(valores_receita_liquida[i] + valores_custos[i], 2) for i in range(12)]
-        valores_resultado_operacional = [round(valores_lucro_bruto[i] + valores_despesas[i], 2) for i in range(12)]
-        valores_resultado_apos_socios = [round(valores_resultado_operacional[i] + valores_retirada_socios[i], 2) for i in range(12)]
-        valores_resultado_final = [round(valores_resultado_apos_socios[i] + valores_nao_operacional[i], 2) for i in range(12)]
+        # Operações matemáticas com tamanho dinâmico
+        valores_receita_liquida = [round(valores_receita_bruta[i] + valores_deducoes[i], 2) for i in range(total_colunas)]
+        valores_lucro_bruto = [round(valores_receita_liquida[i] + valores_custos[i], 2) for i in range(total_colunas)]
+        valores_resultado_operacional = [round(valores_lucro_bruto[i] + valores_despesas[i], 2) for i in range(total_colunas)]
+        valores_resultado_apos_socios = [round(valores_resultado_operacional[i] + valores_retirada_socios[i], 2) for i in range(total_colunas)]
+        valores_resultado_final = [round(valores_resultado_apos_socios[i] + valores_nao_operacional[i], 2) for i in range(total_colunas)]
 
-        # 3. Formatação hierárquica
+        # 5. Formatação da Resposta
         def formatar_grupo(dados_op, tipo_grupo):
             lista_nivel2 = sorted(dados_op["grupos_contas"].values(), key=lambda x: x["nome"])
             for g_conta in lista_nivel2:
@@ -166,7 +191,6 @@ def obter_dre(
                 "grupos_contas": lista_nivel2,
             }
 
-        # 4. Estrutura final ordenada
         dre_final = []
 
         def buscar_grupo_por_termo(termo_busca):
@@ -452,3 +476,24 @@ def obter_folha_pagamento(
             "sucesso": False,
             "mensagem": f"Erro ao gerar Folha de Pagamento: {str(e)}",
         }
+
+@router.get("/{banco}/valuation")
+def obter_valuation(
+    banco: str,
+    data_inicio: date,
+    contratante: Optional[str] = None,
+    unidade: Optional[str] = None,
+    usuario: UsuarioToken = Depends(obter_usuario_atual),
+):
+    try:
+        conexao = obter_conexao(banco)
+        cursor = conexao.cursor()
+
+    except Exception as e:
+        if "conexao" in locals() and conexao:
+            conexao.close()
+        return {
+            "sucesso": False,
+            "mensagem": f"Erro ao gerar Valuation: {str(e)}",
+        }
+        

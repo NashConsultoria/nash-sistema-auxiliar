@@ -29,18 +29,18 @@
   border: var(--border-color);
   background-color: var(--bg-color5);
   font-size: var(--font-size2);
-  color: var(--text-color1);
+  color: var(--text-color3);
 }
 
 .database-size {
   font-size: var(--font-size-sm);
-  color: var(--title-color2);
+  color: var(--text-color3);
   text-align: center;
 }
 
 .context-subtitle {
   font-size: var(--font-size-sm);
-  color: var(--title-color2);
+  color: var(--text-color3);
   display: block;
   margin-bottom: 12px;
 }
@@ -66,7 +66,7 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: var(--font-size2);
-  color: var(--text-color1);
+  color: var(--text-color3);
   transition: all 0.2s ease;
 }
 
@@ -83,7 +83,7 @@
 .table-badge {
   font-size: var(--font-size-sm);
   background-color: var(--bg-color4);
-  color: var(--title-color2);
+  color: var(--text-color3);
   padding: 2px 6px;
   border-radius: 10px;
 }
@@ -117,7 +117,7 @@
   border: none;
   background: transparent;
   font-size: var(--font-size2);
-  color: var(--title-color2);
+  color: var(--text-color2);
   cursor: pointer;
   border-radius: 6px;
   font-weight: 500;
@@ -141,12 +141,12 @@
 .status-meta h2 {
   margin: 0 0 4px 0;
   font-size: var(--font-size-title);
-  color: var(--title-color1);
+  color: var(--text-color1);
 }
 
 .status-records {
   font-size: var(--font-size-sm);
-  color: var(--title-color2);
+  color: var(--text-color2);
   display: block;
   margin-bottom: 6px;
 }

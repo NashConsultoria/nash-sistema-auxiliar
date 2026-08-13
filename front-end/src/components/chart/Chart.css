@@ -12,7 +12,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  height: 350px;
+  height: 320px;
   overflow: hidden; /* Trava física para evitar vazamentos */
   position: relative;
 }
@@ -26,13 +26,13 @@
 
 /* Customização da legenda do Recharts */
 .chart-container .recharts-default-legend {
-  font-family: var(--font-text, var(--text-font)), sans-serif;
+  font-family: var(--font-text, var(--text-font));
   font-size: var(--font-size2, 12px) !important;
   padding-top: 10px;
 }
 
 .chart-container .recharts-legend-item-text {
-  color: var(--text-color1) !important;
+  color: var(--text-color3) !important;
   font-family: var(--font-text, var(--text-font));
   font-size: var(--font-size2, 12px) !important;
 }
@@ -52,7 +52,7 @@
   margin: 0 0 4px 0;
   font-weight: 600;
   font-size: var(--font-size1, 14px);
-  color: var(--text-color1);
+  color: var(--text-color3);
 }
 
 .chart-tooltip-item {
