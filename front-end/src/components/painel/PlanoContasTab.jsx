@@ -5,26 +5,42 @@ import Button from "../button/Button";
 import { API_BASE } from "../../context/AuthContext";
 
 export default function PlanoContasTab({ token, banco }) {
-    // Estados para o Plano de Contas
     const [planoContas, setPlanoContas] = useState([]);
     const [carregandoPlano, setCarregandoPlano] = useState(false);
 
-    // Estados para as Regras
     const [regras, setRegras] = useState([]);
     const [carregandoRegras, setCarregandoRegras] = useState(false);
 
-    // 1. Busca do Plano de Contas no backend
+    // Estados para Contratantes
+    const [contratantes, setContratantes] = useState([]);
+
+    // Estados do Formulário de Nova Regra
+    const [modalAberto, setModalAberto] = useState(false);
+    const fecharModal = () => {
+        setTermoDescricao('');
+        setTermoFornecedor('');
+        setPlanoContaTexto('');
+        setContratanteTexto('');
+        setRegraEmEdicao(null);
+        setModalAberto(false);
+    };
+    const [termoDescricao, setTermoDescricao] = useState('');
+    const [termoFornecedor, setTermoFornecedor] = useState('');
+    const [planoContaTexto, setPlanoContaTexto] = useState('');
+    const [contratanteTexto, setContratanteTexto] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [regraEmEdicao, setRegraEmEdicao] = useState(null);
+
+    // 1. Busca do Plano de Contas
     const carregarPlanoContas = async () => {
         if (!token) return;
         setCarregandoPlano(true);
         try {
-            const res = await fetch(`${API_BASE}/api/${banco || "NashBancoConsultoria"}/planocontas`, {
+            const res = await fetch(`${API_BASE}/api/${banco}/planocontas`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (!res.ok) throw new Error("Erro ao buscar plano de contas");
             const dados = await res.json();
-            
-            // Aceita resposta direta em array ou objeto { sucesso: true, dados: [...] }
             setPlanoContas(Array.isArray(dados) ? dados : dados.dados || []);
         } catch (err) {
             console.error("Erro ao carregar plano de contas:", err);
@@ -33,17 +49,30 @@ export default function PlanoContasTab({ token, banco }) {
         }
     };
 
-    // 2. Busca das Regras de Associação/Mapeamento
+    // 2. Busca dos Contratantes
+    const carregarContratantes = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/contratantes`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error("Erro ao buscar contratantes");
+            const dados = await res.json();
+            setContratantes(dados);
+        } catch (err) {
+            console.error("Erro contratantes:", err);
+        }
+    };
+
+    // 3. Busca das Regras
     const carregarRegras = async () => {
         if (!token) return;
         setCarregandoRegras(true);
         try {
-            const res = await fetch(`${API_BASE}/api/regras-planocontas`, {
+            const res = await fetch(`${API_BASE}/api/${banco}/regras-planocontas`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (!res.ok) throw new Error("Erro ao buscar regras");
             const dados = await res.json();
-            
             setRegras(Array.isArray(dados) ? dados : dados.regras || []);
         } catch (err) {
             console.error("Erro ao carregar regras:", err);
@@ -52,47 +81,128 @@ export default function PlanoContasTab({ token, banco }) {
         }
     };
 
-    useEffect(() => {
-        carregarPlanoContas();
-        carregarRegras();
-    }, [token, banco]);
+    // 4. Salvar Nova Regra
+    const handleSalvarRegra = async (e) => {
+        e.preventDefault();
 
-    // Colunas para a tabela de Regras
-    const colunasRegras = [
-        { label: "ID", key: "id", width: "8%" },
-        { label: "Regra / Nome", key: "nome", width: "30%" },
-        { label: "Tipo / Condição", key: "tipo", width: "25%" },
-        { 
-            label: "Mapeia Para", 
-            key: "destino", 
-            width: "25%",
-            Cell: ({ row }) => (
-                <span style={{ fontFamily: "monospace", fontSize: "12px" }}>
-                    {row.destino || row.contaDestino || "-"}
-                </span>
-            )
-        },
-        {
-            label: "Status",
-            key: "ativo",
-            width: "12%",
-            Cell: ({ row }) => (
-                <span style={{
-                    padding: "2px 8px",
-                    borderRadius: "10px",
-                    fontSize: "11px",
-                    fontWeight: "600",
-                    backgroundColor: row.ativo ? "rgba(34, 197, 94, 0.12)" : "rgba(239, 68, 68, 0.12)",
-                    color: row.ativo ? "#16a34a" : "#dc2626",
-                    border: `1px solid ${row.ativo ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`
-                }}>
-                    {row.ativo ? "Ativo" : "Inativo"}
-                </span>
-            )
+        if (!termoDescricao.trim() && !termoFornecedor.trim()) {
+            alert("Preencha ao menos o Termo na Descrição ou no Fornecedor!");
+            return;
         }
-    ];
 
-    // Colunas para a tabela do Plano de Contas
+        // --- 1. BUSCA E VALIDAÇÃO DO PLANO DE CONTAS ---
+        if (!planoContaTexto || !planoContaTexto.trim()) {
+            alert("Por favor, selecione ou digite um Plano de Contas válido!");
+            return;
+        }
+
+        const textoPlanoDigitado = planoContaTexto.trim().toLowerCase();
+        const contaEncontrada = planoContas.find(p => 
+            String(p.planoConta || "").trim().toLowerCase() === textoPlanoDigitado
+        );
+
+        if (!contaEncontrada) {
+            alert("Plano de Contas não encontrado! Selecione uma opção válida da lista.");
+            return;
+        }
+
+        // --- 2. BUSCA E VALIDAÇÃO DO CONTRATANTE ---
+        let idContratante = null;
+        if (contratanteTexto && contratanteTexto.trim() !== '') {
+            const textoContratanteDigitado = contratanteTexto.trim().toLowerCase();
+            const contratanteEncontrado = contratantes.find(c => 
+                String(c.nome || c.razaoSocial || "").trim().toLowerCase() === textoContratanteDigitado
+            );
+
+            if (!contratanteEncontrado) {
+                alert("O contratante digitado não existe! Selecione uma opção válida da lista ou deixe em branco para aplicar a todos.");
+                return;
+            }
+
+            idContratante = contratanteEncontrado.id;
+        }
+
+        // --- 3. MONTAGEM DO PAYLOAD E DEFINIÇÃO DE ENDPOINT/MÉTODO ---
+        const isEdicao = Boolean(regraEmEdicao);
+        const url = isEdicao 
+            ? `${API_BASE}/api/${banco}/regras-planocontas/${regraEmEdicao.id}`
+            : `${API_BASE}/api/${banco}/regras-planocontas`;
+
+        const metodo = isEdicao ? 'PUT' : 'POST';
+
+        const payload = {
+            termoDescricao: termoDescricao.trim() || null,
+            termoFornecedor: termoFornecedor.trim() || null,
+            planoContaId: Number(contaEncontrada.id),
+            contratanteId: idContratante ? Number(idContratante) : null
+        };
+
+        setSalvando(true);
+        try {
+            const res = await fetch(url, {
+                method: metodo,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const dados = await res.json();
+
+            if (!res.ok) {
+                const msg = typeof dados.detail === 'string' ? dados.detail : JSON.stringify(dados.detail);
+                throw new Error(msg || "Erro ao salvar alteração.");
+            }
+
+            alert(isEdicao ? "Regra atualizada com sucesso!" : "Regra cadastrada com sucesso!");
+            
+            // Limpa o formulário e fecha
+            fecharModal();
+            carregarRegras();
+        } catch (err) {
+            alert(`Falha ao salvar: ${err.message}`);
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    const handleEditarRegra = (row) => {
+        setRegraEmEdicao(row); // Guarda a regra completa que será atualizada
+
+        // Preenche os campos do formulário
+        setTermoDescricao(row.termoDescricao || '');
+        setTermoFornecedor(row.termoFornecedor || '');
+        
+        // Define o texto do Plano de Contas (usa a propriedade que traz o nome do destino)
+        setPlanoContaTexto(row.destino || row.planoConta || '');
+        
+        // Define o texto do Contratante
+        setContratanteTexto(row.contratanteNome || '');
+
+        // Abre o modal
+        setModalAberto(true);
+    };
+
+    const handleExcluirRegra = async (idRegra) => {
+        if (!window.confirm("Tem certeza que deseja excluir esta regra?")) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/api/${banco}/regras-planocontas/${idRegra}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (!res.ok) throw new Error("Erro ao excluir regra.");
+
+            alert("Regra excluída com sucesso!");
+            carregarRegras();
+        } catch (err) {
+            alert(`Falha ao excluir: ${err.message}`);
+        }
+    };
+
+    // Definição das colunas para Tabela de Plano de Contas
     const colunasPlanoContas = [
         { label: "Plano de Contas", key: "planoConta", width: "30%" },
         { label: "Grupo de Contas", key: "grupoConta", width: "25%" },
@@ -101,49 +211,201 @@ export default function PlanoContasTab({ token, banco }) {
         { label: "e-Folha", key: "efolha", width: "15%" }
     ];
 
+    // Definição das colunas para Tabela de Regras (Alinhado com a nova tabela PlanoDePara)
+    const colunasRegras = [
+        { 
+            label: "Contratante", 
+            key: "contratanteNome", 
+            width: "20%",
+            Cell: ({ row }) => row.contratanteNome || row.contratanteId || (
+                <span style={{ color: "#94a3b8", fontStyle: "italic" }}>- Regra geral -</span>
+            )
+        },
+        { 
+            label: "Descrição", 
+            key: "termoDescricao", 
+            width: "22%",
+            Cell: ({ row }) => row.termoDescricao || (
+                <span style={{ color: "#94a3b8", fontStyle: "italic" }}>- Qualquer -</span>
+            )
+        },
+        { 
+            label: "Fornecedor", 
+            key: "termoFornecedor", 
+            width: "22%",
+            Cell: ({ row }) => row.termoFornecedor || (
+                <span style={{ color: "#94a3b8", fontStyle: "italic" }}>- Qualquer -</span>
+            )
+        },
+        { 
+            label: "Plano de Contas", 
+            key: "destino", 
+            width: "26%",
+            Cell: ({ row }) => (
+                <span>
+                    {row.destino || row.planoConta || row.planoContaNome || `ID: ${row.planoContaId}`}
+                </span>
+            )
+        },
+        {
+            label: "Ações",
+            key: "acoes",
+            width: "20%",
+            style: { textAlign: "right" },
+            Cell: ({ row }) => (
+                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                    <Button onClick={() => handleEditarRegra(row)}>
+                        Editar
+                    </Button>
+                    <Button onClick={() => handleExcluirRegra(row.id)} style={{backgroundColor: "#f87171",}} >
+                        Excluir
+                    </Button>
+                </div>
+            )
+        }
+    ];
+
+    useEffect(() => {
+        carregarPlanoContas();
+        carregarRegras();
+        carregarContratantes();
+    }, [token, banco]);
+
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-            {/* SEÇÃO 1: REGRAS CONFIGURADAS */}
+            {/* SEÇÃO 1: REGRAS MAPEADAS */}
             <Card title="Regras de Mapeamento do Plano de Contas">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                    <p style={{ margin: 0, color: "#64748b", fontSize: "14px" }}>
-                        Regras automáticas aplicadas durante o vínculo e importação de movimentações.
+                    <p>
+                        Regras de Mapeamento de Plano de Contas
                     </p>
-                    <Button 
-                        onClick={carregarRegras}
-                        style={{ padding: "6px 12px", fontSize: "13px" }}
-                    >
-                        Atualizar Regras
+                    <Button onClick={() => setModalAberto(true)}>
+                        + Nova Regra
                     </Button>
                 </div>
 
                 {carregandoRegras ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>
-                        Carregando regras configuradas...
-                    </div>
+                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>Carregando regras...</div>
                 ) : (
                     <Table columns={colunasRegras} data={regras} />
                 )}
             </Card>
 
-            {/* SEÇÃO 2: PLANO DE CONTAS */}
-            <Card title="Gerenciamento do Plano de Contas">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                    <p style={{ margin: 0, color: "#64748b", fontSize: "14px" }}>
-                        Estrutura completa das contas cadastradas no banco de dados.
-                    </p>
-                    <Button 
-                        onClick={carregarPlanoContas}
-                        style={{ padding: "6px 12px", fontSize: "13px" }}
-                    >
-                        Recarregar Tabela
-                    </Button>
-                </div>
+            {/* MODAL DE CADASTRO */}
+            {modalAberto && (
+                <div style={{
+                    position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: "rgba(0, 0, 0, 0.5)",
+                    display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000
+                }}>
+                    <div style={{
+                        backgroundColor: "#fff", borderRadius: "8px", padding: "24px",
+                        width: "100%", maxWidth: "520px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)"
+                    }}>
+                        <h3 style={{ marginTop: 0, marginBottom: "16px", fontSize: "18px" }}>
+                            Nova Regra: Descrição + Fornecedor = Plano
+                        </h3>
 
-                {carregandoPlano ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>
-                        Carregando plano de contas...
+                        <form onSubmit={handleSalvarRegra} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                            {/* Termo Descrição */}
+                            <div>
+                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>
+                                    1. Termo que contém na Descrição:
+                                </label>
+                                <input 
+                                    type="text"
+                                    placeholder="Ex: TARIFA, ALUGUEL..."
+                                    value={termoDescricao}
+                                    onChange={(e) => setTermoDescricao(e.target.value)}
+                                    style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }}
+                                />
+                            </div>
+
+                            {/* Termo Fornecedor */}
+                            <div>
+                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>
+                                    2. Termo que contém no Fornecedor:
+                                </label>
+                                <input 
+                                    type="text"
+                                    placeholder="Ex: BANCO DO BRASIL"
+                                    value={termoFornecedor}
+                                    onChange={(e) => setTermoFornecedor(e.target.value)}
+                                    style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }}
+                                />
+                            </div>
+
+                            {/* Datalist do Plano de Contas */}
+                            <div>
+                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>
+                                    3. Plano de Contas (Destino) *
+                                </label>
+                                <input 
+                                    type="text"
+                                    list="lista-plano-contas"
+                                    placeholder="Digite ou escolha o plano de contas..."
+                                    value={planoContaTexto}
+                                    onChange={(e) => setPlanoContaTexto(e.target.value)}
+                                    required
+                                    style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }}
+                                />
+                                <datalist id="lista-plano-contas">
+                                    {planoContas.map((p, index) => {
+                                        const nomePlano = p.planoConta || p.planoconta || "";
+                                        return (
+                                            <option 
+                                                key={p.idP || index} 
+                                                value={nomePlano} 
+                                            />
+                                        );
+                                    })}
+                                </datalist>
+                            </div>
+
+                            {/* Datalist do Contratante */}
+                            <div>
+                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>
+                                    4. Contratante (Opcional - Vazio para regra Geral)
+                                </label>
+                                <input 
+                                    type="text"
+                                    list="lista-contratantes"
+                                    placeholder="Digite ou escolha o contratante..."
+                                    value={contratanteTexto}
+                                    onChange={(e) => setContratanteTexto(e.target.value)}
+                                    style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }}
+                                />
+                                <datalist id="lista-contratantes">
+                                    {contratantes.map((c, index) => {
+                                        const nomeC = c.nome || c.razaoSocial || "";
+                                        return (
+                                            <option 
+                                                key={index} 
+                                                value={`${nomeC}`} 
+                                            />
+                                        );
+                                    })}
+                                </datalist>
+                            </div>
+
+                            {/* Botões do Form */}
+                            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "12px" }}>
+                                <Button type="button" onClick={() => fecharModal()}>
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" disabled={salvando}>
+                                    {salvando ? "Salvando..." : "Salvar Regra"}
+                                </Button>
+                            </div>
+                        </form>
                     </div>
+                </div>
+            )}
+
+            {/* SEÇÃO 2: LISTAGEM PLANO DE CONTAS */}
+            <Card title="Gerenciamento do Plano de Contas">
+                {carregandoPlano ? (
+                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>Carregando plano...</div>
                 ) : (
                     <Table columns={colunasPlanoContas} data={planoContas} />
                 )}

@@ -11,6 +11,7 @@ from app.routers import (
     importacao,
     logs,
     lotes,
+    plano_contas,
     relatorios,
     usuarios,
 )
@@ -46,6 +47,7 @@ app.include_router(exportacao.router)
 app.include_router(importacao.router)
 app.include_router(logs.router)
 app.include_router(lotes.router)
+app.include_router(plano_contas.router)
 app.include_router(relatorios.router, prefix="/api")
 app.include_router(usuarios.router)
 

@@ -195,7 +195,8 @@ export default function PainelControle() {
 
                 {abaAtiva === "planocontas" && (usuario?.perfil === 1 || usuario?.id === 1) && (
                     <PlanoContasTab 
-                        
+                        token={token} 
+                        banco={banco} 
                     />
                 )}
 

@@ -69,17 +69,20 @@ create table PlanoContas
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
-create table PlanoDePara 
+CREATE TABLE PlanoDePara 
 (
     id					int					not null		primary key		identity,
-	contratanteId		int						null,						-- Se NULL, a regra vale para todos os clientes
-    termoBusca			varchar(255)		not null,						-- Ex: "POSTO SHELL", "ALUGUEL", "AMAZON"
-    campoOrigem			varchar(50)							default 'DESCRICAO_FORNECEDOR', -- Qual campo do extrato olhar
-    planoContaId		int					not null,						-- ID da conta em dbo.PlanoContas
-    ativo				BIT									default 1,
+    contratanteId       int						null,						-- NULL = Regra Global
+    termoDescricao      varchar(255)			null,						-- Busca na Descrição (Ex: "TARIFA")
+    termoFornecedor     varchar(255)			null,						-- Busca no Fornecedor (Ex: "ITAU")
+    planoContaId        int						not null,					-- Mapeia para PlanoContas
 
-    foreign key (planoContaId)				references PlanoContas(id),
-    foreign key (contratanteId)				references Contratante(id)
+    -- Chaves Estrangeiras
+    CONSTRAINT FK_PlanoDePara_PlanoContas foreign key (planoContaId) references PlanoContas(id),
+    CONSTRAINT FK_PlanoDePara_Contratante foreign key (contratanteId) references Contratante(id),
+
+    -- Validação: Pelo menos um dos dois termos DEVE estar preenchido
+    CONSTRAINT CK_PlanoDePara_PeloMenosUmTermo CHECK (termoDescricao IS NOT NULL OR termoFornecedor IS NOT NULL)
 );
 
 create table Movimentacao
