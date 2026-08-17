@@ -32,9 +32,15 @@ def gerar_fornecedor_com_filtro(descricao_texto: str) -> str:
 
 def identificar_fornecedor(descricao: str, banco_val: str) -> str:
     desc_lower = descricao.lower()
+    
     for termo, fornecedor in REGRAS_FORNECEDORES:
         if termo.lower() in desc_lower:
-            return banco_val if fornecedor == "BANCO" else fornecedor
+            # Lista ou verificação de marcas que indicam que o fornecedor deve ser o próprio banco
+            fornecedor_upper = str(fornecedor).strip().upper()
+            if fornecedor_upper in ["BANCO", "(NOME DO BANCO)", "[NOME DO BANCO]"]:
+                return banco_val
+            return fornecedor
+
     return gerar_fornecedor_com_filtro(descricao)
 
 def aplicar_plano_conta(linhas_extrato: list, banco: str, contratante_id: Optional[int] = None) -> list:
