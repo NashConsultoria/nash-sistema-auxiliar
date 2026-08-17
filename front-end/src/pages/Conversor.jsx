@@ -228,19 +228,19 @@ export default function Conversor() {
       <main className="page-right">
         <Card title="Pré-Visualização">
           {loading ? (
-            <div style={{ textAlign: "center", padding: "40px 20px" }}>
-              <p style={{ color: "var(--text-color3)", fontSize: "var(--font-size1)" }}>Carregando dados...</p>
+            <div className="state-container">
+              <p className="state-title">Carregando dados...</p>
             </div>
           ) : data && data.length > 0 ? (
-            <div style={{ width: "100%", minHeight: "470px", maxHeight: "470px", overflow: "auto" }}>
+            <div className="table-scroll-container">
               <Table columns={columns} data={data} />
             </div>
           ) : (
-            <div style={{ textAlign: "center", padding: "40px 20px" }}>
-              <p style={{ color: "var(--text-color3)", fontSize: "var(--font-size1)", marginBottom: "8px" }}>
+            <div className="state-container">
+              <p className="state-title">
                 Nenhum dado convertido para visualização da base.
               </p>
-              <span style={{ fontSize: "var(--font-size2)", color: "var(--text-color3)" }}>
+              <span className="state-subtitle">
                 Selecione o <strong>Contratante</strong>, clique em <strong>Importar Arquivo</strong> e depois em <strong>Converter Arquivo</strong>.
               </span>
             </div>

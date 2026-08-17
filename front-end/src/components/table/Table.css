@@ -48,7 +48,7 @@
 
 /* Efeito Zebrado */
 .table tbody tr:nth-child(even) {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: var(--bg-color8);
 }
 
 /* Células de dados */

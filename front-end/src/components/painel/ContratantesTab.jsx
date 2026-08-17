@@ -155,7 +155,7 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
                 <Card title="Gerenciamento de Contratantes">
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                            <p style={{ margin: 0 }}>Visualize e gerencie as empresas contratantes cadastradas no sistema.</p>
+                            <p>Visualize e gerencie as empresas contratantes cadastradas no sistema.</p>
                             <Button
                                 onClick={() => setMostrarContratantesInativos(!mostrarContratantesInativos)}
                                 style={{

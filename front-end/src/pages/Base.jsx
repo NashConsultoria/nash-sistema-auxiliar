@@ -263,34 +263,21 @@ export default function Base() {
 
             {/* SELETOR DE VISÃO (DRE x FOLHA DE PAGAMENTO) */}
             <div style={{ display: "flex", gap: "10px"}}>
-                <button
+                <Button
+                    variant="toggle"
+                    active={tipoVisao === "dre"}
                     onClick={() => setTipoVisao("dre")}
-                    style={{
-                        padding: "10px 18px",
-                        borderRadius: "8px",
-                        border: "1px solid #cbd5e1",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                        backgroundColor: tipoVisao === "dre" ? "#35448a" : "#fff",
-                        color: tipoVisao === "dre" ? "#fff" : "#475569"
-                    }}
-                >
-                    📈 Movimentações Financeiras (DRE)
-                </button>
-                <button
+                    >
+                    📈 Base E-DRE
+                </Button>
+
+                <Button
+                    variant="toggle"
+                    active={tipoVisao === "folha"}
                     onClick={() => setTipoVisao("folha")}
-                    style={{
-                        padding: "10px 18px",
-                        borderRadius: "8px",
-                        border: "1px solid #cbd5e1",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                        backgroundColor: tipoVisao === "folha" ? "#35448a" : "#fff",
-                        color: tipoVisao === "folha" ? "#fff" : "#475569"
-                    }}
-                >
+                    >
                     👥 Folha de Pagamento
-                </button>
+                </Button>
             </div>
             
             {!loading && !erro && data.length > 0 && (
@@ -371,37 +358,29 @@ export default function Base() {
                 </Card>
             )}
 
-            <Card title={`📊 ${configAtual.titulo} — Banco: ${bancoAtivo || "Carregando..."}`}> 
+            <Card title={`📊 ${configAtual.titulo}`}> 
                 {loading ? (
-                    <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
-                        <span>🔄 Carregando registros do SQL Server...</span>
+                    <div className="state-container">
+                        <span className="state-subtitle">🔄 Carregando registros do SQL Server...</span>
                     </div>
                 ) : erro ? (
-                    <div style={{ 
-                        padding: "24px", 
-                        textAlign: "center", 
-                        color: "#b45309", 
-                        backgroundColor: "#fffbeb", 
-                        border: "1px solid #fef3c7", 
-                        borderRadius: "8px",
-                        margin: "10px auto",
-                        maxWidth: "600px",
-                        lineHeight: "1.5"
-                    }}>
-                        <div style={{ fontSize: "24px", marginBottom: "8px" }}>⚠️</div>
-                        <strong style={{ fontSize: "15px" }}>Nenhum registro encontrado!</strong><br/>
+                    <div className="state-error">
+                        <div className="state-error-icon">⚠️</div>
+                        <strong className="state-error-title">Nenhum registro encontrado!</strong><br/>
                         Não foi possível carregar a tabela de <b>{configAtual.titulo}</b> no banco <b>{bancoAtivo}</b>.<br/>
                     </div>
                 ) : data.length > 0 ? (
                     <div className="table-container">
-                        <div style={{ fontSize: "12px", color: "#64748b", textAlign: "right" }}>
+                        <div className="table-info">
                             Exibindo <b>{dadosFiltrados.length}</b> de <b>{data.length}</b> registros.
                         </div>
                         <Table columns={configAtual.columns} data={dadosFiltrados} />
                     </div>
                 ) : (
-                    <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
-                        Nenhum dado cadastrado para {configAtual.titulo}.
+                    <div className="state-container">
+                        <p className="state-subtitle">
+                            Nenhum dado cadastrado para {configAtual.titulo}.
+                        </p>
                     </div>
                 )}
             </Card>

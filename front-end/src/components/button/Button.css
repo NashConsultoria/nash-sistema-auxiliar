@@ -11,7 +11,7 @@
   cursor: pointer;
   background-color: var(--bnt-color);
   color: var(--text-color2);
-  transition: background-color 0.2s ease, transform 0.1s ease;
+  transition: background-color 0.2s ease, transform 0.1s ease, border-color 0.2s ease, color 0.2s ease;
   user-select: none; /* Evita que o texto do botão seja selecionado sem querer ao dar toques rápidos */
 }
 
@@ -43,16 +43,36 @@
   color: var(--bg-color5);
 }
 
+/* ==========================================
+   VARIANTE TOGGLE (SELETOR)
+   ========================================== */
+.btn-toggle {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: var(--border-color);
+  font-weight: 600;
+  background-color: var(--bg-color9);
+  color: var(--text-color1);
+}
+
+.btn-toggle.active {
+  background-color: var(--bg-color1);
+  color: var(--text-color2);
+}
 
 /* ==========================================
    HOVER (Apenas para telas com mouse)
    ========================================== */
 @media (hover: hover) {
-  .btn:hover {
+  .btn:not(.btn-toggle):not(.btn-icon):hover {
     background-color: var(--hover-color);
   }
-}
 
+  .btn-toggle:hover:not(.active) {
+    background-color: #f8fafc;
+    border-color: #94a3b8;
+  }
+}
 
 /* ==========================================
    REGRAS DE RESPONSIVIDADE (MOBILE / TABLET)
@@ -67,5 +87,9 @@
   .btn-icon {
     width: 44px;
     height: 44px; /* Garante área de toque recomendada no mobile */
+  }
+
+  .btn-toggle {
+    padding: 0.6rem 1rem;
   }
 }
