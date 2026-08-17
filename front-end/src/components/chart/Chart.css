@@ -19,7 +19,7 @@
 
 /* Customização dos textos dos eixos X e Y gerados pelo Recharts */
 .chart-container .recharts-text {
-  fill: var(--text-color1);
+  fill: var(--text-color3);
   font-family: var(--font-text, var(--text-font));
   font-size: var(--font-size2, var(--text-size1));
 }

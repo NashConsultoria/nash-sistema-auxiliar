@@ -38,9 +38,7 @@ def startup_db():
   criar_admin_padrao_se_necessario()
 
 app.include_router(auth.router)
-app.include_router(
-    conversor.router, prefix="/api"
-)
+app.include_router(conversor.router, prefix="/api")
 app.include_router(contratantes.router)
 app.include_router(dados.router, prefix="/api")
 app.include_router(exportacao.router)

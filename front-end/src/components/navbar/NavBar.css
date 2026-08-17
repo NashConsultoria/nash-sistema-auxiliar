@@ -27,7 +27,7 @@
   align-items: center;
   gap: 6px;
   text-decoration: none;
-  color: var(--text-color1);
+  color: var(--text-color3);
   font-size: var(--font-size2);
   font-weight: 500;
   cursor: pointer;

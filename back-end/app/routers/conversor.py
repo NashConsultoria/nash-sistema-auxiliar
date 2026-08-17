@@ -1,20 +1,19 @@
 import io
-import pdfplumber
 import re
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from typing import Optional
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 
-# Imports centralizados do projeto
-from app.config import MAPA_BANCOS, REGRAS_FORNECEDORES, PALAVRAS_REMOVIDAS, BANCO_AUTENTICACAO
+from app.config import MAPA_BANCOS, REGRAS_FORNECEDORES, PALAVRAS_REMOVIDAS
 from app.database import obter_conexao
-from app.utils import corrigir_encoding, normalizar_texto
+from app.utils import corrigir_encoding
 
 router = APIRouter(prefix="/NashBancoConsultoria/conversor", tags=["Conversor de Extratos"])
 
 # ==============================================================================
-# FUNÇÕES DE SUPORTE E UTILITÁRIOS
+# ENRIQUECIMENTO E APLICAÇÃO DE REGRAS
 # ==============================================================================
 
 def gerar_fornecedor_com_filtro(descricao_texto: str) -> str:
@@ -31,7 +30,6 @@ def gerar_fornecedor_com_filtro(descricao_texto: str) -> str:
     fornecedor_limpo = re.sub(r"\s*-\s*$", "", fornecedor_limpo)
     return re.sub(r"\s+", " ", fornecedor_limpo).strip()
 
-
 def identificar_fornecedor(descricao: str, banco_val: str) -> str:
     desc_lower = descricao.lower()
     for termo, fornecedor in REGRAS_FORNECEDORES:
@@ -39,59 +37,71 @@ def identificar_fornecedor(descricao: str, banco_val: str) -> str:
             return banco_val if fornecedor == "BANCO" else fornecedor
     return gerar_fornecedor_com_filtro(descricao)
 
-def aplicar_plano_conta(linhas_extrato, banco, contratante_id=None):
+def aplicar_plano_conta(linhas_extrato: list, banco: str, contratante_id: Optional[int] = None) -> list:
     """
-    Recebe as linhas brutas do extrato e aplica o DE/PARA
+    Busca o nome do contratante e aplica as regras de DE/PARA cadastradas,
+    preenchendo: contratante, planoConta, grupoConta e edre.
     """
-    conexao = obter_conexao(banco)
-    cursor = conexao.cursor()
+    nome_contratante = ""
+    regras = []
 
-    # 1. Busca todas as regras ativas no banco de dados
-    # Traz o termoBusca e os dados do PlanoContas (edre, grupoConta, planoConta)
-    query_regras = """
-        SELECT 
-            r.termoBusca,
-            pc.edre,
-            pc.grupoConta,
-            pc.planoConta
-        FROM dbo.RegraCategorizacao r
-        INNER JOIN dbo.PlanoContas pc ON r.planoContaId = pc.id
-        WHERE r.ativo = 1 AND (r.contratanteId IS NULL OR r.contratanteId = ?)
-    """
-    cursor.execute(query_regras, [contratante_id])
-    regras = cursor.fetchall()
-    conexao.close()
+    if contratante_id:
+        conexao = obter_conexao(banco)
+        cursor = conexao.cursor()
 
-    # 2. Aplica as regras linha por linha do arquivo
+        # 1. Busca o nome do contratante
+        try:
+            cursor.execute("SELECT nome FROM dbo.Contratante WHERE id = ?", [contratante_id])
+            row_contratante = cursor.fetchone()
+            if row_contratante:
+                nome_contratante = row_contratante[0]
+        except Exception as e:
+            print(f"Aviso: Erro ao buscar nome do contratante: {e}")
+
+        # 2. Busca as regras ativas de DE/PARA com os dados do PlanoContas
+        query_regras = """
+            SELECT 
+                p.termoDescricao,
+                p.termoFornecedor,
+                pc.planoConta,
+                pc.grupoConta,
+                pc.edre
+            FROM dbo.PlanoDePara p
+            INNER JOIN dbo.PlanoContas pc ON p.planoContaId = pc.id
+            WHERE p.contratanteId IS NULL OR p.contratanteId = ?
+        """
+        cursor.execute(query_regras, [contratante_id])
+        regras = cursor.fetchall()
+        conexao.close()
+
+    # 3. Preenche as linhas com o contratante e as categorias mapeadas
     for linha in linhas_extrato:
-        # Junta Descrição + Fornecedor para a busca
-        texto_busca = f"{linha.get('descricao', '')} {linha.get('fornecedor', '')}".upper().strip()
+        linha["contratante"] = nome_contratante
 
-        for regra in regras:
-            termo = regra[0].upper().strip()
+        desc = (linha.get("descricao") or "").upper().strip()
+        forn = (linha.get("fornecedor") or "").upper().strip()
 
-            # Se a palavra-chave estiver contida na descrição do extrato
-            if termo in texto_busca:
-                linha['edre'] = regra[1]
-                linha['grupoConta'] = regra[2]
-                linha['planoConta'] = regra[3]
-                break  # Encontrou a primeira regra correspondente, passa para a próxima linha
+        for t_desc, t_forn, p_conta, g_conta, edre in regras:
+            match_desc = True if not t_desc else (t_desc.upper() in desc)
+            match_forn = True if not t_forn else (t_forn.upper() in forn)
+
+            if match_desc and match_forn:
+                linha["planoConta"] = p_conta or ""
+                linha["grupoConta"] = g_conta or ""
+                linha["edre"] = edre or ""
+                break
 
     return linhas_extrato
 
 # ==============================================================================
-# PARSERS DE ARQUIVO (OFX E PDF)
+# PARSER OFX E ROTEADOR
 # ==============================================================================
 
 def processar_ofx(conteudo_texto: str) -> list:
     bankid_match = re.search(r"<BANKID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
     if bankid_match:
         banco_codigo = bankid_match.group(1).strip().lstrip("0")
-        banco_val = MAPA_BANCOS.get(banco_codigo)
-        if not banco_val and banco_codigo.isdigit():
-            banco_val = MAPA_BANCOS.get(banco_codigo.zfill(3))
-        if not banco_val:
-            banco_val = banco_codigo.upper()
+        banco_val = MAPA_BANCOS.get(banco_codigo) or MAPA_BANCOS.get(banco_codigo.zfill(3)) or banco_codigo.upper()
     else:
         banco_val = "DESCONHECIDO"
 
@@ -101,13 +111,9 @@ def processar_ofx(conteudo_texto: str) -> list:
     agencia_val = agencia_match.group(1).strip() if agencia_match else ""
     conta_val = conta_match.group(1).strip() if conta_match else ""
 
-    blocos_transacao = re.findall(
-        r"<STMTTRN>(.*?)</STMTTRN>", conteudo_texto, re.DOTALL | re.IGNORECASE
-    )
+    blocos_transacao = re.findall(r"<STMTTRN>(.*?)</STMTTRN>", conteudo_texto, re.DOTALL | re.IGNORECASE)
     if not blocos_transacao:
-        blocos_transacao = re.findall(
-            r"<TRN>(.*?)</TRN>", conteudo_texto, re.DOTALL | re.IGNORECASE
-        )
+        blocos_transacao = re.findall(r"<TRN>(.*?)</TRN>", conteudo_texto, re.DOTALL | re.IGNORECASE)
 
     transacoes_dados = []
 
@@ -143,6 +149,8 @@ def processar_ofx(conteudo_texto: str) -> list:
         fornecedor_val = identificar_fornecedor(descricao_original, banco_val)
 
         transacoes_dados.append({
+            "contratante": "",
+            "unidade": "",
             "banco": banco_val,
             "agencia": agencia_val,
             "conta": conta_val,
@@ -151,231 +159,17 @@ def processar_ofx(conteudo_texto: str) -> list:
             "obs": checknum_val,
             "valor": float(valor),
             "tipo": tipo,
-            "fornecedores": fornecedor_val,
+            "fornecedor": fornecedor_val,
+            "cpf_cnpj": "",
+            "planoConta": "",
+            "grupoConta": "",
+            "edre": ""
         })
 
     return transacoes_dados
 
-def processar_pdf_banco_do_brasil(conteudo_bytes):
-    transacoes_dados = []
-    banco_val = "BANCO DO BRASIL"
-    
-    with pdfplumber.open(io.BytesIO(conteudo_bytes)) as pdf:
-        texto_completo = ""
-        for pagina in pdf.pages:
-            texto_pagina = pagina.extract_text()
-            if texto_pagina:
-                texto_completo += texto_pagina + "\n"
 
-    # Extrair Agência e Conta
-    agencia_match = re.search(r"Ag[êe]ncia[:\s]+([\d-]+)", texto_completo, re.IGNORECASE)
-    conta_match = re.search(r"Conta[:\s]+([\d-]+)", texto_completo, re.IGNORECASE)
-    agencia_val = agencia_match.group(1).strip() if agencia_match else ""
-    conta_val = conta_match.group(1).strip() if conta_match else ""
-
-    # Extrair a Unidade (Cliente) de forma flexível (com ou sem dois-pontos)
-    # Torna o dois-pontos opcional (aceita com ou sem) e captura tudo após os espaços
-    cliente_match = re.search(r"Cliente[:]?\s+([^\r\n]+)", texto_completo, re.IGNORECASE)
-    unidade_val = cliente_match.group(1).strip() if cliente_match else ""
-    print(f"[TESTE UNIDADE] Unidade encontrada: '{unidade_val}'")
-    linhas = texto_completo.split("\n")
-    data_reutilizar = ""
-
-    transacoes_blocos = []
-    bloco_atual = ""
-    
-    for linha in linhas:
-        linha_str = linha.strip()
-        if not linha_str or any(h in linha_str for h in ["Lançamentos", "Agência:", "Dia", "Extrato", "CNPJ:"]):
-            if "Saldo Anterior" in linha_str or "SALDO ANTERIOR" in linha_str.upper():
-                transacoes_blocos.append(linha_str)
-            continue
-            
-        if re.match(r"^\d{2}/\d{2}/\d{4}", linha_str):
-            if bloco_atual:
-                transacoes_blocos.append(bloco_atual)
-            bloco_atual = linha_str
-        else:
-            if bloco_atual:
-                bloco_atual += " " + linha_str
-            else:
-                bloco_atual = linha_str
-                
-    if bloco_atual:
-        transacoes_blocos.append(bloco_atual)
-
-    for texto_bloco in transacoes_blocos:
-        if "SALDO ANTERIOR" in texto_bloco.upper() or "Saldo Anterior" in texto_bloco:
-            match_s = re.search(r"(\d{2}/\d{2}/\d{4})\s+.*?([\d\.,]+\s*\([+\-]\))", texto_bloco)
-            if match_s:
-                data_saldo = match_s.group(1)
-                val_saldo = match_s.group(2)
-                is_rec = "(+)" in val_saldo
-                num_s = val_saldo.replace("(+)", "").replace("(-)", "").strip().replace(".", "").replace(",", ".")
-                try:
-                    val = float(num_s)
-                except ValueError:
-                    val = 0.0
-                if not is_rec and val > 0:
-                    val = -val
-                transacoes_dados.append({
-                    "banco": banco_val,
-                    "agencia": agencia_val,
-                    "conta": conta_val,
-                    "unidade": unidade_val,
-                    "data": data_saldo,
-                    "descricao": "SALDO ANTERIOR",
-                    "obs": "",
-                    "valor": float(val),
-                    "tipo": "RECEBIMENTO" if is_rec else "PAGAMENTO",
-                    "fornecedores": banco_val,
-                })
-            continue
-
-        match_date = re.match(r"^(\d{2}/\d{2}/\d{4})", texto_bloco)
-        if match_date:
-            data_reutilizar = match_date.group(1)
-            restante = texto_bloco[len(data_reutilizar):].strip()
-        else:
-            restante = texto_bloco
-            if not data_reutilizar:
-                continue
-
-        match_val = re.search(r"([\d\.]+(?:,\d{2}))\s*(\([+\-]\))", restante)
-        if not match_val:
-            match_val_flex = re.search(r"([\d\.]+(?:,\d{2}))\s*([DC\+\-]+)?", restante)
-            if not match_val_flex:
-                continue
-            val_str = match_val_flex.group(1)
-            sinal_capturado = val_str + " " + (match_val_flex.group(2) or "")
-        else:
-            val_str = match_val.group(1)
-            sinal_capturado = val_str + " " + match_val.group(2)
-
-        is_recebimento = "(+)" in sinal_capturado or "C" in sinal_capturado.upper()
-        if "(-)" in sinal_capturado or "D" in sinal_capturado.upper() or "-" in sinal_capturado:
-            is_recebimento = False
-        elif not ("(+)" in sinal_capturado or "C" in sinal_capturado):
-            if any(termo in texto_bloco.lower() for termo in ["db", "deb", "pagamento", "tar", "pix env", "transf.env", "ted env", "compra com cartao"]):
-                is_recebimento = False
-
-        num_str = val_str.replace(".", "").replace(",", ".")
-        try:
-            valor = float(num_str)
-        except ValueError:
-            continue
-
-        if not is_recebimento and valor > 0:
-            valor = -valor
-
-        tipo = "RECEBIMENTO" if is_recebimento else "PAGAMENTO"
-
-        corpo = restante.replace(sinal_capturado, " ", 1).strip()
-        corpo = corpo.replace(val_str, " ").strip()
-
-        lote = ""
-        doc = ""
-        
-        corpo = re.sub(r"\b(99008|9903|13105|14397|17624)\b", "", corpo)
-        
-        match_doc_isolado = re.search(r"\b(\d{4,15})\b", corpo)
-        if match_doc_isolado:
-            doc = match_doc_isolado.group(1)
-            corpo = corpo.replace(doc, " ", 1)
-
-        descricao = re.sub(r"\s+", " ", corpo).strip()
-        descricao_normalizada = normalizar_texto(descricao)
-
-        if "debconvtributos federais - rfb" in descricao_normalizada.lower():
-            fornecedor_val = "RECEITA FEDERAL"
-        elif "tarifa" in descricao_normalizada.lower():
-            fornecedor_val = banco_val
-        else:
-            fornecedor_val = gerar_fornecedor_com_filtro(descricao_normalizada)
-
-        fornecedor_val = re.sub(r"\d+", "", fornecedor_val)
-        fornecedor_val = re.sub(r"\s+", " ", fornecedor_val).strip()
-
-        transacoes_dados.append({
-            "banco": banco_val,
-            "agencia": agencia_val,
-            "conta": conta_val,
-            "unidade": unidade_val,
-            "data": data_reutilizar,
-            "descricao": descricao_normalizada,
-            "obs": normalizar_texto(doc),
-            "valor": float(valor),
-            "tipo": tipo,
-            "fornecedores": fornecedor_val,
-        })
-
-    return transacoes_dados
-    
-def padronizar_dataframe(transacoes):
-    df = pd.DataFrame(transacoes)
-
-    # Garante que a coluna 'valor' seja numérica (float)
-    if "valor" in df.columns:
-        df["valor"] = pd.to_numeric(df["valor"], errors="coerce").fillna(0.0)
-
-    # Trata a coluna UNIDADE: se já veio preenchida do extrator, mantém; senão, deixa vazia
-    if "unidade" in df.columns:
-        df["UNIDADE"] = df["unidade"].fillna("")
-        # Remove a coluna minúscula antiga para evitar duplicação
-        if "unidade" != "UNIDADE":
-            df = df.drop(columns=["unidade"])
-    else:
-        df["UNIDADE"] = ""
-
-    # Adiciona as outras colunas extras caso não existam
-    df["CONTRATANTE"] = ""
-    df["CPF_CNPJ"] = ""
-    df["PLANO DE CONTA"] = ""
-    df["GRUPO DE CONTA"] = ""
-    df["E-DRE"] = ""
-
-    ordem_colunas = [
-        "CONTRATANTE",
-        "UNIDADE",
-        "banco",
-        "agencia",
-        "conta",
-        "data",
-        "descricao",
-        "obs",
-        "valor",
-        "tipo",
-        "fornecedores",
-        "CPF_CNPJ",
-        "PLANO DE CONTA",
-        "GRUPO DE CONTA",
-        "E-DRE"
-    ]
-
-    df = df[[col for col in ordem_colunas if col in df.columns]]
-    df.columns = [str(col).upper() for col in df.columns]
-    return df
-
-def processar_pdf(conteudo_bytes: bytes) -> list:
-    """Gerenciador centralizador de leitura de arquivos PDF."""
-    with pdfplumber.open(io.BytesIO(conteudo_bytes)) as pdf:
-        texto_completo = ""
-        for pagina in pdf.pages:
-            texto_pagina = pagina.extract_text()
-            if texto_pagina:
-                texto_completo += texto_pagina + "\n"
-
-    texto_lower = texto_completo.lower()
-
-    if "banco do brasil" in texto_lower or "bb.com.br" in texto_lower:
-        return processar_pdf_banco_do_brasil(texto_completo)
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="O modelo do PDF enviado não é suportado pelo sistema."
-        )
-
-def extrair_transacoes_do_arquivo(file: UploadFile, conteudo_bytes: bytes) -> list:
+def processar_arquivo(file: UploadFile, conteudo_bytes: bytes) -> list:
     filename_lower = file.filename.lower()
 
     if filename_lower.endswith(".ofx"):
@@ -391,13 +185,13 @@ def extrair_transacoes_do_arquivo(file: UploadFile, conteudo_bytes: bytes) -> li
         return processar_ofx(conteudo_texto)
 
     elif filename_lower.endswith(".pdf"):
-        return processar_pdf(conteudo_bytes)
+        raise HTTPException(status_code=400, detail="O processamento de arquivos PDF estará disponível em breve.")
 
     else:
-        raise HTTPException(status_code=400, detail="Apenas arquivos .ofx e .pdf são permitidos.")
+        raise HTTPException(status_code=400, detail="Formato de arquivo não suportado. Envie um arquivo .ofx")
 
 # ==============================================================================
-# DATAFRAME & EXCEL FORMULATION
+# EXCEL FORMULATION
 # ==============================================================================
 
 def padronizar_dataframe(transacoes: list) -> pd.DataFrame:
@@ -406,40 +200,69 @@ def padronizar_dataframe(transacoes: list) -> pd.DataFrame:
     if "valor" in df.columns:
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce").fillna(0.0)
 
-    for col in ["CONTRATANTE", "UNIDADE", "CPF_CNPJ", "PLANO DE CONTA", "GRUPO DE CONTA", "E-DRE"]:
-        df[col] = ""
+    # Renomeia colunas do dicionário Python para o cabeçalho final do Excel
+    mapeamento_colunas = {
+        "contratante": "CONTRATANTE",
+        "unidade": "UNIDADE",
+        "banco": "BANCO",
+        "agencia": "AGÊNCIA",
+        "conta": "CONTA",
+        "data": "DATA",
+        "descricao": "DESCRIÇÃO",
+        "obs": "OBSERVAÇÃO",
+        "valor": "VALOR",
+        "tipo": "TIPO",
+        "fornecedor": "FORNECEDOR",
+        "cpf_cnpj": "CPF_CNPJ",
+        "planoConta": "PLANO DE CONTA",
+        "grupoConta": "GRUPO DE CONTA",
+        "edre": "E-DRE"
+    }
 
-    ordem_colunas = [
-        "CONTRATANTE", "UNIDADE", "banco", "agencia", "conta",
-        "data", "descricao", "obs", "valor", "tipo", "fornecedores",
+    df = df.rename(columns=mapeamento_colunas)
+
+    ordem_desejada = [
+        "CONTRATANTE", "UNIDADE", "BANCO", "AGÊNCIA", "CONTA",
+        "DATA", "DESCRIÇÃO", "OBSERVAÇÃO", "VALOR", "TIPO", "FORNECEDOR",
         "CPF_CNPJ", "PLANO DE CONTA", "GRUPO DE CONTA", "E-DRE"
     ]
 
-    df = df[[col for col in ordem_colunas if col in df.columns]]
-    df.columns = [str(col).upper() for col in df.columns]
-    return df
+    return df[[col for col in ordem_desejada if col in df.columns]]
 
 # ==============================================================================
 # ENDPOINTS DA API
 # ==============================================================================
 
 @router.post("/preview")
-async def converter_preview(file: UploadFile = File(...)):
+async def converter_preview(
+    file: UploadFile = File(...),
+    contratanteId: Optional[int] = Form(None),
+    banco: str = Form("NashBancoConsultoria")
+):
     conteudo_bytes = await file.read()
-    transacoes = extrair_transacoes_do_arquivo(file, conteudo_bytes)
+    transacoes = processar_arquivo(file, conteudo_bytes)
+    
+    # Aplica as regras e preenche Contratante + Plano de Contas no Preview
+    transacoes = aplicar_plano_conta(transacoes, banco, contratante_id=contratanteId)
+    
     return {"transacoes": transacoes}
 
+
 @router.post("/download")
-async def converter_download(file: UploadFile = File(...)):
+async def converter_download(
+    file: UploadFile = File(...),
+    contratanteId: Optional[int] = Form(None),
+    banco: str = Form("NashBancoConsultoria")
+):
     try:
         conteudo_bytes = await file.read()
-        transacoes = extrair_transacoes_do_arquivo(file, conteudo_bytes)
+        transacoes = processar_arquivo(file, conteudo_bytes)
 
         if not transacoes:
-            raise HTTPException(
-                status_code=400, 
-                detail="Nenhuma transação foi identificada neste arquivo."
-            )
+            raise HTTPException(status_code=400, detail="Nenhuma transação encontrada no arquivo.")
+
+        # Aplica as regras no conjunto de dados antes de gerar a planilha Excel
+        transacoes = aplicar_plano_conta(transacoes, banco, contratante_id=contratanteId)
 
         df = padronizar_dataframe(transacoes)
         nome_aba = "BASE_FINANCEIRA"
@@ -485,4 +308,4 @@ async def converter_download(file: UploadFile = File(...)):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Erro interno ao gerar o arquivo Excel: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro interno ao gerar Excel: {str(e)}")

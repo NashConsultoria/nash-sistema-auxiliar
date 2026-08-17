@@ -51,7 +51,7 @@
 /* Estilo para o botão que estiver selecionado */
 .menu-btn.active {
   background-color: var(--bg-color1); 
-  color: var(--text-color4);
+  color: var(--text-color2);
   font-weight: 600;
 }
 
@@ -68,7 +68,7 @@
 @media (hover: hover) {
   .menu-btn:hover {
     background-color: var(--hover-color);
-    color: var(--text-color4);
+    color: var(--text-color2);
   }
 
   /* Estilo especial vermelho para o botão Sair */

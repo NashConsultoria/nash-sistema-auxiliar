@@ -5,7 +5,7 @@
   padding: 0 26px;
   background: var(--bg-color1);
   height: 54px;
-  color: var(--text-color4);
+  color: var(--text-color2);
   box-shadow: var(--box-shadow);
   width: 100%;
 }
@@ -37,14 +37,14 @@
 .header-username {
   font-size: var(--font-size1);
   font-weight: 600;
-  color: var(--text-color4);
+  color: var(--text-color2);
   line-height: 1.2;
 }
 
 /* Tipo/Perfil do usuário (Desktop usa var(--font-size2)) */
 .header-usertype {
   font-size: var(--font-size2);
-  color: var(--text-color4);
+  color: var(--text-color2);
   font-weight: 500;
 }
 
@@ -73,7 +73,7 @@
   height: 40px;
   width: auto;
   flex-direction: column;
-  color: var(--text-color4);
+  color: var(--text-color2);
 }
 
 .header-left img {

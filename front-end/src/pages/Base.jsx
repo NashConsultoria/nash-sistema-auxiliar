@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Table from "../components/table/Table";
 import Card from "../components/card/Card";
+import Button from "../components/button/Button";
 import { useAuth } from "../context/AuthContext";
 
 export default function Base() {
@@ -257,10 +258,10 @@ export default function Base() {
     }) : [];
 
     return (
-        <div className="page-container" style={{ padding: "0px" }}>
+        <div className="page-container">
 
             {/* SELETOR DE VISÃO (DRE x FOLHA DE PAGAMENTO) */}
-            <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
+            <div style={{ display: "flex", gap: "10px"}}>
                 <button
                     onClick={() => setTipoVisao("dre")}
                     style={{
@@ -295,58 +296,48 @@ export default function Base() {
                 <Card title={`🔍 Filtrar - ${configAtual.titulo}`}>
                     <div style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end" }}>
                         <div style={{ flex: "1", minWidth: "250px", display: "flex", flexDirection: "column", gap: "5px" }}>
-                            <label style={{ fontSize: "12px", fontWeight: "600", color: "#64748b" }}>Pesquisa Geral:</label>
+                            <label className="form-label">Pesquisa Geral:</label>
                             <input 
+                                className="form-input"
                                 type="text"
                                 placeholder="Digite um termo para buscar..."
                                 value={buscaGlobal}
                                 onChange={(e) => setBuscaGlobal(e.target.value)}
-                                style={{ padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1" }}
                             />
                         </div>
 
                         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                             <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                                <label style={{ fontSize: "12px", fontWeight: "600", color: "#64748b" }}>Valor Mínimo (R$):</label>
+                                <label className="form-label">Valor Mínimo (R$):</label>
                                 <input 
+                                    className="form-input"
                                     type="number"
                                     placeholder="0.00"
                                     value={valorMin}
                                     onChange={(e) => setValorMin(e.target.value)}
-                                    style={{ padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", width: "120px" }}
                                 />
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                                <label style={{ fontSize: "12px", fontWeight: "600", color: "#64748b" }}>Valor Máximo (R$):</label>
+                                <label className="form-label">Valor Máximo (R$):</label>
                                 <input 
+                                    className="form-input"
                                     type="number"
                                     placeholder="99999"
                                     value={valorMax}
                                     onChange={(e) => setValorMax(e.target.value)}
-                                    style={{ padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", width: "120px" }}
                                 />
                             </div>
                         </div>
 
-                        <button 
+                        <Button 
                             onClick={() => {
                                 setBuscaGlobal("");
                                 setFiltrosColuna({});
                                 setValorMin("");
                                 setValorMax("");
-                            }}
-                            style={{
-                                padding: "9px 16px",
-                                backgroundColor: "#f1f5f9",
-                                border: "1px solid #cbd5e1",
-                                borderRadius: "6px",
-                                color: "#475569",
-                                cursor: "pointer",
-                                fontWeight: "500"
-                            }}
-                        >
+                            }}>
                             Limpar Filtros
-                        </button>
+                        </Button>
                     </div>
                 
                     <div style={{ 
@@ -364,24 +355,17 @@ export default function Base() {
                                 
                                 return (
                                     <div key={col.key} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                                        <label style={{ fontSize: "11px", fontWeight: "600", color: "#64748b" }}>
+                                        <label className="form-label">
                                             {col.label}:
                                         </label>
 
                                         <input
+                                            className="form-input"
                                             type="text"
                                             list={listId}
                                             placeholder="Filtrar ou buscar..."
                                             value={filtrosColuna[col.key] || ""}
                                             onChange={(e) => handleFiltroColunaChange(col.key, e.target.value)}
-                                            style={{ 
-                                                padding: "6px 10px", 
-                                                borderRadius: "6px", 
-                                                border: "1px solid #cbd5e1", 
-                                                fontSize: "13px", 
-                                                backgroundColor: "#fff",
-                                                outline: "none"
-                                            }}
                                         />
 
                                         <datalist id={listId}>

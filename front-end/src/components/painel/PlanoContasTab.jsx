@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Card from "../card/Card";
 import Table from "../table/Table";
 import Button from "../button/Button";
@@ -7,6 +7,22 @@ import { API_BASE } from "../../context/AuthContext";
 export default function PlanoContasTab({ token, banco }) {
     const [planoContas, setPlanoContas] = useState([]);
     const [carregandoPlano, setCarregandoPlano] = useState(false);
+
+    const [filtroPlano, setFiltroPlano] = useState('');
+    const [filtroGrupo, setFiltroGrupo] = useState('');
+    const [filtroEDre, setFiltroEDre] = useState('');
+    const [filtroDfc, setFiltroDfc] = useState('');
+    const [filtroEFolha, setFiltroEFolha] = useState('');
+
+    
+
+    const limparFiltros = () => {
+        setFiltroPlano('');
+        setFiltroGrupo('');
+        setFiltroEDre('');
+        setFiltroDfc('');
+        setFiltroEFolha('');
+    };
 
     const [regras, setRegras] = useState([]);
     const [carregandoRegras, setCarregandoRegras] = useState(false);
@@ -309,45 +325,45 @@ export default function PlanoContasTab({ token, banco }) {
                         <form onSubmit={handleSalvarRegra} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                             {/* Termo Descrição */}
                             <div>
-                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>
+                                <label className="form-label">
                                     1. Termo que contém na Descrição:
                                 </label>
                                 <input 
+                                    className="form-input"
                                     type="text"
                                     placeholder="Ex: TARIFA, ALUGUEL..."
                                     value={termoDescricao}
                                     onChange={(e) => setTermoDescricao(e.target.value)}
-                                    style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }}
                                 />
                             </div>
 
                             {/* Termo Fornecedor */}
                             <div>
-                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>
+                                <label className="form-label">
                                     2. Termo que contém no Fornecedor:
                                 </label>
                                 <input 
+                                    className="form-input"
                                     type="text"
                                     placeholder="Ex: BANCO DO BRASIL"
                                     value={termoFornecedor}
                                     onChange={(e) => setTermoFornecedor(e.target.value)}
-                                    style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }}
                                 />
                             </div>
 
                             {/* Datalist do Plano de Contas */}
                             <div>
-                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>
+                                <label className="form-label">
                                     3. Plano de Contas (Destino) *
                                 </label>
                                 <input 
+                                    className="form-input"
                                     type="text"
                                     list="lista-plano-contas"
                                     placeholder="Digite ou escolha o plano de contas..."
                                     value={planoContaTexto}
                                     onChange={(e) => setPlanoContaTexto(e.target.value)}
                                     required
-                                    style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }}
                                 />
                                 <datalist id="lista-plano-contas">
                                     {planoContas.map((p, index) => {
@@ -364,16 +380,16 @@ export default function PlanoContasTab({ token, banco }) {
 
                             {/* Datalist do Contratante */}
                             <div>
-                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>
+                                <label className="form-label">
                                     4. Contratante (Opcional - Vazio para regra Geral)
                                 </label>
                                 <input 
+                                    className="form-input"
                                     type="text"
                                     list="lista-contratantes"
                                     placeholder="Digite ou escolha o contratante..."
                                     value={contratanteTexto}
                                     onChange={(e) => setContratanteTexto(e.target.value)}
-                                    style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", boxSizing: "border-box" }}
                                 />
                                 <datalist id="lista-contratantes">
                                     {contratantes.map((c, index) => {
@@ -404,6 +420,76 @@ export default function PlanoContasTab({ token, banco }) {
 
             {/* SEÇÃO 2: LISTAGEM PLANO DE CONTAS */}
             <Card title="Gerenciamento do Plano de Contas">
+                <div className="card-filtros mb-4">
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h5 className="m-0">Filtrar Plano de Contas</h5>
+                        <Button type="button" onClick={limparFiltros}>
+                            Limpar Filtros
+                        </Button>
+                    </div>
+
+                    <div className="row g-3">
+                        {/* Filtro: Plano de Conta */}
+                        <div className="col-md-4">
+                        <label className="form-label">Plano de Conta</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Buscar plano..."
+                            value={filtroPlano}
+                            onChange={(e) => setFiltroPlano(e.target.value)}
+                        />
+                        </div>
+
+                        {/* Filtro: Grupo de Conta */}
+                        <div className="col-md-4">
+                        <label className="form-label">Grupo de Conta</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Buscar grupo..."
+                            value={filtroGrupo}
+                            onChange={(e) => setFiltroGrupo(e.target.value)}
+                        />
+                        </div>
+
+                        {/* Filtro: E-DRE */}
+                        <div className="col-md-4">
+                        <label className="form-label">E-DRE</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Buscar E-DRE..."
+                            value={filtroEDre}
+                            onChange={(e) => setFiltroEDre(e.target.value)}
+                        />
+                        </div>
+
+                        {/* Filtro: DFC */}
+                        <div className="col-md-6">
+                        <label className="form-label">DFC</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Buscar DFC..."
+                            value={filtroDfc}
+                            onChange={(e) => setFiltroDfc(e.target.value)}
+                        />
+                        </div>
+
+                        {/* Filtro: E-Folha */}
+                        <div className="col-md-6">
+                        <label className="form-label">E-Folha</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Buscar E-Folha..."
+                            value={filtroEFolha}
+                            onChange={(e) => setFiltroEFolha(e.target.value)}
+                        />
+                        </div>
+                    </div>
+                    </div>
                 {carregandoPlano ? (
                     <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>Carregando plano...</div>
                 ) : (

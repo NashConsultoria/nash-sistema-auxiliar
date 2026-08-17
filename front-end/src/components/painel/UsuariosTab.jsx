@@ -275,7 +275,7 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                     <form onSubmit={handleSalvarUsuario} style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "12px" }}>
 
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                            <label style={{ fontWeight: "500" }}>Nome *</label>
+                            <label className="form-label">Nome *</label>
                             <input
                                 type="text"
                                 required
@@ -287,7 +287,7 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                         </div>
 
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                            <label style={{ fontWeight: "500" }}>E-mail *</label>
+                            <label className="form-label">E-mail *</label>
                             <input
                                 type="email"
                                 required
@@ -299,7 +299,7 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                         </div>
 
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                            <label style={{ fontWeight: "500" }}>
+                            <label className="form-label">
                                 {editandoId ? "Senha (deixe em branco para manter a atual):" : "Senha *"}
                             </label>
                             <input
@@ -313,7 +313,7 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                         </div>
 
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                            <label style={{ fontWeight: "500" }}>Tipo de Usuário:</label>
+                            <label className="form-label">Tipo de Usuário:</label>
                             <select
                                 value={formData.perfil}
                                 disabled={
