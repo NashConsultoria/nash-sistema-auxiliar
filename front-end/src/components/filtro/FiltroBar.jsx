@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
+import Inputlist from "../Inputlist/Inputlist";
 import "./FiltroBar.css";
 
 export default function FiltroBar({
@@ -62,27 +63,22 @@ export default function FiltroBar({
                     {/* 1. FILTRO DE CONTRATANTE */}
                     <div className="filtro-campo">
                         <label>Contratante:</label>
-                        <input
-                            type="text"
-                            list={`list-contratantes-${datalistSuffix}`}
+                        <Inputlist
+                            id={`contratantes-${datalistSuffix}`}
                             className="filtro-input filtro-input-text"
                             placeholder="Digite para buscar..."
                             disabled={desabilitarContratante}
                             value={contratanteSel || ""}
+                            options={contratantes}
+                            valueKey="nome"
                             onChange={(e) => {
                                 const valorDigitado = e.target.value;
                                 setContratanteSel(valorDigitado);
-                                // Limpa unidades selecionadas ao alterar o contratante
                                 if (setUnidadeSel) {
-                                    setUnidadeSel([]);
+                                setUnidadeSel([]);
                                 }
                             }}
-                        />
-                        <datalist id={`list-contratantes-${datalistSuffix}`}>
-                            {contratantes.map((c) => (
-                                <option key={c.id} value={c.nome} />
-                            ))}
-                        </datalist>
+                            />
                     </div>
 
                     {/* 2. FILTRO DE MULTI-SELEÇÃO DE UNIDADES */}

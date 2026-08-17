@@ -1,13 +1,13 @@
 /* Configuração Padrão (Tema Claro) */
 :root{
   /* Background */
-  --bg-color1: #35448a;
-  --bg-color2: #f7f7f8;
-  --bg-color3: #6384ac;
-  --bg-color4: #cbd5e1;
-  --bg-color5: #f8fafc;
-  --bg-color6: #183e7c;
-  --bg-color7: #FF6200;
+  --bg-color1: #35448a; /* Principal */
+  --bg-color2: #f7f7f8; /* Fundo */
+  --bg-color3: #6384ac; /* DRE Nível 1 */
+  --bg-color4: #cbd5e1; /* DRE Nível 2 */
+  --bg-color5: #f8fafc; /* DRE Nível 3 */
+  --bg-color6: #183e7c; /* DRE Resultado */
+  --bg-color7: #FF6200; /* Auxiliar para grafico */
   --box-shadow: 0 5px 6px -1px #0000001a, 0 2px 4px -1px #00000099;
   --border-color: 1px solid #d9d9d9;
   
@@ -16,8 +16,8 @@
   --font-size1: 18px;
   --font-size2: 12px;
   --font-size3: 14px;
-  --text-color1: #000000;
-  --text-color2: #ffffff;
+  --text-color1: #000000; /* Preto Fixo */
+  --text-color2: #ffffff; /* Branco Fixo */
   --text-color3: #000000;
   --text-color4: #ffffff;
   --text-color5: #273264;
@@ -31,12 +31,13 @@
 /* Tema Escuro */
 .dark-theme {
   /* Backgrounds: invertidos para tons de cinza/grafite escuro */
-  --bg-color1: #1e293b;        /* Header / Áreas de destaque primárias */
-  --bg-color2: #0f172a;        /* Fundo principal da página (bem escuro) */
-  --bg-color3: #183e7c;
+  --bg-color1: #1e293b;
+  --bg-color2: #0f172a;
+  --bg-color3: #6384ac;
   --bg-color4: #cbd5e1;
-  --bg-color5: #f8fafc;        /* Fundo dos Cards e Modais */
-  --bg-color6: #0f172a;        /* Fundo em azul escuro/profundo */
+  --bg-color5: #f8fafc;
+  --bg-color6: #0f172a;
+  --bg-color7: #FF6200;
   
   --box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
   --border-color: 1px solid #334155;
@@ -75,7 +76,7 @@ html, body {
 body {
   font-family: var(--font-text);
   background-color: var(--bg-color2);
-  font-size: var(--font-size2);
+  font-size: var(--tefontxt-size2);
   line-height: 1.55;
   min-height: 100vh;
 }
@@ -132,7 +133,7 @@ body {
   align-items: start;
 }
 
-/* Container de cada campo do formulário */
+/* Container de campos */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -140,46 +141,62 @@ body {
   width: 100%;
 }
 
-/* Rótulos/Labels padrão */
+/* Rótulos / Labels */
 .form-label {
-  font-size: var(--text-size1);
+  font-size: var(--font-size3);
   font-weight: 600;
   color: var(--text-color3);
 }
 
-/* Estilo reutilizável para Inputs, Selects e Datalists */
-.form-input {
-  width: 100%;
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  box-sizing: border-box;
-  font-size: var(--font-size2);
-  outline: none;
-  background-color: #fff;
-  color: var(--text-color1);
-  transition: border-color 0.2s ease;
-  
-}
-
+/* Inputs, Selects, Textareas e Datetime */
+.form-input,
 .form-control {
   width: 100%;
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: var(--border-color);
   box-sizing: border-box;
   font-size: var(--font-size2);
   outline: none;
-  background-color: #fff;
-  color: var(--text-color1);
-  transition: border-color 0.2s ease;
+  background-color: var(--bg-color2);
+  color: var(--text-color3);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Efeito ao focar no campo */
-.form-input:focus {
-  border-color: #007bff;
+/* Efeitos de Foco e Desabilitado */
+.form-input:focus,
+.form-control:focus {
+  border-color: var(--bnt-color);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); /* Sombra suave de destaque */
 }
 
+.form-input:disabled,
+.form-control:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--bg-color3, #1e293b);
+}
+
+/* Cor do Placeholder nos Temas */
+.form-input::placeholder,
+.form-control::placeholder {
+  color: var(--text-color-muted, #94a3b8);
+  opacity: 0.7;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.form-row > .form-group,
+.form-row > div {
+  flex: 1;
+  min-width: 140px; /* Garante limite para telas muito pequenas */
+}
 /* ==========================================
    REGRAS DE RESPONSIVIDADE (MOBILE / TABLET)
    ========================================== */

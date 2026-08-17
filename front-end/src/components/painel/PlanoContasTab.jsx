@@ -2,19 +2,25 @@ import { useState, useEffect, useMemo } from "react";
 import Card from "../card/Card";
 import Table from "../table/Table";
 import Button from "../button/Button";
+import Inputlist from "../Inputlist/Inputlist";
 import { API_BASE } from "../../context/AuthContext";
 
 export default function PlanoContasTab({ token, banco }) {
     const [planoContas, setPlanoContas] = useState([]);
     const [carregandoPlano, setCarregandoPlano] = useState(false);
 
+    // Estados dos Filtros
     const [filtroPlano, setFiltroPlano] = useState('');
     const [filtroGrupo, setFiltroGrupo] = useState('');
     const [filtroEDre, setFiltroEDre] = useState('');
     const [filtroDfc, setFiltroDfc] = useState('');
     const [filtroEFolha, setFiltroEFolha] = useState('');
 
-    
+    const opcoesPlano = useMemo(() => Array.from(new Set(planoContas.map(p => p.planoConta || p.planoconta).filter(Boolean))), [planoContas]);
+    const opcoesGrupo = useMemo(() => Array.from(new Set(planoContas.map(p => p.grupoConta).filter(Boolean))), [planoContas]);
+    const opcoesEDre = useMemo(() => Array.from(new Set(planoContas.map(p => p.edre).filter(Boolean))), [planoContas]);
+    const opcoesDfc = useMemo(() => Array.from(new Set(planoContas.map(p => p.dfc).filter(Boolean))), [planoContas]);
+    const opcoesEFolha = useMemo(() => Array.from(new Set(planoContas.map(p => p.efolha || p.eFolha).filter(Boolean))), [planoContas]);
 
     const limparFiltros = () => {
         setFiltroPlano('');
@@ -23,6 +29,27 @@ export default function PlanoContasTab({ token, banco }) {
         setFiltroDfc('');
         setFiltroEFolha('');
     };
+
+    // ==========================================
+    // LÓGICA DE FILTRAGEM DO PLANO DE CONTAS
+    // ==========================================
+    const planoContasFiltrados = useMemo(() => {
+        return planoContas.filter((item) => {
+            const plano = (item.planoConta || item.planoconta || '').toLowerCase();
+            const grupo = (item.grupoConta || '').toLowerCase();
+            const edre = (item.edre || '').toLowerCase();
+            const dfc = (item.dfc || '').toLowerCase();
+            const efolha = (item.efolha || item.eFolha || '').toLowerCase();
+
+            return (
+                plano.includes(filtroPlano.toLowerCase().trim()) &&
+                grupo.includes(filtroGrupo.toLowerCase().trim()) &&
+                edre.includes(filtroEDre.toLowerCase().trim()) &&
+                dfc.includes(filtroDfc.toLowerCase().trim()) &&
+                efolha.includes(filtroEFolha.toLowerCase().trim())
+            );
+        });
+    }, [planoContas, filtroPlano, filtroGrupo, filtroEDre, filtroDfc, filtroEFolha]);
 
     const [regras, setRegras] = useState([]);
     const [carregandoRegras, setCarregandoRegras] = useState(false);
@@ -114,7 +141,7 @@ export default function PlanoContasTab({ token, banco }) {
 
         const textoPlanoDigitado = planoContaTexto.trim().toLowerCase();
         const contaEncontrada = planoContas.find(p => 
-            String(p.planoConta || "").trim().toLowerCase() === textoPlanoDigitado
+            String(p.planoConta || p.planoconta || "").trim().toLowerCase() === textoPlanoDigitado
         );
 
         if (!contaEncontrada) {
@@ -173,7 +200,6 @@ export default function PlanoContasTab({ token, banco }) {
 
             alert(isEdicao ? "Regra atualizada com sucesso!" : "Regra cadastrada com sucesso!");
             
-            // Limpa o formulário e fecha
             fecharModal();
             carregarRegras();
         } catch (err) {
@@ -184,19 +210,11 @@ export default function PlanoContasTab({ token, banco }) {
     };
 
     const handleEditarRegra = (row) => {
-        setRegraEmEdicao(row); // Guarda a regra completa que será atualizada
-
-        // Preenche os campos do formulário
+        setRegraEmEdicao(row);
         setTermoDescricao(row.termoDescricao || '');
         setTermoFornecedor(row.termoFornecedor || '');
-        
-        // Define o texto do Plano de Contas (usa a propriedade que traz o nome do destino)
         setPlanoContaTexto(row.destino || row.planoConta || '');
-        
-        // Define o texto do Contratante
         setContratanteTexto(row.contratanteNome || '');
-
-        // Abre o modal
         setModalAberto(true);
     };
 
@@ -218,7 +236,7 @@ export default function PlanoContasTab({ token, banco }) {
         }
     };
 
-    // Definição das colunas para Tabela de Plano de Contas
+    // Colunas Tabela Plano de Contas
     const colunasPlanoContas = [
         { label: "Plano de Contas", key: "planoConta", width: "30%" },
         { label: "Grupo de Contas", key: "grupoConta", width: "25%" },
@@ -227,14 +245,14 @@ export default function PlanoContasTab({ token, banco }) {
         { label: "e-Folha", key: "efolha", width: "15%" }
     ];
 
-    // Definição das colunas para Tabela de Regras (Alinhado com a nova tabela PlanoDePara)
+    // Colunas Tabela de Regras
     const colunasRegras = [
         { 
             label: "Contratante", 
             key: "contratanteNome", 
             width: "20%",
             Cell: ({ row }) => row.contratanteNome || row.contratanteId || (
-                <span style={{ color: "#94a3b8", fontStyle: "italic" }}>- Regra geral -</span>
+                <span>- Regra geral -</span>
             )
         },
         { 
@@ -242,7 +260,7 @@ export default function PlanoContasTab({ token, banco }) {
             key: "termoDescricao", 
             width: "22%",
             Cell: ({ row }) => row.termoDescricao || (
-                <span style={{ color: "#94a3b8", fontStyle: "italic" }}>- Qualquer -</span>
+                <span>- Qualquer -</span>
             )
         },
         { 
@@ -250,7 +268,7 @@ export default function PlanoContasTab({ token, banco }) {
             key: "termoFornecedor", 
             width: "22%",
             Cell: ({ row }) => row.termoFornecedor || (
-                <span style={{ color: "#94a3b8", fontStyle: "italic" }}>- Qualquer -</span>
+                <span>- Qualquer -</span>
             )
         },
         { 
@@ -267,13 +285,13 @@ export default function PlanoContasTab({ token, banco }) {
             label: "Ações",
             key: "acoes",
             width: "20%",
-            style: { textAlign: "right" },
+            style: { textAlign: "center" },
             Cell: ({ row }) => (
                 <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                     <Button onClick={() => handleEditarRegra(row)}>
                         Editar
                     </Button>
-                    <Button onClick={() => handleExcluirRegra(row.id)} style={{backgroundColor: "#f87171",}} >
+                    <Button onClick={() => handleExcluirRegra(row.id)} style={{ backgroundColor: "#f87171" }}>
                         Excluir
                     </Button>
                 </div>
@@ -292,9 +310,7 @@ export default function PlanoContasTab({ token, banco }) {
             {/* SEÇÃO 1: REGRAS MAPEADAS */}
             <Card title="Regras de Mapeamento do Plano de Contas">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                    <p>
-                        Regras de Mapeamento de Plano de Contas
-                    </p>
+                    <p>Regras de Mapeamento de Plano de Contas</p>
                     <Button onClick={() => setModalAberto(true)}>
                         + Nova Regra
                     </Button>
@@ -315,11 +331,11 @@ export default function PlanoContasTab({ token, banco }) {
                     display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000
                 }}>
                     <div style={{
-                        backgroundColor: "#fff", borderRadius: "8px", padding: "24px",
+                        backgroundColor: "var(--bg-color2)", borderRadius: "8px", padding: "24px",
                         width: "100%", maxWidth: "520px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)"
                     }}>
-                        <h3 style={{ marginTop: 0, marginBottom: "16px", fontSize: "18px" }}>
-                            Nova Regra: Descrição + Fornecedor = Plano
+                        <h3 style={{ marginBottom: "16px", color: "var(--text-color3)" }}>
+                            {regraEmEdicao ? "Editar Regra" : "Nova Regra: Descrição + Fornecedor = Plano"}
                         </h3>
 
                         <form onSubmit={handleSalvarRegra} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -353,60 +369,34 @@ export default function PlanoContasTab({ token, banco }) {
 
                             {/* Datalist do Plano de Contas */}
                             <div>
-                                <label className="form-label">
-                                    3. Plano de Contas (Destino) *
-                                </label>
-                                <input 
-                                    className="form-input"
-                                    type="text"
-                                    list="lista-plano-contas"
+                                <Inputlist
+                                    id="modal-plano-contas"
+                                    label="3. Plano de Contas (Destino) *"
                                     placeholder="Digite ou escolha o plano de contas..."
                                     value={planoContaTexto}
                                     onChange={(e) => setPlanoContaTexto(e.target.value)}
+                                    options={planoContasFiltrados}
+                                    valueKey={(p) => p.planoConta || p.planoconta || ""}
                                     required
                                 />
-                                <datalist id="lista-plano-contas">
-                                    {planoContas.map((p, index) => {
-                                        const nomePlano = p.planoConta || p.planoconta || "";
-                                        return (
-                                            <option 
-                                                key={p.idP || index} 
-                                                value={nomePlano} 
-                                            />
-                                        );
-                                    })}
-                                </datalist>
                             </div>
 
                             {/* Datalist do Contratante */}
                             <div>
-                                <label className="form-label">
-                                    4. Contratante (Opcional - Vazio para regra Geral)
-                                </label>
-                                <input 
-                                    className="form-input"
-                                    type="text"
-                                    list="lista-contratantes"
+                                <Inputlist
+                                    id="modal-contratantes"
+                                    label="4. Contratante (Opcional - Vazio para regra Geral)"
                                     placeholder="Digite ou escolha o contratante..."
                                     value={contratanteTexto}
                                     onChange={(e) => setContratanteTexto(e.target.value)}
+                                    options={contratantes}
+                                    valueKey={(c) => c.nome || c.razaoSocial || ""}
                                 />
-                                <datalist id="lista-contratantes">
-                                    {contratantes.map((c, index) => {
-                                        const nomeC = c.nome || c.razaoSocial || "";
-                                        return (
-                                            <option 
-                                                key={index} 
-                                                value={`${nomeC}`} 
-                                            />
-                                        );
-                                    })}
-                                </datalist>
                             </div>
 
                             {/* Botões do Form */}
                             <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "12px" }}>
-                                <Button type="button" onClick={() => fecharModal()}>
+                                <Button type="button" onClick={fecharModal}>
                                     Cancelar
                                 </Button>
                                 <Button type="submit" disabled={salvando}>
@@ -421,79 +411,80 @@ export default function PlanoContasTab({ token, banco }) {
             {/* SEÇÃO 2: LISTAGEM PLANO DE CONTAS */}
             <Card title="Gerenciamento do Plano de Contas">
                 <div className="card-filtros mb-4">
-                    <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                         <h5 className="m-0">Filtrar Plano de Contas</h5>
                         <Button type="button" onClick={limparFiltros}>
                             Limpar Filtros
                         </Button>
                     </div>
 
-                    <div className="row g-3">
-                        {/* Filtro: Plano de Conta */}
-                        <div className="col-md-4">
-                        <label className="form-label">Plano de Conta</label>
-                        <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Buscar plano..."
-                            value={filtroPlano}
-                            onChange={(e) => setFiltroPlano(e.target.value)}
-                        />
+                    <div className="form-row">
+                        <div className="form-group">
+                            <Inputlist
+                                id="filtro-plano"
+                                label="Plano de Conta"
+                                placeholder="Buscar plano..."
+                                value={filtroPlano}
+                                onChange={(e) => setFiltroPlano(e.target.value)}
+                                options={opcoesPlano}
+                                valueKey={(item) => item}
+                            />
                         </div>
 
-                        {/* Filtro: Grupo de Conta */}
-                        <div className="col-md-4">
-                        <label className="form-label">Grupo de Conta</label>
-                        <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Buscar grupo..."
-                            value={filtroGrupo}
-                            onChange={(e) => setFiltroGrupo(e.target.value)}
-                        />
+                        <div className="form-group">
+                            <Inputlist
+                                id="filtro-grupo"
+                                label="Grupo de Conta"
+                                placeholder="Buscar grupo..."
+                                value={filtroGrupo}
+                                onChange={(e) => setFiltroGrupo(e.target.value)}
+                                options={opcoesGrupo}
+                                valueKey={(item) => item}
+                            />
                         </div>
 
-                        {/* Filtro: E-DRE */}
-                        <div className="col-md-4">
-                        <label className="form-label">E-DRE</label>
-                        <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Buscar E-DRE..."
-                            value={filtroEDre}
-                            onChange={(e) => setFiltroEDre(e.target.value)}
-                        />
+                        <div className="form-group">
+                            <Inputlist
+                                id="filtro-edre"
+                                label="E-DRE"
+                                placeholder="Buscar E-DRE..."
+                                value={filtroEDre}
+                                onChange={(e) => setFiltroEDre(e.target.value)}
+                                options={opcoesEDre}
+                                valueKey={(item) => item}
+                            />
                         </div>
 
-                        {/* Filtro: DFC */}
-                        <div className="col-md-6">
-                        <label className="form-label">DFC</label>
-                        <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Buscar DFC..."
-                            value={filtroDfc}
-                            onChange={(e) => setFiltroDfc(e.target.value)}
-                        />
+                        <div className="form-group">
+                            <Inputlist
+                                id="filtro-dfc"
+                                label="DFC"
+                                placeholder="Buscar DFC..."
+                                value={filtroDfc}
+                                onChange={(e) => setFiltroDfc(e.target.value)}
+                                options={opcoesDfc}
+                                valueKey={(item) => item}
+                            />
                         </div>
 
-                        {/* Filtro: E-Folha */}
-                        <div className="col-md-6">
-                        <label className="form-label">E-Folha</label>
-                        <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Buscar E-Folha..."
-                            value={filtroEFolha}
-                            onChange={(e) => setFiltroEFolha(e.target.value)}
-                        />
+                        <div className="form-group">
+                            <Inputlist
+                                id="filtro-efolha"
+                                label="E-Folha"
+                                placeholder="Buscar E-Folha..."
+                                value={filtroEFolha}
+                                onChange={(e) => setFiltroEFolha(e.target.value)}
+                                options={opcoesEFolha}
+                                valueKey={(item) => item}
+                            />
                         </div>
                     </div>
-                    </div>
+                </div>
+
                 {carregandoPlano ? (
                     <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>Carregando plano...</div>
                 ) : (
-                    <Table columns={colunasPlanoContas} data={planoContas} />
+                    <Table columns={colunasPlanoContas} data={planoContasFiltrados} />
                 )}
             </Card>
         </div>

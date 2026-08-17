@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Table from "../components/table/Table";
 import Card from "../components/card/Card";
 import Button from "../components/button/Button";
+import Inputlist from "../components/Inputlist/Inputlist";
 import { useAuth } from "../context/AuthContext";
 
 export default function Base() {
@@ -49,7 +50,7 @@ export default function Base() {
                 { key: "cpf", label: "CPF" },
                 { key: "planoConta", label: "Plano de Conta" },
                 { key: "grupoConta", label: "Grupo de Conta" },
-                { key: "edre", label: "Demonstrativo de Resultado" },
+                { key: "edre", label: "E-DRE" },
             ]
         },
         folha: {
@@ -344,7 +345,6 @@ export default function Base() {
                         display: "grid", 
                         gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", 
                         gap: "12px",
-                        borderTop: "1px solid #f1f5f9",
                         paddingTop: "15px"
                     }}>
                         {configAtual.columns
@@ -355,24 +355,14 @@ export default function Base() {
                                 
                                 return (
                                     <div key={col.key} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                                        <label className="form-label">
-                                            {col.label}:
-                                        </label>
-
-                                        <input
-                                            className="form-input"
-                                            type="text"
-                                            list={listId}
+                                        <Inputlist
+                                            id={`filtro-coluna-${col.key}`}
+                                            label={`${col.label}:`}
                                             placeholder="Filtrar ou buscar..."
                                             value={filtrosColuna[col.key] || ""}
                                             onChange={(e) => handleFiltroColunaChange(col.key, e.target.value)}
+                                            options={opcoesDisponiveis}
                                         />
-
-                                        <datalist id={listId}>
-                                            {opcoesDisponiveis.map((opcao, i) => (
-                                                <option key={i} value={opcao} />
-                                            ))}
-                                        </datalist>
                                     </div>
                                 );
                             })

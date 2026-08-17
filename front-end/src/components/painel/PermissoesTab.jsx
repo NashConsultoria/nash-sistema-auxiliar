@@ -2,6 +2,7 @@ import { useState } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
 import Table from "../table/Table";
+import Inputlist from "../Inputlist/Inputlist";
 import { API_BASE } from "../../context/AuthContext";
 
 export default function PermissoesTab({ token, usuarios = [], contratantes = [] }) {
@@ -163,29 +164,17 @@ export default function PermissoesTab({ token, usuarios = [], contratantes = [] 
                     <div style={{ marginBottom: "24px" }}>
                         <h4 style={{ margin: "0 0 10px 0" }}>Vincular a um Novo Contratante</h4>
                         <div style={{ display: "flex", gap: "12px" }}>
-                            <input
-                                type="text"
-                                list="contratantes-permissoes-list"
+                            <Inputlist
+                                id="contratantes-permissoes"
                                 placeholder="Pesquisar contratante para adicionar..."
                                 value={termoBusca}
                                 onChange={(e) => setTermoBusca(e.target.value)}
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter") handleConfirmarAdicao();
                                 }}
-                                style={{
-                                    flex: 1,
-                                    padding: "10px 12px",
-                                    borderRadius: "6px",
-                                    border: "1px solid #475569",
-                                    backgroundColor: "#35448a",
-                                    color: "#fff"
-                                }}
-                            />
-                            <datalist id="contratantes-permissoes-list">
-                                {contratantesDisponiveis.map(c => (
-                                    <option key={c.id} value={c.nome} />
-                                ))}
-                            </datalist>
+                                options={contratantesDisponiveis}
+                                valueKey="nome"
+                                />
 
                             <Button onClick={handleConfirmarAdicao} disabled={carregando || !termoBusca}>
                                 {carregando ? "Adicionando..." : "Adicionar Vínculo"}

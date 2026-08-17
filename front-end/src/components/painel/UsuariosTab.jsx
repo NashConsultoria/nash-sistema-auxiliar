@@ -2,6 +2,7 @@ import { useState } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
 import Table from "../table/Table";
+import Inputlist from "../Inputlist/Inputlist";
 import { API_BASE } from "../../context/AuthContext";
 
 // Dicionário de mapeamento local (ou importe do seu constants/perfis)
@@ -278,11 +279,11 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                             <label className="form-label">Nome *</label>
                             <input
                                 type="text"
+                                className="form-input"
                                 required
                                 value={formData.nome}
                                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                                 placeholder="Nome completo"
-                                style={{ padding: "10px 12px", borderRadius: "6px", border: "1px solid #475569", backgroundColor: "#1e293b", color: "#fff" }}
                             />
                         </div>
 
@@ -290,11 +291,11 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                             <label className="form-label">E-mail *</label>
                             <input
                                 type="email"
+                                className="form-input"
                                 required
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 placeholder="exemplo@empresa.com"
-                                style={{ padding: "10px 12px", borderRadius: "6px", border: "1px solid #475569", backgroundColor: "#1e293b", color: "#fff" }}
                             />
                         </div>
 
@@ -304,11 +305,11 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                             </label>
                             <input
                                 type="password"
+                                className="form-input"
                                 required={!editandoId}
                                 value={formData.senha}
                                 onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
                                 placeholder="••••••••"
-                                style={{ padding: "10px 12px", borderRadius: "6px", border: "1px solid #475569", backgroundColor: "#1e293b", color: "#fff" }}
                             />
                         </div>
 
@@ -316,19 +317,12 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                             <label className="form-label">Tipo de Usuário:</label>
                             <select
                                 value={formData.perfil}
+                                className="form-input"
                                 disabled={
                                     String(usuario?.id) === String(editandoId) ||
                                     Number(editandoId) === 1
                                 }
                                 onChange={(e) => setFormData({ ...formData, perfil: e.target.value, contratanteId: "", contratanteTextoBusca: "" })}
-                                style={{
-                                    padding: "10px 12px",
-                                    borderRadius: "6px",
-                                    border: "1px solid #475569",
-                                    backgroundColor: (String(usuario?.id) === String(editandoId) || Number(editandoId) === 1) ? "#334155" : "#1e293b",
-                                    color: (String(usuario?.id) === String(editandoId) || Number(editandoId) === 1) ? "#94a3b8" : "#fff",
-                                    cursor: (String(usuario?.id) === String(editandoId) || Number(editandoId) === 1) ? "not-allowed" : "pointer"
-                                }}
                             >
                                 <option value="1">Administrador</option>
                                 <option value="2">Funcionário</option>
@@ -339,43 +333,30 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                         {/* Busca condicional de Contratante para tipo Cliente */}
                         {formData.perfil === "3" && (
                             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                                <label style={{ fontWeight: "500" }}>
-                                    Pesquisar Contratante Vinculado *
-                                </label>
-                                <input
-                                    type="text"
-                                    list="contratantes-usuarios-list"
+                                <Inputlist
+                                    id="contratantes-usuarios"
+                                    label="Pesquisar Contratante Vinculado *"
                                     placeholder="Digite o nome para buscar..."
                                     value={formData.contratanteTextoBusca}
                                     onChange={(e) => {
                                         const valorDigitado = e.target.value;
                                         const encontrado = contratantes.find(
-                                            (c) => c.nome.trim().toLowerCase() === valorDigitado.trim().toLowerCase()
+                                        (c) => (c.nome || c.razaoSocial || "").trim().toLowerCase() === valorDigitado.trim().toLowerCase()
                                         );
 
-                                        setFormData({
-                                            ...formData,
-                                            contratanteTextoBusca: valorDigitado,
-                                            contratanteId: encontrado ? encontrado.id : ""
-                                        });
+                                        setFormData((prev) => ({
+                                        ...prev,
+                                        contratanteTextoBusca: valorDigitado,
+                                        contratanteId: encontrado ? encontrado.id : ""
+                                        }));
                                     }}
-                                    style={{
-                                        padding: "10px 12px",
-                                        borderRadius: "6px",
-                                        border: formData.contratanteId ? "1px solid #22c55e" : "1px solid #475569",
-                                        backgroundColor: "#1e293b",
-                                        color: "#fff"
-                                    }}
+                                    options={contratantes.filter((c) => Number(c.status) === 1)}
+                                    valueKey={(c) => c.nome || c.razaoSocial || ""}
                                 />
-                                <datalist id="contratantes-usuarios-list">
-                                    {contratantes.filter(c => Number(c.status) === 1).map((c) => (
-                                        <option key={c.id} value={c.nome} />
-                                    ))}
-                                </datalist>
                                 {formData.contratanteId ? (
-                                    <span style={{ fontSize: "12px", color: "#4ade80" }}>✓ Contratante selecionado</span>
+                                    <span style={{ color: "#4ade80" }}>✓ Contratante selecionado</span>
                                 ) : (
-                                    <span style={{ fontSize: "12px", color: "#f87171" }}>⚠️ Selecione um contratante da lista sugerida</span>
+                                    <span style={{ color: "#f87171" }}>⚠️ Selecione um contratante da lista sugerida</span>
                                 )}
                             </div>
                         )}

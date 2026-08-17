@@ -98,7 +98,7 @@
 
   .table tbody tr:hover td,
   .table tbody tr:hover td * {
-    color: var(--text-color4) !important;
+    color: var(--text-color2) !important;
   }
 }
 

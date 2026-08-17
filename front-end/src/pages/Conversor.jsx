@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import Table from "../components/table/Table";
 import Card from "../components/card/Card";
 import Button from "../components/button/Button";
+import Inputlist from "../components/Inputlist/Inputlist";
 import { useAuth } from "../context/AuthContext";
 import { API_BASE } from "../context/AuthContext";
-import "../styles/global.css";
 
 export default function Conversor() {
   const { token } = useAuth();
@@ -159,12 +159,9 @@ export default function Conversor() {
             
             {/* SELEÇÃO DE CONTRATANTE */}
             <div className="form-group">
-              <label className="form-label">
-                Contratante *
-              </label>
-              <input 
-                type="text"
-                list="lista-contratantes"
+              <Inputlist
+                id="conversor-contratante"
+                label="Contratante *"
                 placeholder="Digite ou escolha o contratante..."
                 value={contratanteTexto}
                 onChange={(e) => {
@@ -178,22 +175,13 @@ export default function Conversor() {
                   const encontrado = contratantes.find(
                     (c) => (c.nome || c.razaoSocial || "").toLowerCase() === texto.trim().toLowerCase()
                   );
-                  
+
                   setContratanteId(encontrado ? encontrado.id : "");
                 }}
-                className="form-input"
+                options={contratantes}
+                valueKey={(c) => c.nome || c.razaoSocial || ""}
+                required
               />
-              <datalist id="lista-contratantes">
-                {contratantes.map((c, index) => {
-                  const nomeC = c.nome || c.razaoSocial || "";
-                  return (
-                    <option 
-                      key={c.id || index} 
-                      value={nomeC} 
-                    />
-                  );
-                })}
-              </datalist>
             </div>
 
             <input

@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import "../styles/global.css";
 import "../components/PainelControle.css"; 
 import Card from "../components/card/Card";
 import Button from "../components/button/Button"

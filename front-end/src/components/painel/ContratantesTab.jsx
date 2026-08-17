@@ -186,40 +186,42 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
                 <Card title={editandoContratanteId ? "Editar Contratante" : "Cadastrar Novo Contratante"}>
                     <form onSubmit={handleSalvarContratante} style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "12px" }}>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                            <label style={{ fontWeight: "500" }}>Nome do Contratante *</label>
+                        {/* Campo 1: Nome do Contratante */}
+                        <div className="form-group">
+                            <label className="form-label">Nome do Contratante *</label>
                             <input
                                 type="text"
+                                className="form-input"
                                 required
                                 value={formContratante.nome}
                                 onChange={(e) => setFormContratante({ ...formContratante, nome: e.target.value })}
                                 placeholder="Ex: NE"
-                                style={{ padding: "10px 12px", borderRadius: "6px", border: "1px solid #475569", backgroundColor: "#35448a", color: "#fff" }}
                             />
                         </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                            <label style={{ fontWeight: "500" }}>Razão Social:</label>
+                        {/* Campo 2: Razão Social */}
+                        <div className="form-group">
+                        <label className="form-label">Razão Social:</label>
                             <input
                                 type="text"
+                                className="form-input"
                                 value={formContratante.razaoSocial}
                                 onChange={(e) => setFormContratante({ ...formContratante, razaoSocial: e.target.value })}
                                 placeholder="Ex: NomeEmpresa LTDA"
-                                style={{ padding: "10px 12px", borderRadius: "6px", border: "1px solid #475569", backgroundColor: "#35448a", color: "#fff" }}
                             />
                         </div>
 
                         <div style={{ display: "flex", gap: "12px", marginTop: "10px", justifyContent: "flex-end" }}>
-                            <Button
-                                type="button"
-                                onClick={() => setModoCadastroContratante(false)}
-                                disabled={carregando}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button type="submit" disabled={carregando}>
-                                {carregando ? "Salvando..." : "Salvar Contratante"}
-                            </Button>
+                        <Button
+                            type="button"
+                            onClick={() => setModoCadastroContratante(false)}
+                            disabled={carregando}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button type="submit" disabled={carregando}>
+                            {carregando ? "Salvando..." : "Salvar Contratante"}
+                        </Button>
                         </div>
                     </form>
                 </Card>

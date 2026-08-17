@@ -23,7 +23,7 @@
   position: sticky;
   top: 0;
   background-color: var(--bg-color1);
-  color: var(--text-color4);
+  color: var(--text-color2);
   padding: 12px 14px;
   font-weight: 600;
   z-index: 2;
@@ -81,7 +81,7 @@
   width: 16px;
   text-align: center;
 }
-.dre-icon-calculo { color: var(--text-color4); font-weight: bold; }
+.dre-icon-calculo { color: var(--text-color2); font-weight: bold; }
 .dre-icon-toggle { color: var(--bg-color6); font-size: var(--font-size2); }
 .dre-icon-espaco { margin-right: 8px; display: inline-block; width: 16px; }
 
@@ -93,7 +93,7 @@
 .dre-row-calculo td {
   background-color: var(--bg-color6) !important;
   font-weight: bold;
-  color: var(--text-color4) !important;
+  color: var(--text-color2) !important;
   border-bottom: var(--border-color);
 }
 
@@ -101,26 +101,26 @@
 .dre-row-pai td {
   background-color: var(--bg-color3);
   font-weight: bold;
-  color: var(--text-color4);
+  color: var(--text-color2);
 }
 
 /* Subgrupos Nível 2 */
 .dre-row-subgrupo td {
   background-color: var(--bg-color4);
-  color: var(--text-color3);
+  color: var(--text-color1);
 }
 
 /* Contas Analíticas Nível 3 */
 .dre-row-nivel3 td {
   background-color: var(--bg-color5);
-  color: var(--text-color3);
+  color: var(--text-color1);
 }
 
 /* Mensagem de fallback */
 .dre-vazia {
   padding: 24px;
   text-align: center;
-  color: var(--text-color2);
+  color: var(--text-color3);
 }
 
 
@@ -132,7 +132,7 @@
   .dre-row-subgrupo:hover td,
   .dre-row-nivel3:hover td {
     background-color: var(--hover-color) !important;
-    color: var(--text-color4) !important;
+    color: var(--text-color2) !important;
   }
 }
 

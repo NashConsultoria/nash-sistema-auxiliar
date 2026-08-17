@@ -20,8 +20,8 @@
 /* Customização dos textos dos eixos X e Y gerados pelo Recharts */
 .chart-container .recharts-text {
   fill: var(--text-color3);
-  font-family: var(--font-text, var(--text-font));
-  font-size: var(--font-size2, var(--text-size1));
+  font-family: var(--font-text);
+  font-size: var(--font-size2);
 }
 
 /* Customização da legenda do Recharts */

@@ -1,4 +1,3 @@
-import "../../styles/global.css";
 import "./Header.css";
 import logo from "../../assets/NashLogo.png";
 import { FaUserLarge } from "react-icons/fa6";
