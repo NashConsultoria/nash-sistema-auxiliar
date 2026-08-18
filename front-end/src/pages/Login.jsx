@@ -36,16 +36,16 @@ export default function Login() {
                 width: "100%",
                 maxWidth: "400px",
                 padding: "40px 30px",
-                backgroundColor: "#ffffff",
+                backgroundColor: "var(--bg-color8)",
                 borderRadius: "8px",
                 boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)"
             }}>
-                <h2 style={{ textAlign: "center", marginBottom: "24px", color: "#1e293b" }}>Acessar o Sistema</h2>
+                <h2 style={{ textAlign: "center", marginBottom: "24px", color: "var(--text-color3)" }}>Acessar o Sistema</h2>
                 
                 {erro && (
                     <div style={{
                         padding: "10px",
-                        backgroundColor: "#fef2f2",
+                        backgroundColor: "var(--bg-color5)",
                         color: "#ef4444",
                         borderRadius: "6px",
                         fontSize: "14px",
@@ -58,7 +58,7 @@ export default function Login() {
 
                 <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <label style={{ fontSize: "14px", fontWeight: "6px", color: "#475569" }}>E-mail:</label>
+                        <label style={{ fontSize: "14px", fontWeight: "6px", color: "var(--text-color3)" }}>E-mail:</label>
                         <input 
                             type="email" 
                             required
@@ -70,7 +70,7 @@ export default function Login() {
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <label style={{ fontSize: "14px", fontWeight: "6px", color: "#475569" }}>Senha:</label>
+                        <label style={{ fontSize: "14px", fontWeight: "6px", color: "var(--text-color3)" }}>Senha:</label>
                         <input 
                             type="password" 
                             required

@@ -1,6 +1,12 @@
 import React from "react";
 import Card from "../card/Card";
-//import { nomesPerfis } from "../../constants/perfis";
+
+// Mapeamento dos IDs de perfil para os nomes amigáveis
+const nomesPerfis = {
+    1: "Administrador",
+    2: "Funcionário",
+    3: "Cliente"
+};
 
 export default function PerfilTab({ usuario }) {
     const ehSupremo = Number(usuario?.id) === 1 || Number(usuario?.protegido) === 1;
@@ -26,7 +32,7 @@ export default function PerfilTab({ usuario }) {
                 <p>
                     <strong>Contratante:</strong>{" "}
                     {perfilId === 3 
-                        ? (usuario?.nome_contratante || "Não Vinculado") 
+                        ? (usuario?.nome_contratante || usuario?.contratanteNome || "Não Vinculado") 
                         : "N/A"
                     }
                 </p>

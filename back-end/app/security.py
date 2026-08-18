@@ -92,9 +92,11 @@ def registrar_log(
     cursor = conexao.cursor()
     try:
         if request:
-            ip_final = request.headers.get("x-forwarded-for") or (
-                request.client.host if request.client else "127.0.0.1"
-            )
+            x_forwarded = request.headers.get("x-forwarded-for")
+            if x_forwarded:
+                ip_final = x_forwarded.split(",")[0].strip()
+            else:
+                ip_final = request.client.host if request.client else "127.0.0.1"
         else:
             ip_final = ip or "127.0.0.1"
 

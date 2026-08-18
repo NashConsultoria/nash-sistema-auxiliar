@@ -78,8 +78,8 @@ CREATE TABLE PlanoDePara
     planoContaId        int						not null,					-- Mapeia para PlanoContas
 
     -- Chaves Estrangeiras
-    CONSTRAINT FK_PlanoDePara_PlanoContas foreign key (planoContaId) references PlanoContas(id),
-    CONSTRAINT FK_PlanoDePara_Contratante foreign key (contratanteId) references Contratante(id),
+    CONSTRAINT FK_PlanoDePara_PlanoContas foreign key (planoContaId) references PlanoContas(id) on delete cascade,
+    CONSTRAINT FK_PlanoDePara_Contratante foreign key (contratanteId) references Contratante(id) on delete cascade,
 
     -- Validação: Pelo menos um dos dois termos DEVE estar preenchido
     CONSTRAINT CK_PlanoDePara_PeloMenosUmTermo CHECK (termoDescricao IS NOT NULL OR termoFornecedor IS NOT NULL)
@@ -158,6 +158,26 @@ create table UsuarioContratante
 	constraint UQ_UsuarioContratante		unique (usuarioId, contratanteId)
 )
 
+CREATE TABLE Permissao
+(
+    id					int					not null		primary key		identity,
+    chave				varchar(100)		not null		UNIQUE,			-- Ex: 'regras_plano:criar', 'regras_plano:excluir'
+    nome				varchar(150)		not null,						-- Ex: 'Criar Regra no Plano de Contas'
+    modulo				varchar(50)			not null						-- Ex: 'PlanoContas', 'Usuario', 'Importacao'
+);
+
+CREATE TABLE UsuarioPermissao
+(
+    id					int					not null		primary key		identity,
+    usuarioId			int					not null,
+    permissaoId			int					not null,
+
+    foreign key (usuarioId)					references Usuario(id) on delete cascade,
+    foreign key (permissaoId)				references Permissao(id) on delete cascade,
+
+    constraint UQ_UsuarioPermissao			unique (usuarioId, permissaoId)
+);
+
 create table LogUsuario
 (
 	id					int					not null		primary key		identity,
@@ -185,6 +205,8 @@ select * from Movimentacao
 select * from MovimentacaoFolhaPagamento
 select * from Usuario
 select * from UsuarioContratante
+select * from Permissao
+select * from UsuarioPermissao
 select * from LogUsuario
 
 ---------------------------------------------------------------------------------

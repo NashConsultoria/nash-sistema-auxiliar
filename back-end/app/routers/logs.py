@@ -23,8 +23,9 @@ def listar_logs_usuarios(admin: UsuarioToken = Depends(exigir_perfil(1))):
                 u.email AS usuario_email,
                 l.acao,
                 l.tabela,
-                l.detalhes,
-                CONVERT(VARCHAR(19), l.criadoEm, 120) AS criadoEm
+                l.ip,         -- [INCLUÍDO]: r[6]
+                l.detalhes,   -- Agora é r[7]
+                CONVERT(VARCHAR(19), l.criadoEm, 120) AS criadoEm -- Agora é r[8]
             FROM dbo.LogUsuario l
             INNER JOIN dbo.Usuario u ON l.usuarioId = u.id
             ORDER BY l.criadoEm DESC
@@ -36,11 +37,11 @@ def listar_logs_usuarios(admin: UsuarioToken = Depends(exigir_perfil(1))):
         for r in rows:
             # Tenta decodificar o JSON de detalhes salvo como string
             detalhes_formatados = None
-            if r[6]:
+            if r[7]:
                 try:
-                    detalhes_formatados = json.loads(r[6])
+                    detalhes_formatados = json.loads(r[7])
                 except Exception:
-                    detalhes_formatados = r[6]
+                    detalhes_formatados = r[7]
 
             logs.append(
                 {
@@ -50,8 +51,9 @@ def listar_logs_usuarios(admin: UsuarioToken = Depends(exigir_perfil(1))):
                     "usuario_email": str(r[3]),
                     "acao": str(r[4]),
                     "tabela": str(r[5]) if r[5] else None,
+                    "ip": str(r[6]) if r[6] else None,  # [INCLUÍDO]
                     "detalhes": detalhes_formatados,
-                    "criado_em": str(r[7]),
+                    "criado_em": str(r[8]),
                 }
             )
         return logs

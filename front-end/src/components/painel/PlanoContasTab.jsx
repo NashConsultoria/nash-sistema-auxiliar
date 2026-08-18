@@ -16,11 +16,50 @@ export default function PlanoContasTab({ token, banco }) {
     const [filtroDfc, setFiltroDfc] = useState('');
     const [filtroEFolha, setFiltroEFolha] = useState('');
 
-    const opcoesPlano = useMemo(() => Array.from(new Set(planoContas.map(p => p.planoConta || p.planoconta).filter(Boolean))), [planoContas]);
-    const opcoesGrupo = useMemo(() => Array.from(new Set(planoContas.map(p => p.grupoConta).filter(Boolean))), [planoContas]);
-    const opcoesEDre = useMemo(() => Array.from(new Set(planoContas.map(p => p.edre).filter(Boolean))), [planoContas]);
-    const opcoesDfc = useMemo(() => Array.from(new Set(planoContas.map(p => p.dfc).filter(Boolean))), [planoContas]);
-    const opcoesEFolha = useMemo(() => Array.from(new Set(planoContas.map(p => p.efolha || p.eFolha).filter(Boolean))), [planoContas]);
+    // Função auxiliar para aplicar filtros ignorando uma chave específica
+    const filtrarPlanoExcecao = (chaveIgnorada) => {
+        return planoContas.filter((item) => {
+            const plano = (item.planoConta || item.planoconta || '').toLowerCase();
+            const grupo = (item.grupoConta || '').toLowerCase();
+            const edre = (item.edre || '').toLowerCase();
+            const dfc = (item.dfc || '').toLowerCase();
+            const efolha = (item.efolha || item.eFolha || '').toLowerCase();
+
+            return (
+                (chaveIgnorada === 'plano' || plano.includes(filtroPlano.toLowerCase().trim())) &&
+                (chaveIgnorada === 'grupo' || grupo.includes(filtroGrupo.toLowerCase().trim())) &&
+                (chaveIgnorada === 'edre' || edre.includes(filtroEDre.toLowerCase().trim())) &&
+                (chaveIgnorada === 'dfc' || dfc.includes(filtroDfc.toLowerCase().trim())) &&
+                (chaveIgnorada === 'efolha' || efolha.includes(filtroEFolha.toLowerCase().trim()))
+            );
+        });
+    };
+
+    // Opções dinâmicas estilo Excel
+    const opcoesPlano = useMemo(() => {
+        const dados = filtrarPlanoExcecao('plano');
+        return Array.from(new Set(dados.map(p => p.planoConta || p.planoconta).filter(Boolean)));
+    }, [planoContas, filtroGrupo, filtroEDre, filtroDfc, filtroEFolha]);
+
+    const opcoesGrupo = useMemo(() => {
+        const dados = filtrarPlanoExcecao('grupo');
+        return Array.from(new Set(dados.map(p => p.grupoConta).filter(Boolean)));
+    }, [planoContas, filtroPlano, filtroEDre, filtroDfc, filtroEFolha]);
+
+    const opcoesEDre = useMemo(() => {
+        const dados = filtrarPlanoExcecao('edre');
+        return Array.from(new Set(dados.map(p => p.edre).filter(Boolean)));
+    }, [planoContas, filtroPlano, filtroGrupo, filtroDfc, filtroEFolha]);
+
+    const opcoesDfc = useMemo(() => {
+        const dados = filtrarPlanoExcecao('dfc');
+        return Array.from(new Set(dados.map(p => p.dfc).filter(Boolean)));
+    }, [planoContas, filtroPlano, filtroGrupo, filtroEDre, filtroEFolha]);
+
+    const opcoesEFolha = useMemo(() => {
+        const dados = filtrarPlanoExcecao('efolha');
+        return Array.from(new Set(dados.map(p => p.efolha || p.eFolha).filter(Boolean)));
+    }, [planoContas, filtroPlano, filtroGrupo, filtroEDre, filtroDfc]);
 
     const limparFiltros = () => {
         setFiltroPlano('');
