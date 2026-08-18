@@ -148,7 +148,7 @@ def processar_importacao_regra_plano(
     request: Request
 ):
     """
-    Processa o upload do Excel com as Regras do Plano de Contas (PlanoDePara).
+    Processa o upload do Excel com as Regras do Plano de Contas (PlanoDePara) vinculando ao ImportacaoLote.
     Aba esperada: 'Regras_Plano'
     Colunas esperadas: CONTRATANTE, UNIDADE, BANCO, DESCRICAO, FORNECEDOR, PLANO DE CONTA
     """
@@ -184,7 +184,7 @@ def processar_importacao_regra_plano(
         cursor.execute("SELECT id, LOWER(nome) FROM dbo.Unidade WHERE nome IS NOT NULL")
         map_unidades = {row[1].strip(): row[0] for row in cursor.fetchall()}
 
-        cursor.execute("SELECT id, LOWER(nome) FROM dbo.BancoConta WHERE nome IS NOT NULL")
+        cursor.execute("SELECT id, LOWER(banco) FROM dbo.BancoConta WHERE banco IS NOT NULL")
         map_bancos = {row[1].strip(): row[0] for row in cursor.fetchall()}
 
         cursor.execute("SELECT id, LOWER(planoConta) FROM dbo.PlanoContas WHERE planoConta IS NOT NULL")
@@ -213,15 +213,14 @@ def processar_importacao_regra_plano(
             
             lote_id = int(row_lote[0])
 
-        # 4. Limpa as regras anteriores e reseta o ID da tabela PlanoDePara
-        cursor.execute("DELETE FROM dbo.PlanoDePara")
-        cursor.execute("DBCC CHECKIDENT ('dbo.PlanoDePara', RESEED, 0)")
+        # 4. Limpa as regras anteriores deste mesmo lote ou reescreve a tabela
+        cursor.execute("DELETE FROM dbo.PlanoDePara WHERE importacaoLoteId = ?", (lote_id,))
 
-        # 5. Processamento e Inserção
+        # 5. Processamento e Inserção com importacaoLoteId
         query_insert = """
             INSERT INTO dbo.PlanoDePara 
-            (contratanteId, unidadeId, bancoId, termoDescricao, termoFornecedor, planoContaId)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (contratanteId, unidadeId, bancoId, termoDescricao, termoFornecedor, planoContaId, importacaoLoteId)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """
 
         def limpar_e_normalizar(val):
@@ -286,7 +285,8 @@ def processar_importacao_regra_plano(
                 banco_id,
                 termo_descricao,
                 termo_fornecedor,
-                plano_id
+                plano_id,
+                lote_id
             ))
             total_linhas += 1
 
