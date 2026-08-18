@@ -1,17 +1,90 @@
-import { useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
 import Table from "../table/Table";
+import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
 import { ExportarExcel } from "../../utils/ExportarExcel";
 
 export default function LotesTab({ token, banco, lotes = [], carregandoLotes, carregarLotes }) {
+    // Estados dos Filtros
+    const [filtros, setFiltros] = useState({
+        nomeArquivo: "",
+        contratante: ""
+    });
+
+    const handleFilterChange = (key, value) => {
+        setFiltros((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const limparFiltros = () => {
+        setFiltros({
+            nomeArquivo: "",
+            contratante: ""
+        });
+    };
 
     useEffect(() => {
         if (token && carregarLotes) {
             carregarLotes();
         }
     }, [token]);
+
+    // Função auxiliar estilo Excel (ignora a própria chave para calcular as opções disponíveis)
+    const filtrarLotesExcecao = (chaveIgnorada) => {
+        return lotes.filter((item) => {
+            const arquivo = (item.nomeArquivo || item.nome_arquivo || "").toLowerCase();
+            const contratante = (item.contratante || "").toLowerCase();
+
+            return (
+                (chaveIgnorada === "nomeArquivo" || arquivo.includes(filtros.nomeArquivo.toLowerCase().trim())) &&
+                (chaveIgnorada === "contratante" || contratante.includes(filtros.contratante.toLowerCase().trim()))
+            );
+        });
+    };
+
+    // Opções dinâmicas das listas (estilo Excel)
+
+    const opcoesArquivos = useMemo(() => {
+        const dados = filtrarLotesExcecao("nomeArquivo");
+        return Array.from(new Set(dados.map((l) => l.nomeArquivo || l.nome_arquivo).filter(Boolean)));
+    }, [lotes, filtros]);
+
+    const opcoesContratantes = useMemo(() => {
+        const dados = filtrarLotesExcecao("contratante");
+        return Array.from(new Set(dados.map((l) => l.contratante).filter(Boolean)));
+    }, [lotes, filtros]);
+
+    // Schema do Filtro
+    const schemaFiltroLotes = [
+        {
+            key: "nomeArquivo",
+            label: "Nome do Arquivo",
+            tipo: "inputlist",
+            placeholder: "Buscar arquivo...",
+            options: opcoesArquivos
+        },
+        {
+            key: "contratante",
+            label: "Contratante",
+            tipo: "inputlist",
+            placeholder: "Buscar contratante...",
+            options: opcoesContratantes
+        }
+    ];
+
+    // Resultado final filtrado exibido na tabela
+    const lotesFiltrados = useMemo(() => {
+        return lotes.filter((item) => {
+            const arquivo = (item.nomeArquivo || item.nome_arquivo || "").toLowerCase();
+            const contratante = (item.contratante || "").toLowerCase();
+
+            return (
+                arquivo.includes(filtros.nomeArquivo.toLowerCase().trim()) &&
+                contratante.includes(filtros.contratante.toLowerCase().trim())
+            );
+        });
+    }, [lotes, filtros]);
 
     // Exportação customizada por tipo de lote
     const handleExportarLote = (row) => {
@@ -90,7 +163,6 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
     };
 
     const colunasLotes = [
-        { label: "ID", key: "id", width: "8%" },
         { label: "Arquivo", key: "nomeArquivo", width: "27%" },
         { label: "Contratante", key: "contratante", width: "20%" },
         { 
@@ -104,7 +176,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
             label: "Ações",
             key: "acoes",
             width: "15%",
-            style: { textAlign: "right" },
+            style: { textAlign: "center" },
             Cell: ({ row }) => (
                 <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                     <Button
@@ -143,12 +215,20 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
             <p style={{ marginBottom: "16px" }}>
                 Visualize o histórico de lotes importados no sistema, faça o download dos arquivos em Excel ou exclua lançamentos antigos.
             </p>
+
+            <FiltroBar
+                schema={schemaFiltroLotes}
+                filtros={filtros}
+                onChange={handleFilterChange}
+                onLimpar={limparFiltros}
+            />
+
             {carregandoLotes ? (
                 <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>
                     Carregando histórico de importações...
                 </div>
             ) : (
-                <Table columns={colunasLotes} data={lotes} />
+                <Table columns={colunasLotes} data={lotesFiltrados} />
             )}
         </Card>
     );

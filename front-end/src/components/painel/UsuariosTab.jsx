@@ -206,14 +206,14 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
         {
             label: "Perfil",
             key: "perfil",
-            width: "15%",
+            width: "20%",
             Cell: ({ value }) => nomesPerfis[value] || "Desconhecido"
         },
         {
             label: "Ações",
             key: "acoes",
-            width: "20%",
-            style: { textAlign: "right" },
+            width: "15%",
+            style: { textAlign: "center" },
             Cell: ({ row }) => (
                 <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                     <Button onClick={() => handleIniciarEdicao(row)}>

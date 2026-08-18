@@ -5,7 +5,7 @@ import Button from "../components/button/Button";
 import Table from "../components/table/Table";
 import Chart from "../components/chart/Chart";
 import PieChart from "../components/chart/PieChart";
-import FiltroBar from "../components/filtro/FiltroBar";
+import FiltroFinanceiro from "../components/filtro/FiltroFinanceiro";
 import { useAuth } from "../context/AuthContext";
 import { usePrint } from "../context/PrintContext";
 
@@ -372,7 +372,7 @@ export default function FluxoCaixa() {
     
     return (
         <div className="page-container">
-            <FiltroBar
+            <FiltroFinanceiro
                 contratanteSel={contratanteSel}
                 setContratanteSel={setContratanteSel}
                 contratantes={contratantes}

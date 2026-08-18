@@ -1,182 +1,84 @@
-import React, { useState, useRef, useEffect } from "react";
-import Card from "../card/Card";
+import React from "react";
 import Button from "../button/Button";
 import Inputlist from "../Inputlist/Inputlist";
-import "./FiltroBar.css";
 
-export default function FiltroBar({
-    contratanteSel,
-    setContratanteSel,
-    contratantes = [],
-    unidadeSel = [],
-    setUnidadeSel,
-    unidades = [],
-    dataInicio,
-    setDataInicio,
-    dataFim,
-    setDataFim,
-    desabilitarContratante = false,
-    acoesAdicionais,
-    datalistSuffix = "default"
-}) {
-    const [dropdownAberto, setDropdownAberto] = useState(false);
-    const dropdownRef = useRef(null);
-
-    // Garante que unidadeSel seja SEMPRE processado como Array seguro
-    const listaUnidadesSelecionadas = Array.isArray(unidadeSel) ? unidadeSel : [];
-
-    // Fecha o dropdown de unidades ao clicar fora
-    useEffect(() => {
-        function handleClickOut(e) {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setDropdownAberto(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOut);
-        return () => document.removeEventListener("mousedown", handleClickOut);
-    }, []);
-
-    const toggleUnidade = (nomeUnidade) => {
-        if (!setUnidadeSel) return;
-        
-        if (listaUnidadesSelecionadas.includes(nomeUnidade)) {
-            setUnidadeSel(listaUnidadesSelecionadas.filter((u) => u !== nomeUnidade));
-        } else {
-            setUnidadeSel([...listaUnidadesSelecionadas, nomeUnidade]);
-        }
-    };
-
-    const selecionarTodasUnidades = () => {
-        if (!setUnidadeSel) return;
-
-        if (listaUnidadesSelecionadas.length === unidades.length && unidades.length > 0) {
-            setUnidadeSel([]);
-        } else {
-            setUnidadeSel(unidades.map((u) => u.nome));
-        }
-    };
-
+export default function FiltroBar({ schema = [], filtros = {}, onChange, onLimpar }) {
     return (
-        <div className="no-print">
-            <Card title="Filtros de Pesquisa">
-                <div className="filtro-bar-container">
-                    {/* 1. FILTRO DE CONTRATANTE */}
-                    <div className="filtro-campo">
-                        <label>Contratante:</label>
-                        <Inputlist
-                            id={`contratantes-${datalistSuffix}`}
-                            className="filtro-input filtro-input-text"
-                            placeholder="Digite para buscar..."
-                            disabled={desabilitarContratante}
-                            value={contratanteSel || ""}
-                            options={contratantes}
-                            valueKey="nome"
-                            onChange={(e) => {
-                                const valorDigitado = e.target.value;
-                                setContratanteSel(valorDigitado);
-                                if (setUnidadeSel) {
-                                setUnidadeSel([]);
-                                }
-                            }}
-                            />
-                    </div>
+        <div className="card-filtros mb-4">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <h5 className="m-0">Filtros</h5>
+                {onLimpar && (
+                    <Button type="button" onClick={onLimpar}>
+                        Limpar Filtros
+                    </Button>
+                )}
+            </div>
 
-                    {/* 2. FILTRO DE MULTI-SELEÇÃO DE UNIDADES */}
-                    {setUnidadeSel && (
-                        <div className="filtro-campo" ref={dropdownRef} style={{ position: "relative" }}>
-                            <label>Unidades:</label>
-                            
-                            <button
-                                type="button"
-                                className="filtro-input filtro-input-text filtro-multiselect-btn"
-                                disabled={!contratanteSel}
-                                onClick={() => setDropdownAberto(!dropdownAberto)}
-                            >
-                                {!contratanteSel
-                                    ? "Selecione um contratante..."
-                                    : unidades.length === 0
-                                    ? "Nenhuma unidade com movimento"
-                                    : listaUnidadesSelecionadas.length === 0
-                                    ? "Todas as unidades"
-                                    : `${listaUnidadesSelecionadas.length} unidade(s) selecionada(s)`}
-                            </button>
+            <div className="form-row">
+                {schema.map((campo) => {
+                    const valorAtual = filtros[campo.key] || "";
 
-                            {/* Dropdown com checkboxes */}
-                            {dropdownAberto && contratanteSel && (
-                                <div className="multiselect-dropdown">
-                                    {unidades.length > 0 && (
-                                        <label 
-                                            className="multiselect-item multiselect-item-all"
-                                            style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={listaUnidadesSelecionadas.length === unidades.length && unidades.length > 0}
-                                                onChange={selecionarTodasUnidades}
-                                            />
-                                            <strong>Selecionar Todas</strong>
-                                        </label>
-                                    )}
+                    return (
+                        <div key={campo.key} className="form-group" style={{ flex: campo.flex || "1 1 200px" }}>
+                            {/* RENDERIZAÇÃO SEGUNDO O TIPO DO CAMPO */}
+                            {campo.tipo === "inputlist" && (
+                                <Inputlist
+                                    id={`filtro-${campo.key}`}
+                                    label={campo.label}
+                                    placeholder={campo.placeholder || `Buscar ${campo.label.toLowerCase()}...`}
+                                    value={valorAtual}
+                                    onChange={(e) => onChange(campo.key, e.target.value)}
+                                    options={campo.options || []}
+                                    valueKey={campo.valueKey || ((item) => item)}
+                                />
+                            )}
 
-                                    {unidades.map((u) => (
-                                        <label 
-                                            key={u.id} 
-                                            className="multiselect-item"
-                                            style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={listaUnidadesSelecionadas.includes(u.nome)}
-                                                onChange={() => toggleUnidade(u.nome)}
-                                            />
-                                            <span>{u.nome}</span>
-                                        </label>
-                                    ))}
+                            {campo.tipo === "select" && (
+                                <div>
+                                    <label className="form-label">{campo.label}</label>
+                                    <select
+                                        className="form-input"
+                                        value={valorAtual}
+                                        onChange={(e) => onChange(campo.key, e.target.value)}
+                                    >
+                                        <option value="">{campo.placeholder || "Todos"}</option>
+                                        {campo.options.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
-                                    {unidades.length === 0 && (
-                                        <div className="multiselect-item-empty" style={{ padding: "8px 12px", color: "#666", fontSize: "13px" }}>
-                                            Nenhuma unidade com movimentação encontrada.
-                                        </div>
-                                    )}
+                            {campo.tipo === "text" && (
+                                <div>
+                                    <label className="form-label">{campo.label}</label>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        placeholder={campo.placeholder || `Filtrar por ${campo.label.toLowerCase()}...`}
+                                        value={valorAtual}
+                                        onChange={(e) => onChange(campo.key, e.target.value)}
+                                    />
+                                </div>
+                            )}
+
+                            {campo.tipo === "date" && (
+                                <div>
+                                    <label className="form-label">{campo.label}</label>
+                                    <input
+                                        type="date"
+                                        className="form-input"
+                                        value={valorAtual}
+                                        onChange={(e) => onChange(campo.key, e.target.value)}
+                                    />
                                 </div>
                             )}
                         </div>
-                    )}
-
-                    {/* 3. FILTRO DE DATA INÍCIO */}
-                    {setDataInicio && (
-                        <div className="filtro-campo">
-                            <label>Data Início:</label>
-                            <input
-                                type="date"
-                                className="filtro-input"
-                                value={dataInicio}
-                                onChange={(e) => setDataInicio(e.target.value)}
-                            />
-                        </div>
-                    )}
-
-                    {/* 4. FILTRO DE DATA FIM */}
-                    {setDataFim && (
-                        <div className="filtro-campo">
-                            <label>Data Fim:</label>
-                            <input
-                                type="date"
-                                className="filtro-input"
-                                value={dataFim}
-                                onChange={(e) => setDataFim(e.target.value)}
-                            />
-                        </div>
-                    )}
-
-                    {/* BOTÕES / AÇÕES ADICIONAIS */}
-                    {acoesAdicionais && (
-                        <div className="filtro-acoes">
-                            {acoesAdicionais}
-                        </div>
-                    )}
-                </div>
-            </Card>
+                    );
+                })}
+            </div>
         </div>
     );
 }

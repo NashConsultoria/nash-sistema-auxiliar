@@ -3,6 +3,7 @@ import Card from "../card/Card";
 import Table from "../table/Table";
 import Button from "../button/Button";
 import Inputlist from "../Inputlist/Inputlist";
+import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
 
 export default function PlanoContasTab({ token, banco }) {
@@ -10,11 +11,27 @@ export default function PlanoContasTab({ token, banco }) {
     const [carregandoPlano, setCarregandoPlano] = useState(false);
 
     // Estados dos Filtros
-    const [filtroPlano, setFiltroPlano] = useState('');
-    const [filtroGrupo, setFiltroGrupo] = useState('');
-    const [filtroEDre, setFiltroEDre] = useState('');
-    const [filtroDfc, setFiltroDfc] = useState('');
-    const [filtroEFolha, setFiltroEFolha] = useState('');
+    const [filtros, setFiltros] = useState({
+        plano: '',
+        grupo: '',
+        edre: '',
+        dfc: '',
+        efolha: ''
+    });
+
+    const handleFilterChange = (key, value) => {
+        setFiltros((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const limparFiltros = () => {
+        setFiltros({
+            plano: '',
+            grupo: '',
+            edre: '',
+            dfc: '',
+            efolha: ''
+        });
+    };
 
     // Função auxiliar para aplicar filtros ignorando uma chave específica
     const filtrarPlanoExcecao = (chaveIgnorada) => {
@@ -26,11 +43,11 @@ export default function PlanoContasTab({ token, banco }) {
             const efolha = (item.efolha || item.eFolha || '').toLowerCase();
 
             return (
-                (chaveIgnorada === 'plano' || plano.includes(filtroPlano.toLowerCase().trim())) &&
-                (chaveIgnorada === 'grupo' || grupo.includes(filtroGrupo.toLowerCase().trim())) &&
-                (chaveIgnorada === 'edre' || edre.includes(filtroEDre.toLowerCase().trim())) &&
-                (chaveIgnorada === 'dfc' || dfc.includes(filtroDfc.toLowerCase().trim())) &&
-                (chaveIgnorada === 'efolha' || efolha.includes(filtroEFolha.toLowerCase().trim()))
+                (chaveIgnorada === 'plano' || plano.includes(filtros.plano.toLowerCase().trim())) &&
+                (chaveIgnorada === 'grupo' || grupo.includes(filtros.grupo.toLowerCase().trim())) &&
+                (chaveIgnorada === 'edre' || edre.includes(filtros.edre.toLowerCase().trim())) &&
+                (chaveIgnorada === 'dfc' || dfc.includes(filtros.dfc.toLowerCase().trim())) &&
+                (chaveIgnorada === 'efolha' || efolha.includes(filtros.efolha.toLowerCase().trim()))
             );
         });
     };
@@ -39,39 +56,68 @@ export default function PlanoContasTab({ token, banco }) {
     const opcoesPlano = useMemo(() => {
         const dados = filtrarPlanoExcecao('plano');
         return Array.from(new Set(dados.map(p => p.planoConta || p.planoconta).filter(Boolean)));
-    }, [planoContas, filtroGrupo, filtroEDre, filtroDfc, filtroEFolha]);
+    }, [planoContas, filtros]);
 
     const opcoesGrupo = useMemo(() => {
         const dados = filtrarPlanoExcecao('grupo');
         return Array.from(new Set(dados.map(p => p.grupoConta).filter(Boolean)));
-    }, [planoContas, filtroPlano, filtroEDre, filtroDfc, filtroEFolha]);
+    }, [planoContas, filtros]);
 
     const opcoesEDre = useMemo(() => {
         const dados = filtrarPlanoExcecao('edre');
         return Array.from(new Set(dados.map(p => p.edre).filter(Boolean)));
-    }, [planoContas, filtroPlano, filtroGrupo, filtroDfc, filtroEFolha]);
+    }, [planoContas, filtros]);
 
     const opcoesDfc = useMemo(() => {
         const dados = filtrarPlanoExcecao('dfc');
         return Array.from(new Set(dados.map(p => p.dfc).filter(Boolean)));
-    }, [planoContas, filtroPlano, filtroGrupo, filtroEDre, filtroEFolha]);
+    }, [planoContas, filtros]);
 
     const opcoesEFolha = useMemo(() => {
         const dados = filtrarPlanoExcecao('efolha');
         return Array.from(new Set(dados.map(p => p.efolha || p.eFolha).filter(Boolean)));
-    }, [planoContas, filtroPlano, filtroGrupo, filtroEDre, filtroDfc]);
+    }, [planoContas, filtros]);
 
-    const limparFiltros = () => {
-        setFiltroPlano('');
-        setFiltroGrupo('');
-        setFiltroEDre('');
-        setFiltroDfc('');
-        setFiltroEFolha('');
-    };
+    // Definição da estrutura do filtro genérico
+    const schemaFiltroPlano = [
+        {
+            key: "plano",
+            label: "Plano de Conta",
+            tipo: "inputlist",
+            placeholder: "Buscar plano...",
+            options: opcoesPlano
+        },
+        {
+            key: "grupo",
+            label: "Grupo de Conta",
+            tipo: "inputlist",
+            placeholder: "Buscar grupo...",
+            options: opcoesGrupo
+        },
+        {
+            key: "edre",
+            label: "E-DRE",
+            tipo: "inputlist",
+            placeholder: "Buscar E-DRE...",
+            options: opcoesEDre
+        },
+        {
+            key: "dfc",
+            label: "DFC",
+            tipo: "inputlist",
+            placeholder: "Buscar DFC...",
+            options: opcoesDfc
+        },
+        {
+            key: "efolha",
+            label: "E-Folha",
+            tipo: "inputlist",
+            placeholder: "Buscar E-Folha...",
+            options: opcoesEFolha
+        }
+    ];
 
-    // ==========================================
-    // LÓGICA DE FILTRAGEM DO PLANO DE CONTAS
-    // ==========================================
+    // Lógica de Filtragem Final para a Tabela
     const planoContasFiltrados = useMemo(() => {
         return planoContas.filter((item) => {
             const plano = (item.planoConta || item.planoconta || '').toLowerCase();
@@ -81,14 +127,14 @@ export default function PlanoContasTab({ token, banco }) {
             const efolha = (item.efolha || item.eFolha || '').toLowerCase();
 
             return (
-                plano.includes(filtroPlano.toLowerCase().trim()) &&
-                grupo.includes(filtroGrupo.toLowerCase().trim()) &&
-                edre.includes(filtroEDre.toLowerCase().trim()) &&
-                dfc.includes(filtroDfc.toLowerCase().trim()) &&
-                efolha.includes(filtroEFolha.toLowerCase().trim())
+                plano.includes(filtros.plano.toLowerCase().trim()) &&
+                grupo.includes(filtros.grupo.toLowerCase().trim()) &&
+                edre.includes(filtros.edre.toLowerCase().trim()) &&
+                dfc.includes(filtros.dfc.toLowerCase().trim()) &&
+                efolha.includes(filtros.efolha.toLowerCase().trim())
             );
         });
-    }, [planoContas, filtroPlano, filtroGrupo, filtroEDre, filtroDfc, filtroEFolha]);
+    }, [planoContas, filtros]);
 
     const [regras, setRegras] = useState([]);
     const [carregandoRegras, setCarregandoRegras] = useState(false);
@@ -450,73 +496,14 @@ export default function PlanoContasTab({ token, banco }) {
             {/* SEÇÃO 2: LISTAGEM PLANO DE CONTAS */}
             <Card title="Gerenciamento do Plano de Contas">
                 <div className="card-filtros mb-4">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                        <h5 className="m-0">Filtrar Plano de Contas</h5>
-                        <Button type="button" onClick={limparFiltros}>
-                            Limpar Filtros
-                        </Button>
-                    </div>
-
+                    
                     <div className="form-row">
-                        <div className="form-group">
-                            <Inputlist
-                                id="filtro-plano"
-                                label="Plano de Conta"
-                                placeholder="Buscar plano..."
-                                value={filtroPlano}
-                                onChange={(e) => setFiltroPlano(e.target.value)}
-                                options={opcoesPlano}
-                                valueKey={(item) => item}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <Inputlist
-                                id="filtro-grupo"
-                                label="Grupo de Conta"
-                                placeholder="Buscar grupo..."
-                                value={filtroGrupo}
-                                onChange={(e) => setFiltroGrupo(e.target.value)}
-                                options={opcoesGrupo}
-                                valueKey={(item) => item}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <Inputlist
-                                id="filtro-edre"
-                                label="E-DRE"
-                                placeholder="Buscar E-DRE..."
-                                value={filtroEDre}
-                                onChange={(e) => setFiltroEDre(e.target.value)}
-                                options={opcoesEDre}
-                                valueKey={(item) => item}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <Inputlist
-                                id="filtro-dfc"
-                                label="DFC"
-                                placeholder="Buscar DFC..."
-                                value={filtroDfc}
-                                onChange={(e) => setFiltroDfc(e.target.value)}
-                                options={opcoesDfc}
-                                valueKey={(item) => item}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <Inputlist
-                                id="filtro-efolha"
-                                label="E-Folha"
-                                placeholder="Buscar E-Folha..."
-                                value={filtroEFolha}
-                                onChange={(e) => setFiltroEFolha(e.target.value)}
-                                options={opcoesEFolha}
-                                valueKey={(item) => item}
-                            />
-                        </div>
+                        <FiltroBar
+                            schema={schemaFiltroPlano}
+                            filtros={filtros}
+                            onChange={handleFilterChange}
+                            onLimpar={limparFiltros}
+                        />
                     </div>
                 </div>
 

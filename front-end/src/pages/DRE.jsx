@@ -4,7 +4,7 @@ import Card from "../components/card/Card";
 import Button from "../components/button/Button";
 import TableDRE from "../components/table/TableDRE";
 import Chart from "../components/chart/Chart";
-import FiltroBar from "../components/filtro/FiltroBar";
+import FiltroFinanceiro from "../components/filtro/FiltroFinanceiro";
 import { useAuth } from "../context/AuthContext";
 import { usePrint } from "../context/PrintContext";
 
@@ -434,7 +434,7 @@ export default function DRE() {
     return (
         <div className="page-container">
             {/* BARRA DE FILTROS E AÇÕES */}
-            <FiltroBar
+            <FiltroFinanceiro
                 contratanteSel={contratanteSel}
                 setContratanteSel={setContratanteSel}
                 contratantes={contratantes}

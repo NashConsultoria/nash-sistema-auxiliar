@@ -141,6 +141,195 @@ def processar_importacao_plano_contas(
         if conexao:
             conexao.close()
 
+def processar_importacao_regra_plano(
+    conteudo_arquivo: bytes, 
+    nome_arquivo: str, 
+    usuario_id: int, 
+    request: Request
+):
+    """
+    Processa o upload do Excel com as Regras do Plano de Contas (PlanoDePara).
+    Aba esperada: 'Regras_Plano'
+    Colunas esperadas: CONTRATANTE, UNIDADE, BANCO, DESCRICAO, FORNECEDOR, PLANO DE CONTA
+    """
+    conexao = None
+    try:
+        buffer = io.BytesIO(conteudo_arquivo)
+        
+        try:
+            df = pd.read_excel(buffer, sheet_name='Regras_Plano')
+        except Exception:
+            buffer.seek(0)
+            df = pd.read_excel(buffer)
+
+        # Padroniza nomes das colunas (Remove espaços, hífen e converte para maiúsculo)
+        df.columns = [str(col).strip().upper().replace("-", "") for col in df.columns]
+
+        # 1. Validação de Colunas Obrigatórias
+        colunas_necessarias = ["CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "FORNECEDOR", "PLANO DE CONTA"]
+        for col in colunas_necessarias:
+            if col not in df.columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Coluna obrigatória '{col}' não foi encontrada na planilha de Regras."
+                )
+
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
+        cursor = conexao.cursor()
+
+        # 2. Carregar Mapeamentos em Memória para Resolução Rápida de IDs
+        cursor.execute("SELECT id, LOWER(nome) FROM dbo.Contratante WHERE nome IS NOT NULL")
+        map_contratantes = {row[1].strip(): row[0] for row in cursor.fetchall()}
+
+        cursor.execute("SELECT id, LOWER(nome) FROM dbo.Unidade WHERE nome IS NOT NULL")
+        map_unidades = {row[1].strip(): row[0] for row in cursor.fetchall()}
+
+        cursor.execute("SELECT id, LOWER(nome) FROM dbo.BancoConta WHERE nome IS NOT NULL")
+        map_bancos = {row[1].strip(): row[0] for row in cursor.fetchall()}
+
+        cursor.execute("SELECT id, LOWER(planoConta) FROM dbo.PlanoContas WHERE planoConta IS NOT NULL")
+        map_planos = {row[1].strip(): row[0] for row in cursor.fetchall()}
+
+        # 3. Gestão do Lote de Importação
+        cursor.execute("""
+            SELECT id FROM dbo.ImportacaoLote 
+            WHERE nomeArquivo = ? AND contratanteId IS NULL
+        """, (nome_arquivo,))
+        lote_existente = cursor.fetchone()
+
+        if lote_existente:
+            lote_id = lote_existente[0]
+            cursor.execute("UPDATE dbo.ImportacaoLote SET criadoEm = GETDATE() WHERE id = ?", (lote_id,))
+        else:
+            cursor.execute("""
+                INSERT INTO dbo.ImportacaoLote (nomeArquivo, contratanteId, criadoEm) 
+                OUTPUT INSERTED.id
+                VALUES (?, NULL, GETDATE())
+            """, (nome_arquivo,))
+            
+            row_lote = cursor.fetchone()
+            if not row_lote or row_lote[0] is None:
+                raise HTTPException(status_code=500, detail="Não foi possível gerar o ID do Lote de Importação.")
+            
+            lote_id = int(row_lote[0])
+
+        # 4. Limpa as regras anteriores e reseta o ID da tabela PlanoDePara
+        cursor.execute("DELETE FROM dbo.PlanoDePara")
+        cursor.execute("DBCC CHECKIDENT ('dbo.PlanoDePara', RESEED, 0)")
+
+        # 5. Processamento e Inserção
+        query_insert = """
+            INSERT INTO dbo.PlanoDePara 
+            (contratanteId, unidadeId, bancoId, termoDescricao, termoFornecedor, planoContaId)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """
+
+        def limpar_e_normalizar(val):
+            val_str = str(val).strip()
+            if val_str.lower() in ["nan", "none", "", "null"]:
+                return None
+            return normalizar_texto(val_str)
+
+        total_linhas = 0
+        erros_validacao = []
+
+        for idx, row in df.iterrows():
+            linha_num = idx + 2  # Considera o cabeçalho como linha 1
+
+            val_contratante = limpar_e_normalizar(row["CONTRATANTE"])
+            val_unidade = limpar_e_normalizar(row["UNIDADE"])
+            val_banco = limpar_e_normalizar(row["BANCO"])
+            termo_descricao = limpar_e_normalizar(row["DESCRICAO"])
+            termo_fornecedor = limpar_e_normalizar(row["FORNECEDOR"])
+            val_plano = limpar_e_normalizar(row["PLANO DE CONTA"])
+
+            # Validação: É necessário ao menos Descrição ou Fornecedor
+            if not termo_descricao and not termo_fornecedor:
+                erros_validacao.append(f"Linha {linha_num}: Preencha ao menos 'DESCRICAO' ou 'FORNECEDOR'.")
+                continue
+
+            # Validação: Plano de Contas obrigatório
+            if not val_plano:
+                erros_validacao.append(f"Linha {linha_num}: 'PLANO DE CONTA' é obrigatório.")
+                continue
+
+            plano_id = map_planos.get(val_plano.lower())
+            if not plano_id:
+                erros_validacao.append(f"Linha {linha_num}: Plano de Contas '{val_plano}' não está cadastrado no sistema.")
+                continue
+
+            # Validação e Resolução de IDs opcionais (NULL = Regra Geral)
+            contratante_id = None
+            if val_contratante:
+                contratante_id = map_contratantes.get(val_contratante.lower())
+                if not contratante_id:
+                    erros_validacao.append(f"Linha {linha_num}: Contratante '{val_contratante}' não encontrado.")
+                    continue
+
+            unidade_id = None
+            if val_unidade:
+                unidade_id = map_unidades.get(val_unidade.lower())
+                if not unidade_id:
+                    erros_validacao.append(f"Linha {linha_num}: Unidade '{val_unidade}' não encontrada.")
+                    continue
+
+            banco_id = None
+            if val_banco:
+                banco_id = map_bancos.get(val_banco.lower())
+                if not banco_id:
+                    erros_validacao.append(f"Linha {linha_num}: Banco '{val_banco}' não encontrado.")
+                    continue
+
+            cursor.execute(query_insert, (
+                contratante_id,
+                unidade_id,
+                banco_id,
+                termo_descricao,
+                termo_fornecedor,
+                plano_id
+            ))
+            total_linhas += 1
+
+        # Cancela tudo se houver erros de consistência nos dados
+        if erros_validacao:
+            primeiros_erros = "<br>".join(erros_validacao[:5])
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Erros na validação da planilha:<br>{primeiros_erros}"
+            )
+
+        # 6. Log de Auditoria
+        registrar_log(
+            usuario_id=usuario_id,
+            acao="IMPORTAR_REGRAS_PLANO",
+            tabela="planodepara",
+            detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
+            request=request
+        )
+
+        conexao.commit()
+
+        return {
+            "sucesso": True,
+            "tipo": "regras_plano",
+            "lote_id": lote_id,
+            "mensagem": f"Regras do Plano de Contas importadas com sucesso no Lote #{lote_id}! ({total_linhas} registros)",
+            "total_registros": total_linhas
+        }
+
+    except HTTPException as http_err:
+        if conexao:
+            conexao.rollback()
+        raise http_err
+    except Exception as e:
+        if conexao:
+            conexao.rollback()
+        print(f"[ERRO AO IMPORTAR REGRAS PLANO]: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo de Regras do Plano: {str(e)}")
+    finally:
+        if conexao:
+            conexao.close()
+
 async def processar_importacao_movimentacoes(
     conteudo: bytes, 
     nome_arquivo: str, 

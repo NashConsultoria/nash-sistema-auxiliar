@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Card from "../components/card/Card";
 import TableDRE from "../components/table/TableDRE";
 import Chart from "../components/chart/Chart";
-import FiltroBar from "../components/filtro/FiltroBar";
+import FiltroFinanceiro from "../components/filtro/FiltroFinanceiro";
 import Button from "../components/button/Button";
 import { useAuth } from "../context/AuthContext";
 import { usePrint } from "../context/PrintContext";
@@ -425,7 +425,7 @@ export default function FolhaPagamento() {
     return (
         <div className="page-container">
             {/* BARRA DE FILTROS PADRONIZADA */}
-            <FiltroBar
+            <FiltroFinanceiro
                 contratanteSel={contratanteSel}
                 setContratanteSel={setContratanteSel}
                 contratantes={contratantes}

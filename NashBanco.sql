@@ -73,13 +73,17 @@ CREATE TABLE PlanoDePara
 (
     id					int					not null		primary key		identity,
     contratanteId       int						null,						-- NULL = Regra Global
+	unidadeId			int						null,						-- NULL = Regra Global
+	bancoId				int						null,						-- NULL = Regra Global
     termoDescricao      varchar(255)			null,						-- Busca na Descrição (Ex: "TARIFA")
     termoFornecedor     varchar(255)			null,						-- Busca no Fornecedor (Ex: "ITAU")
     planoContaId        int						not null,					-- Mapeia para PlanoContas
 
     -- Chaves Estrangeiras
+	CONSTRAINT FK_PlanoDePara_Contratante foreign key (contratanteId) references Contratante(id) on delete cascade,
+	CONSTRAINT FK_PlanoDePara_Unidade foreign key (unidadeId) references Unidade(id) on delete cascade,
+	CONSTRAINT FK_PlanoDePara_BancoConta foreign key (bancoId) references BancoConta(id) on delete cascade,
     CONSTRAINT FK_PlanoDePara_PlanoContas foreign key (planoContaId) references PlanoContas(id) on delete cascade,
-    CONSTRAINT FK_PlanoDePara_Contratante foreign key (contratanteId) references Contratante(id) on delete cascade,
 
     -- Validação: Pelo menos um dos dois termos DEVE estar preenchido
     CONSTRAINT CK_PlanoDePara_PeloMenosUmTermo CHECK (termoDescricao IS NOT NULL OR termoFornecedor IS NOT NULL)

@@ -128,7 +128,7 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
             label: "Ações",
             key: "acoes",
             width: "20%",
-            style: { textAlign: "right" },
+            style: { textAlign: "center" },
             Cell: ({ row }) => (
                 <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                     <Button onClick={() => handleIniciarEdicaoContratante(row)}>

@@ -120,7 +120,7 @@ export default function PermissoesTab({ token, usuarios = [], contratantes = [] 
             label: "Ações",
             key: "acoes",
             width: "20%",
-            style: { textAlign: "right" },
+            style: { textAlign: "center" },
             Cell: ({ row }) => (
                 <Button onClick={() => handleAbrirGerenciador(row)}>
                     Configurar Vínculos

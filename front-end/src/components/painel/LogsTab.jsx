@@ -1,11 +1,33 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Card from "../card/Card";
 import Table from "../table/Table";
+import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
 
 export default function LogsTab({ token }) {
     const [logs, setLogs] = useState([]);
     const [carregandoLogs, setCarregandoLogs] = useState(false);
+
+    // Estados dos Filtros
+    const [filtros, setFiltros] = useState({
+        usuario: "",
+        ip: "",
+        acao: "",
+        tabela: ""
+    });
+
+    const handleFilterChange = (key, value) => {
+        setFiltros((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const limparFiltros = () => {
+        setFiltros({
+            usuario: "",
+            ip: "",
+            acao: "",
+            tabela: ""
+        });
+    };
 
     useEffect(() => {
         if (!token) return;
@@ -22,17 +44,104 @@ export default function LogsTab({ token }) {
             .finally(() => setCarregandoLogs(false));
     }, [token]);
 
+    // Função auxiliar estilo Excel (ignora a própria chave para calcular as opções disponíveis)
+    const filtrarLogsExcecao = (chaveIgnorada) => {
+        return logs.filter((item) => {
+            const usuario = (item.usuario_nome || "").toLowerCase();
+            const ip = (item.ip || "").toLowerCase();
+            const acao = (item.acao || "").toLowerCase();
+            const tabela = (item.tabela || "").toLowerCase();
+
+            return (
+                (chaveIgnorada === "usuario" || usuario.includes(filtros.usuario.toLowerCase().trim())) &&
+                (chaveIgnorada === "ip" || ip.includes(filtros.ip.toLowerCase().trim())) &&
+                (chaveIgnorada === "acao" || acao.includes(filtros.acao.toLowerCase().trim())) &&
+                (chaveIgnorada === "tabela" || tabela.includes(filtros.tabela.toLowerCase().trim()))
+            );
+        });
+    };
+
+    // Opções dinâmicas das listas (estilo Excel)
+    const opcoesUsuarios = useMemo(() => {
+        const dados = filtrarLogsExcecao("usuario");
+        return Array.from(new Set(dados.map((l) => l.usuario_nome).filter(Boolean)));
+    }, [logs, filtros]);
+
+    const opcoesIps = useMemo(() => {
+        const dados = filtrarLogsExcecao("ip");
+        return Array.from(new Set(dados.map((l) => l.ip).filter(Boolean)));
+    }, [logs, filtros]);
+
+    const opcoesAcoes = useMemo(() => {
+        const dados = filtrarLogsExcecao("acao");
+        return Array.from(new Set(dados.map((l) => l.acao).filter(Boolean)));
+    }, [logs, filtros]);
+
+    const opcoesTabelas = useMemo(() => {
+        const dados = filtrarLogsExcecao("tabela");
+        return Array.from(new Set(dados.map((l) => l.tabela).filter(Boolean)));
+    }, [logs, filtros]);
+
+    // Schema do Filtro
+    const schemaFiltroLogs = [
+        {
+            key: "usuario",
+            label: "Usuário",
+            tipo: "inputlist",
+            placeholder: "Buscar usuário...",
+            options: opcoesUsuarios
+        },
+        {
+            key: "ip",
+            label: "IP",
+            tipo: "inputlist",
+            placeholder: "Buscar IP...",
+            options: opcoesIps
+        },
+        {
+            key: "acao",
+            label: "Ação",
+            tipo: "inputlist",
+            placeholder: "Buscar ação...",
+            options: opcoesAcoes
+        },
+        {
+            key: "tabela",
+            label: "Tabela Afetada",
+            tipo: "inputlist",
+            placeholder: "Buscar tabela...",
+            options: opcoesTabelas
+        }
+    ];
+
+    // Resultado final filtrado exibido na tabela
+    const logsFiltrados = useMemo(() => {
+        return logs.filter((item) => {
+            const usuario = (item.usuario_nome || "").toLowerCase();
+            const ip = (item.ip || "").toLowerCase();
+            const acao = (item.acao || "").toLowerCase();
+            const tabela = (item.tabela || "").toLowerCase();
+
+            return (
+                usuario.includes(filtros.usuario.toLowerCase().trim()) &&
+                ip.includes(filtros.ip.toLowerCase().trim()) &&
+                acao.includes(filtros.acao.toLowerCase().trim()) &&
+                tabela.includes(filtros.tabela.toLowerCase().trim())
+            );
+        });
+    }, [logs, filtros]);
+
     const colunasLogs = [
         {
             label: "Data/Hora",
             key: "criado_em",
-            width: "18%",
-            Cell: ({ row }) => row.criado_em ? new Date(row.criado_em).toLocaleString("pt-BR") : "-"
+            width: "15%",
+            Cell: ({ row }) => (row.criado_em ? new Date(row.criado_em).toLocaleString("pt-BR") : "-")
         },
         {
             label: "Usuário",
             key: "usuario_nome",
-            width: "22%",
+            width: "20%",
             Cell: ({ row }) => (
                 <div>
                     <div style={{ fontWeight: "600" }}>{row.usuario_nome || "Sistema"}</div>
@@ -41,9 +150,19 @@ export default function LogsTab({ token }) {
             )
         },
         {
+            label: "IP",
+            key: "ip",
+            width: "12%",
+            Cell: ({ row }) => (
+                <span style={{ fontFamily: "monospace", fontSize: "12px" }}>
+                    {row.ip || "-"}
+                </span>
+            )
+        },
+        {
             label: "Ação",
             key: "acao",
-            width: "20%",
+            width: "18%",
             Cell: ({ row }) => {
                 const cores = {
                     "Login": { bg: "rgba(34, 197, 94, 0.12)", text: "#16a34a", border: "rgba(34, 197, 94, 0.3)" },
@@ -79,16 +198,16 @@ export default function LogsTab({ token }) {
         {
             label: "Tabela Afetada",
             key: "tabela",
-            width: "15%",
-            Cell: ({ row }) => row.tabela ? (
+            width: "13%",
+            Cell: ({ row }) => (row.tabela ? (
                 <span style={{ fontFamily: "monospace" }}>{row.tabela}</span>
-            ) : "-"
+            ) : "-")
         },
         {
             label: "Detalhes da Operação",
             key: "detalhes",
-            width: "25%",
-            Cell: ({ row }) => row.detalhes ? (
+            width: "22%",
+            Cell: ({ row }) => (row.detalhes ? (
                 <div style={{ 
                     backgroundColor: "rgba(0, 0, 0, 0.04)", 
                     padding: "6px 10px", 
@@ -107,7 +226,7 @@ export default function LogsTab({ token }) {
                 </div>
             ) : (
                 <span style={{ color: "#94a3b8", fontSize: "12px", fontStyle: "italic" }}>-</span>
-            )
+            ))
         }
     ];
 
@@ -116,12 +235,20 @@ export default function LogsTab({ token }) {
             <p style={{ marginBottom: "16px" }}>
                 Visualize o histórico detalhado das ações e acessos executados por cada usuário no sistema.
             </p>
+
+            <FiltroBar
+                schema={schemaFiltroLogs}
+                filtros={filtros}
+                onChange={handleFilterChange}
+                onLimpar={limparFiltros}
+            />
+
             {carregandoLogs ? (
                 <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>
                     Carregando histórico de ações...
                 </div>
             ) : (
-                <Table columns={colunasLogs} data={logs} />
+                <Table columns={colunasLogs} data={logsFiltrados} />
             )}
         </Card>
     );

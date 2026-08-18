@@ -7,6 +7,7 @@ from app.services.importacao_service import (
     processar_importacao_movimentacoes,
     processar_importacao_movimentacoes_folha,
     processar_importacao_plano_contas,
+    processar_importacao_regra_plano,
 )
 
 router = APIRouter(prefix="/api", tags=["Importação"])
@@ -30,6 +31,16 @@ async def importar_arquivo_generico(
             usuario_id=admin.id,
             request=request,
         )
+
+    if (
+            "regras_plano" in nome_arquivo_lower
+        ):
+            return processar_importacao_regra_plano(
+                conteudo_arquivo=conteudo,
+                nome_arquivo=file.filename,
+                usuario_id=admin.id,
+                request=request,
+            )
 
     if (
         "folha_pagamento" in nome_arquivo_lower
