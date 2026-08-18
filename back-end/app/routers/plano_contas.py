@@ -34,11 +34,17 @@ async def obter_regras_planocontas(banco: str):
                 pdp.planoContaId,
                 pdp.contratanteId,
                 c.nome AS contratanteNome,
+                pdp.unidadeId,
+                u.nome AS unidadeNome,
+                pdp.bancoId,
+                b.banco AS bancoNome,
                 pc.planoConta AS destino,
                 pc.grupoConta
             FROM PlanoDePara pdp
             INNER JOIN PlanoContas pc ON pdp.planoContaId = pc.id
             LEFT JOIN Contratante c ON pdp.contratanteId = c.id
+            LEFT JOIN Unidade u ON pdp.unidadeId = u.id
+            LEFT JOIN BancoConta b ON pdp.bancoId = b.id
             ORDER BY pdp.id DESC
         """
         dados = executar_query(sql, banco=banco)
@@ -50,29 +56,46 @@ async def obter_regras_planocontas(banco: str):
 @router.post("/{banco}/regras-planocontas")
 async def criar_regra_planocontas(banco: str, regra: RegraPlanoSchema):
     try:
-        # 1. Verifica se já existe uma regra idêntica
+        # 1. Verifica se já existe uma regra idêntica para todas as opções
         sql_check = """
             SELECT id FROM PlanoDePara 
             WHERE ISNULL(termoDescricao, '') = ISNULL(?, '')
               AND ISNULL(termoFornecedor, '') = ISNULL(?, '')
               AND ISNULL(contratanteId, 0) = ISNULL(?, 0)
+              AND ISNULL(unidadeId, 0) = ISNULL(?, 0)
+              AND ISNULL(bancoId, 0) = ISNULL(?, 0)
         """
-        params_check = (regra.termoDescricao, regra.termoFornecedor, regra.contratanteId)
+        params_check = (
+            regra.termoDescricao,
+            regra.termoFornecedor,
+            regra.contratanteId,
+            regra.unidadeId,
+            regra.bancoId
+        )
         existente = executar_query(sql_check, banco=banco, params=params_check)
 
         if existente:
             raise HTTPException(
                 status_code=400, 
-                detail="Já existe uma regra idêntica cadastrada para estes termos e contratante."
+                detail="Já existe uma regra idêntica cadastrada para estes critérios."
             )
 
-        # 2. Se não existir, faz o INSERT normalmente
+        # 2. Insere com as novas colunas
         sql_insert = """
-            INSERT INTO PlanoDePara (contratanteId, termoDescricao, termoFornecedor, planoContaId)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO PlanoDePara (
+                contratanteId, 
+                unidadeId, 
+                bancoId, 
+                termoDescricao, 
+                termoFornecedor, 
+                planoContaId
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
         """
         params_insert = (
             regra.contratanteId,
+            regra.unidadeId,
+            regra.bancoId,
             regra.termoDescricao,
             regra.termoFornecedor,
             regra.planoContaId
@@ -88,43 +111,56 @@ async def criar_regra_planocontas(banco: str, regra: RegraPlanoSchema):
         print(f"Erro ao inserir regra: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro ao salvar regra: {str(e)}")
 
+
 @router.put("/{banco}/regras-planocontas/{regra_id}")
-async def atualizar_regra_planocontas(banco: str, regra_id: int, regra: RegraPlanoSchema):
+async def atualizar_regra_planocontas(
+    banco: str, regra_id: int, regra: RegraPlanoSchema
+):
     try:
+        # Define importacaoLoteId = NULL para desvincular a regra do lote de importação
         sql = """
             UPDATE PlanoDePara 
             SET contratanteId = ?, 
+                unidadeId = ?, 
+                bancoId = ?, 
                 termoDescricao = ?, 
                 termoFornecedor = ?, 
-                planoContaId = ?
+                planoContaId = ?,
+                importacaoLoteId = NULL
             WHERE id = ?
         """
         params = (
             regra.contratanteId,
+            regra.unidadeId,
+            regra.bancoId,
             regra.termoDescricao,
             regra.termoFornecedor,
             regra.planoContaId,
-            regra_id
+            regra_id,
         )
-        
+
         executar_query(sql, banco=banco, params=params)
-        
-        return {"sucesso": True, "mensagem": "Regra atualizada com sucesso!"}
+
+        return {
+            "sucesso": True,
+            "mensagem": "Regra atualizada com sucesso e salva como customizada!",
+        }
     except Exception as e:
         print(f"Erro ao atualizar regra: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erro ao atualizar regra: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Erro ao atualizar regra: {str(e)}"
+        )
+
 
 @router.delete("/{banco}/regras-planocontas/{regra_id}")
 async def excluir_regra_planocontas(banco: str, regra_id: int):
     try:
-        # Verifica se a regra existe antes de deletar (opcional, mas uma boa prática)
         sql_verifica = "SELECT id FROM PlanoDePara WHERE id = ?"
         existe = executar_query(sql_verifica, banco=banco, params=(regra_id,))
         
         if not existe:
             raise HTTPException(status_code=404, detail="Regra não encontrada.")
 
-        # Executa o delete no banco
         sql_delete = "DELETE FROM PlanoDePara WHERE id = ?"
         executar_query(sql_delete, banco=banco, params=(regra_id,))
         

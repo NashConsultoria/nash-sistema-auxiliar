@@ -30,7 +30,27 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         }
     }, [token]);
 
-    // Função auxiliar estilo Excel (ignora a própria chave para calcular as opções disponíveis)
+    // Função auxiliar para conversão e formatação de data sem dar 'Invalid Date'
+    const formatarData = (dataValor) => {
+        if (!dataValor) return "-";
+        
+        // Se já for um objeto Date
+        if (dataValor instanceof Date) {
+            return isNaN(dataValor.getTime()) ? "-" : dataValor.toLocaleString("pt-BR");
+        }
+
+        // Se for string, substitui espaço por 'T' para garantir compatibilidade ISO (Ex: "2026-03-31 14:00" -> "2026-03-31T14:00")
+        const strData = String(dataValor).trim().replace(" ", "T");
+        const dataParsed = new Date(strData);
+
+        if (isNaN(dataParsed.getTime())) {
+            return "-";
+        }
+
+        return dataParsed.toLocaleString("pt-BR");
+    };
+
+    // Função auxiliar estilo Excel
     const filtrarLotesExcecao = (chaveIgnorada) => {
         return lotes.filter((item) => {
             const arquivo = (item.nomeArquivo || item.nome_arquivo || "").toLowerCase();
@@ -43,8 +63,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         });
     };
 
-    // Opções dinâmicas das listas (estilo Excel)
-
+    // Opções dinâmicas das listas
     const opcoesArquivos = useMemo(() => {
         const dados = filtrarLotesExcecao("nomeArquivo");
         return Array.from(new Set(dados.map((l) => l.nomeArquivo || l.nome_arquivo).filter(Boolean)));
@@ -90,17 +109,32 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
     const handleExportarLote = (row) => {
         const nomeOriginal = row.nomeArquivo ? row.nomeArquivo.replace(/\.[^/.]+$/, "") : `Lote_${row.id}`;
         const nomeArquivoDownload = `${nomeOriginal}.xlsx`;
+        const nomeArqLower = (row.nomeArquivo || row.nome_arquivo || "").toLowerCase();
 
         const ehPlanoContas = 
-            row.nomeArquivo?.toLowerCase().includes("plano") || 
+            nomeArqLower.includes("plano") && !nomeArqLower.includes("regra") || 
             row.contratante === "PLANO DE CONTAS (SISTEMA)";
 
+        const ehRegraPlano = 
+            nomeArqLower.includes("regras_plano") || 
+            nomeArqLower.includes("regra");
+
         const ehFolhaPagamento = 
-            row.nomeArquivo?.toLowerCase().includes("folha") || 
+            nomeArqLower.includes("folha") || 
             row.tipoLote?.toLowerCase().includes("folha") ||
             row.contratante?.toLowerCase().includes("folha");
 
-        if (ehPlanoContas) {
+        if (ehRegraPlano) {
+            ExportarExcel({
+                tabela: "planodepara",
+                colunaFiltro: "importacaoLoteId",
+                valorFiltro: row.id,
+                colunas: [
+                    "CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "FORNECEDOR", "PLANO DE CONTA"
+                ],
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else if (ehPlanoContas) {
             ExportarExcel({
                 tabela: "planocontas",
                 colunas: ["PLANO DE CONTAS", "GRUPO DE CONTAS", "edre", "dfc", "efolha"],
@@ -137,7 +171,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
     // Exclusão do Lote
     const handleDeletarLote = async (loteId, nomeArquivo) => {
         const confirmou = window.confirm(
-            `Tem certeza que deseja excluir o lote "${nomeArquivo}"?\nTodas as movimentações e cadastros órfãos deste lote serão removidos!`
+            `Tem certeza que deseja excluir o lote "${nomeArquivo}"?\nTodas as movimentações e cadastros deste lote serão removidos!`
         );
 
         if (!confirmou) return;
@@ -163,15 +197,25 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
     };
 
     const colunasLotes = [
-        { label: "Arquivo", key: "nomeArquivo", width: "27%" },
+        { 
+            label: "Arquivo", 
+            key: "nomeArquivo", 
+            width: "27%",
+            Cell: ({ row }) => row.nomeArquivo || row.nome_arquivo || "-"
+        },
         { label: "Contratante", key: "contratante", width: "20%" },
         { 
             label: "Data Importação", 
             key: "criadoEm", 
             width: "20%",
-            Cell: ({ row }) => row.criadoEm ? new Date(row.criadoEm).toLocaleString("pt-BR") : "-"
+            Cell: ({ row }) => formatarData(row.criadoEm || row.criado_em)
         },
-        { label: "Linhas", key: "totalMovimentacoes", width: "10%" },
+        { 
+            label: "Linhas", 
+            key: "totalMovimentacoes", 
+            width: "10%",
+            Cell: ({ row }) => row.totalMovimentacoes ?? row.total_movimentacoes ?? 0 
+        },
         {
             label: "Ações",
             key: "acoes",
@@ -193,7 +237,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
                         Baixar
                     </Button>
                     <Button
-                        onClick={() => handleDeletarLote(row.id, row.nome_arquivo || row.nomeArquivo)}
+                        onClick={() => handleDeletarLote(row.id, row.nomeArquivo || row.nome_arquivo)}
                         style={{
                             backgroundColor: "#ef444422",
                             color: "#f87171",

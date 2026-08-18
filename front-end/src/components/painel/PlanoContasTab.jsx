@@ -139,25 +139,32 @@ export default function PlanoContasTab({ token, banco }) {
     const [regras, setRegras] = useState([]);
     const [carregandoRegras, setCarregandoRegras] = useState(false);
 
-    // Estados para Contratantes
+    // Estados para Listas Auxiliares (Datalists)
     const [contratantes, setContratantes] = useState([]);
+    const [unidades, setUnidades] = useState([]);
+    const [bancos, setBancos] = useState([]);
 
-    // Estados do Formulário de Nova Regra
+    // Estados do Formulário do Modal
     const [modalAberto, setModalAberto] = useState(false);
+    const [termoDescricao, setTermoDescricao] = useState('');
+    const [termoFornecedor, setTermoFornecedor] = useState('');
+    const [planoContaTexto, setPlanoContaTexto] = useState('');
+    const [contratanteTexto, setContratanteTexto] = useState('');
+    const [unidadeTexto, setUnidadeTexto] = useState('');
+    const [bancoTexto, setBancoTexto] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [regraEmEdicao, setRegraEmEdicao] = useState(null);
+
     const fecharModal = () => {
         setTermoDescricao('');
         setTermoFornecedor('');
         setPlanoContaTexto('');
         setContratanteTexto('');
+        setUnidadeTexto('');
+        setBancoTexto('');
         setRegraEmEdicao(null);
         setModalAberto(false);
     };
-    const [termoDescricao, setTermoDescricao] = useState('');
-    const [termoFornecedor, setTermoFornecedor] = useState('');
-    const [planoContaTexto, setPlanoContaTexto] = useState('');
-    const [contratanteTexto, setContratanteTexto] = useState('');
-    const [salvando, setSalvando] = useState(false);
-    const [regraEmEdicao, setRegraEmEdicao] = useState(null);
 
     // 1. Busca do Plano de Contas
     const carregarPlanoContas = async () => {
@@ -177,17 +184,33 @@ export default function PlanoContasTab({ token, banco }) {
         }
     };
 
-    // 2. Busca dos Contratantes
-    const carregarContratantes = async () => {
+    // 2. Busca dos Cadastros Auxiliares (Contratantes, Unidades, Bancos)
+    const carregarListasAuxiliares = async () => {
         try {
-            const res = await fetch(`${API_BASE}/api/contratantes`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error("Erro ao buscar contratantes");
-            const dados = await res.json();
-            setContratantes(dados);
+            const headers = { Authorization: `Bearer ${token}` };
+
+            const [resCont, resUni, resBanc] = await Promise.all([
+                fetch(`${API_BASE}/api/contratantes`, { headers }),
+                //fetch(`${API_BASE}/api/${banco}/unidades`, { headers }).catch(() => null), //para quando cadastrar unidades
+                //fetch(`${API_BASE}/api/${banco}/bancos`, { headers }).catch(() => null)
+            ]);
+
+            if (resCont && resCont.ok) {
+                const dadosCont = await resCont.json();
+                setContratantes(dadosCont);
+            }
+
+            if (resUni && resUni.ok) {
+                const dadosUni = await resUni.json();
+                setUnidades(Array.isArray(dadosUni) ? dadosUni : dadosUni.dados || []);
+            }
+
+            if (resBanc && resBanc.ok) {
+                const dadosBanc = await resBanc.json();
+                setBancos(Array.isArray(dadosBanc) ? dadosBanc : dadosBanc.dados || []);
+            }
         } catch (err) {
-            console.error("Erro contratantes:", err);
+            console.error("Erro ao carregar listas auxiliares:", err);
         }
     };
 
@@ -209,24 +232,24 @@ export default function PlanoContasTab({ token, banco }) {
         }
     };
 
-    // 4. Salvar Nova Regra
+    // 4. Salvar Nova Regra ou Edição
     const handleSalvarRegra = async (e) => {
         e.preventDefault();
 
         if (!termoDescricao.trim() && !termoFornecedor.trim()) {
-            alert("Preencha ao menos o Termo na Descrição ou no Fornecedor!");
+            alert("Preencha ao menos um dos termos: Descrição ou Fornecedor!");
             return;
         }
 
-        // --- 1. BUSCA E VALIDAÇÃO DO PLANO DE CONTAS ---
+        // --- VALIDAÇÃO DO PLANO DE CONTAS ---
         if (!planoContaTexto || !planoContaTexto.trim()) {
-            alert("Por favor, selecione ou digite um Plano de Contas válido!");
+            alert("Por favor, selecione um Plano de Contas válido!");
             return;
         }
 
-        const textoPlanoDigitado = planoContaTexto.trim().toLowerCase();
+        const textoPlano = planoContaTexto.trim().toLowerCase();
         const contaEncontrada = planoContas.find(p => 
-            String(p.planoConta || p.planoconta || "").trim().toLowerCase() === textoPlanoDigitado
+            String(p.planoConta || p.planoconta || "").trim().toLowerCase() === textoPlano
         );
 
         if (!contaEncontrada) {
@@ -234,23 +257,53 @@ export default function PlanoContasTab({ token, banco }) {
             return;
         }
 
-        // --- 2. BUSCA E VALIDAÇÃO DO CONTRATANTE ---
+        // --- VALIDAÇÃO DO CONTRATANTE ---
         let idContratante = null;
         if (contratanteTexto && contratanteTexto.trim() !== '') {
-            const textoContratanteDigitado = contratanteTexto.trim().toLowerCase();
+            const textoCont = contratanteTexto.trim().toLowerCase();
             const contratanteEncontrado = contratantes.find(c => 
-                String(c.nome || c.razaoSocial || "").trim().toLowerCase() === textoContratanteDigitado
+                String(c.nome || c.razaoSocial || "").trim().toLowerCase() === textoCont
             );
 
             if (!contratanteEncontrado) {
-                alert("O contratante digitado não existe! Selecione uma opção válida da lista ou deixe em branco para aplicar a todos.");
+                alert("O contratante digitado não existe! Selecione uma opção válida ou deixe em branco.");
                 return;
             }
-
             idContratante = contratanteEncontrado.id;
         }
 
-        // --- 3. MONTAGEM DO PAYLOAD E DEFINIÇÃO DE ENDPOINT/MÉTODO ---
+        // --- VALIDAÇÃO DA UNIDADE ---
+        let idUnidade = null;
+        if (unidadeTexto && unidadeTexto.trim() !== '') {
+            const textoUni = unidadeTexto.trim().toLowerCase();
+            const unidadeEncontrada = unidades.find(u => 
+                String(u.nome || u.descricao || "").trim().toLowerCase() === textoUni
+            );
+
+            if (!unidadeEncontrada) {
+                alert("A unidade digitada não existe! Selecione uma opção válida ou deixe em branco.");
+                return;
+            }
+            idUnidade = unidadeEncontrada.id;
+        }
+
+        // --- VALIDAÇÃO DO BANCO ---
+        // --- VALIDAÇÃO DO BANCO ---
+        let idBanco = null;
+        if (bancoTexto && bancoTexto.trim() !== '') {
+            const textoBanc = bancoTexto.trim().toLowerCase();
+            const bancoEncontrado = bancos.find(b => 
+                String(b.banco || b.descricao || b.nome || "").trim().toLowerCase() === textoBanc
+            );
+
+            if (!bancoEncontrado) {
+                alert("O banco digitado não existe! Selecione uma opção válida ou deixe em branco.");
+                return;
+            }
+            idBanco = bancoEncontrado.id;
+        }
+
+        // --- MONTAGEM DO PAYLOAD ---
         const isEdicao = Boolean(regraEmEdicao);
         const url = isEdicao 
             ? `${API_BASE}/api/${banco}/regras-planocontas/${regraEmEdicao.id}`
@@ -262,7 +315,9 @@ export default function PlanoContasTab({ token, banco }) {
             termoDescricao: termoDescricao.trim() || null,
             termoFornecedor: termoFornecedor.trim() || null,
             planoContaId: Number(contaEncontrada.id),
-            contratanteId: idContratante ? Number(idContratante) : null
+            contratanteId: idContratante ? Number(idContratante) : null,
+            unidadeId: idUnidade ? Number(idUnidade) : null,
+            bancoId: idBanco ? Number(idBanco) : null
         };
 
         setSalvando(true);
@@ -300,6 +355,8 @@ export default function PlanoContasTab({ token, banco }) {
         setTermoFornecedor(row.termoFornecedor || '');
         setPlanoContaTexto(row.destino || row.planoConta || '');
         setContratanteTexto(row.contratanteNome || '');
+        setUnidadeTexto(row.unidadeNome || '');
+        setBancoTexto(row.bancoNome || '');
         setModalAberto(true);
     };
 
@@ -330,46 +387,52 @@ export default function PlanoContasTab({ token, banco }) {
         { label: "e-Folha", key: "efolha", width: "15%" }
     ];
 
-    // Colunas Tabela de Regras
+    // Colunas Tabela de Regras Atualizada
     const colunasRegras = [
         { 
             label: "Contratante", 
             key: "contratanteNome", 
-            width: "20%",
-            Cell: ({ row }) => row.contratanteNome || row.contratanteId || (
-                <span>- Regra geral -</span>
-            )
+            width: "15%",
+            Cell: ({ row }) => row.contratanteNome || <span>- Geral -</span>
+        },
+        { 
+            label: "Unidade", 
+            key: "unidadeNome", 
+            width: "12%",
+            Cell: ({ row }) => row.unidadeNome || <span>- Todas -</span>
+        },
+        { 
+            label: "Banco", 
+            key: "bancoNome", 
+            width: "12%",
+            Cell: ({ row }) => row.bancoNome || <span>- Todos -</span>
         },
         { 
             label: "Descrição", 
             key: "termoDescricao", 
-            width: "22%",
-            Cell: ({ row }) => row.termoDescricao || (
-                <span>- Qualquer -</span>
-            )
+            width: "18%",
+            Cell: ({ row }) => row.termoDescricao || <span>- Qualquer -</span>
         },
         { 
             label: "Fornecedor", 
             key: "termoFornecedor", 
-            width: "22%",
-            Cell: ({ row }) => row.termoFornecedor || (
-                <span>- Qualquer -</span>
-            )
+            width: "18%",
+            Cell: ({ row }) => row.termoFornecedor || <span>- Qualquer -</span>
         },
         { 
             label: "Plano de Contas", 
             key: "destino", 
-            width: "26%",
+            width: "15%",
             Cell: ({ row }) => (
                 <span>
-                    {row.destino || row.planoConta || row.planoContaNome || `ID: ${row.planoContaId}`}
+                    {row.destino || row.planoConta || `ID: ${row.planoContaId}`}
                 </span>
             )
         },
         {
             label: "Ações",
             key: "acoes",
-            width: "20%",
+            width: "10%",
             style: { textAlign: "center" },
             Cell: ({ row }) => (
                 <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
@@ -387,7 +450,7 @@ export default function PlanoContasTab({ token, banco }) {
     useEffect(() => {
         carregarPlanoContas();
         carregarRegras();
-        carregarContratantes();
+        carregarListasAuxiliares();
     }, [token, banco]);
 
     return (
@@ -408,7 +471,7 @@ export default function PlanoContasTab({ token, banco }) {
                 )}
             </Card>
 
-            {/* MODAL DE CADASTRO */}
+            {/* MODAL DE CADASTRO / EDIÇÃO */}
             {modalAberto && (
                 <div style={{
                     position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -417,18 +480,56 @@ export default function PlanoContasTab({ token, banco }) {
                 }}>
                     <div style={{
                         backgroundColor: "var(--bg-color2)", borderRadius: "8px", padding: "24px",
-                        width: "100%", maxWidth: "520px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)"
+                        width: "100%", maxWidth: "560px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)",
+                        maxHeight: "90vh", overflowY: "auto"
                     }}>
                         <h3 style={{ marginBottom: "16px", color: "var(--text-color3)" }}>
-                            {regraEmEdicao ? "Editar Regra" : "Nova Regra: Descrição + Fornecedor = Plano"}
+                            {regraEmEdicao ? "Editar Regra" : "Nova Regra de Mapeamento"}
                         </h3>
 
                         <form onSubmit={handleSalvarRegra} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                            {/* Datalist Contratante */}
+                            <div>
+                                <Inputlist
+                                    id="modal-contratantes"
+                                    label="Contratante (Opcional - Vazio para Regra Geral)"
+                                    placeholder="Digite ou escolha o contratante..."
+                                    value={contratanteTexto}
+                                    onChange={(e) => setContratanteTexto(e.target.value)}
+                                    options={contratantes}
+                                    valueKey={(c) => c.nome || c.razaoSocial || ""}
+                                />
+                            </div>
+
+                            {/* Datalist Unidade */}
+                            <div>
+                                <Inputlist
+                                    id="modal-unidades"
+                                    label="Unidade (Opcional - Vazio para Todas)"
+                                    placeholder="Digite ou escolha a unidade..."
+                                    value={unidadeTexto}
+                                    onChange={(e) => setUnidadeTexto(e.target.value)}
+                                    options={unidades}
+                                    valueKey={(u) => u.nome || u.descricao || ""}
+                                />
+                            </div>
+
+                            {/* Datalist Banco */}
+                            <div>
+                                <Inputlist
+                                    id="modal-bancos"
+                                    label="Banco (Opcional - Vazio para Todos)"
+                                    placeholder="Digite ou escolha o banco..."
+                                    value={bancoTexto}
+                                    onChange={(e) => setBancoTexto(e.target.value)}
+                                    options={bancos}
+                                    valueKey={(b) => b.banco || b.descricao || b.nome || ""}
+                                />
+                            </div>
+                            
                             {/* Termo Descrição */}
                             <div>
-                                <label className="form-label">
-                                    1. Termo que contém na Descrição:
-                                </label>
+                                <label className="form-label">Termo na Descrição:</label>
                                 <input 
                                     className="form-input"
                                     type="text"
@@ -440,9 +541,7 @@ export default function PlanoContasTab({ token, banco }) {
 
                             {/* Termo Fornecedor */}
                             <div>
-                                <label className="form-label">
-                                    2. Termo que contém no Fornecedor:
-                                </label>
+                                <label className="form-label">Termo no Fornecedor:</label>
                                 <input 
                                     className="form-input"
                                     type="text"
@@ -452,11 +551,11 @@ export default function PlanoContasTab({ token, banco }) {
                                 />
                             </div>
 
-                            {/* Datalist do Plano de Contas */}
+                            {/* Datalist Plano de Contas */}
                             <div>
                                 <Inputlist
                                     id="modal-plano-contas"
-                                    label="3. Plano de Contas (Destino) *"
+                                    label="Plano de Contas (Destino) *"
                                     placeholder="Digite ou escolha o plano de contas..."
                                     value={planoContaTexto}
                                     onChange={(e) => setPlanoContaTexto(e.target.value)}
@@ -466,20 +565,7 @@ export default function PlanoContasTab({ token, banco }) {
                                 />
                             </div>
 
-                            {/* Datalist do Contratante */}
-                            <div>
-                                <Inputlist
-                                    id="modal-contratantes"
-                                    label="4. Contratante (Opcional - Vazio para regra Geral)"
-                                    placeholder="Digite ou escolha o contratante..."
-                                    value={contratanteTexto}
-                                    onChange={(e) => setContratanteTexto(e.target.value)}
-                                    options={contratantes}
-                                    valueKey={(c) => c.nome || c.razaoSocial || ""}
-                                />
-                            </div>
-
-                            {/* Botões do Form */}
+                            {/* Botões */}
                             <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "12px" }}>
                                 <Button type="button" onClick={fecharModal}>
                                     Cancelar
@@ -496,7 +582,6 @@ export default function PlanoContasTab({ token, banco }) {
             {/* SEÇÃO 2: LISTAGEM PLANO DE CONTAS */}
             <Card title="Gerenciamento do Plano de Contas">
                 <div className="card-filtros mb-4">
-                    
                     <div className="form-row">
                         <FiltroBar
                             schema={schemaFiltroPlano}

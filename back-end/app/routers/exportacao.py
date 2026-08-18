@@ -36,9 +36,12 @@ def exportar_excel(
         config_tabela = TABELAS_PERMITIDAS[tabela_alias_lower]
         query_base = config_tabela["query_customizada"]
 
+        # Define o nome da aba com suporte a Regras_Plano
         nome_aba = config_tabela.get("nome_aba")
         if not nome_aba:
-            if "folha" in tabela_alias_lower:
+            if "regra" in tabela_alias_lower or "depara" in tabela_alias_lower:
+                nome_aba = "Regras_Plano"
+            elif "folha" in tabela_alias_lower:
                 nome_aba = "FOLHA_PAGAMENTO"
             else:
                 nome_aba = "BASE_FINANCEIRA"
