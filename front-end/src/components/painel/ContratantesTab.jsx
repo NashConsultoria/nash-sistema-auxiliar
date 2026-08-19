@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
 import Table from "../table/Table";
+import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
 
 export default function ContratantesTab({ token, contratantes = [], carregarContratantes }) {
@@ -11,10 +12,86 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
     const [formContratante, setFormContratante] = useState({ nome: "", razaoSocial: "" });
     const [carregando, setCarregando] = useState(false);
 
+    // --- ESTADOS DO FILTROBAR ---
+    const [filtros, setFiltros] = useState({
+        nome: '',
+        razaoSocial: ''
+    });
+
+    const handleFilterChange = (key, value) => {
+        setFiltros((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const limparFiltros = () => {
+        setFiltros({
+            nome: '',
+            razaoSocial: ''
+        });
+    };
+
+    // --- LÓGICA DE FILTRAGEM DINÂMICA (EXCEL STYLE) ---
+    // Filtra aplicando apenas o controle de inativos e os outros filtros, exceto a chave atual
+    const filtrarContratantesExcecao = (chaveIgnorada) => {
+        return contratantes.filter((item) => {
+            const passaStatus = mostrarContratantesInativos ? true : Number(item.status) === 1;
+            const nome = (item.nome || '').toLowerCase();
+            const razaoSocial = (item.razaoSocial || item.razao_social || '').toLowerCase();
+
+            return (
+                passaStatus &&
+                (chaveIgnorada === 'nome' || nome.includes(filtros.nome.toLowerCase().trim())) &&
+                (chaveIgnorada === 'razaoSocial' || razaoSocial.includes(filtros.razaoSocial.toLowerCase().trim()))
+            );
+        });
+    };
+
+    const opcoesNome = useMemo(() => {
+        const dados = filtrarContratantesExcecao('nome');
+        return Array.from(new Set(dados.map(c => c.nome).filter(Boolean)));
+    }, [contratantes, filtros, mostrarContratantesInativos]);
+
+    const opcoesRazaoSocial = useMemo(() => {
+        const dados = filtrarContratantesExcecao('razaoSocial');
+        return Array.from(new Set(dados.map(c => c.razaoSocial || c.razao_social).filter(Boolean)));
+    }, [contratantes, filtros, mostrarContratantesInativos]);
+
+    // Schema de configuração para o FiltroBar
+    const schemaFiltroContratante = [
+        {
+            key: "nome",
+            label: "Nome do Contratante",
+            tipo: "inputlist",
+            placeholder: "Buscar por Nome...",
+            options: opcoesNome
+        },
+        {
+            key: "razaoSocial",
+            label: "Razão Social",
+            tipo: "inputlist",
+            placeholder: "Buscar por Razão Social...",
+            options: opcoesRazaoSocial
+        }
+    ];
+
+    // Lista filtrada final que alimenta a Tabela
+    const contratantesFiltrados = useMemo(() => {
+        return contratantes.filter((item) => {
+            const passaStatus = mostrarContratantesInativos ? true : Number(item.status) === 1;
+            const nome = (item.nome || '').toLowerCase();
+            const razaoSocial = (item.razaoSocial || item.razao_social || '').toLowerCase();
+
+            return (
+                passaStatus &&
+                nome.includes(filtros.nome.toLowerCase().trim()) &&
+                razaoSocial.includes(filtros.razaoSocial.toLowerCase().trim())
+            );
+        });
+    }, [contratantes, filtros, mostrarContratantesInativos]);
+
+    // --- SALVAR CONTRATANTE ---
     const handleSalvarContratante = async (e) => {
         e.preventDefault();
 
-        // Validação básica: apenas Nome é obrigatório
         if (!formContratante.nome.trim()) {
             alert("O Nome do Contratante é obrigatório.");
             return;
@@ -53,7 +130,7 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
 
             alert("Contratante salvo com sucesso!");
             setModoCadastroContratante(false);
-            if (carregarContratantes) carregarContratantes(); // Recarrega a listagem
+            if (carregarContratantes) carregarContratantes();
         } catch (err) {
             alert(err.message);
         } finally {
@@ -64,7 +141,6 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
     const handleIniciarEdicaoContratante = (contratante) => {
         setFormContratante({
             nome: contratante.nome || "",
-            // Trata fallback para caso o backend envie snake_case (razao_social)
             razaoSocial: contratante.razaoSocial || contratante.razao_social || ""
         });
         setEditandoContratanteId(contratante.id);
@@ -175,9 +251,22 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
                             + Cadastrar Novo Contratante
                         </Button>
                     </div>
+
+                    {/* BARRA DE FILTROS */}
+                    <div className="card-filtros mb-4">
+                        <div className="form-row">
+                            <FiltroBar
+                                schema={schemaFiltroContratante}
+                                filtros={filtros}
+                                onChange={handleFilterChange}
+                                onLimpar={limparFiltros}
+                            />
+                        </div>
+                    </div>
+
                     <Table
                         columns={colunasContratantes}
-                        data={contratantes.filter((c) => mostrarContratantesInativos ? true : Number(c.status) === 1)}
+                        data={contratantesFiltrados}
                         getRowClassName={(row) => Number(row.status) === 2 ? "usuario-inativo" : ""}
                     />
                 </Card>
@@ -201,7 +290,7 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
 
                         {/* Campo 2: Razão Social */}
                         <div className="form-group">
-                        <label className="form-label">Razão Social:</label>
+                            <label className="form-label">Razão Social:</label>
                             <input
                                 type="text"
                                 className="form-input"
@@ -212,16 +301,16 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
                         </div>
 
                         <div style={{ display: "flex", gap: "12px", marginTop: "10px", justifyContent: "flex-end" }}>
-                        <Button
-                            type="button"
-                            onClick={() => setModoCadastroContratante(false)}
-                            disabled={carregando}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button type="submit" disabled={carregando}>
-                            {carregando ? "Salvando..." : "Salvar Contratante"}
-                        </Button>
+                            <Button
+                                type="button"
+                                onClick={() => setModoCadastroContratante(false)}
+                                disabled={carregando}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button type="submit" disabled={carregando}>
+                                {carregando ? "Salvando..." : "Salvar Contratante"}
+                            </Button>
                         </div>
                     </form>
                 </Card>

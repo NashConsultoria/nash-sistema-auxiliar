@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
 import Table from "../table/Table";
 import Inputlist from "../Inputlist/Inputlist";
+import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
 
 export default function PermissoesTab({ token, usuarios = [], contratantes = [] }) {
@@ -10,6 +11,82 @@ export default function PermissoesTab({ token, usuarios = [], contratantes = [] 
     const [vinculosAtuais, setVinculosAtuais] = useState([]);
     const [termoBusca, setTermoBusca] = useState("");
     const [carregando, setCarregando] = useState(false);
+
+    // --- ESTADOS DO FILTROBAR (LISTA DE FUNCIONÁRIOS) ---
+    const [filtros, setFiltros] = useState({
+        nome: '',
+        email: ''
+    });
+
+    const handleFilterChange = (key, value) => {
+        setFiltros((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const limparFiltros = () => {
+        setFiltros({
+            nome: '',
+            email: ''
+        });
+    };
+
+    // Apenas funcionários ativos (perfil 2 e status 1)
+    const usuariosValidos = useMemo(() => {
+        return usuarios.filter(u => Number(u.perfil) === 2 && Number(u.status) === 1);
+    }, [usuarios]);
+
+    // Lógica de opções dinâmicas estilo Excel ignorando o próprio campo
+    const filtrarUsuariosExcecao = (chaveIgnorada) => {
+        return usuariosValidos.filter((item) => {
+            const nome = (item.nome || '').toLowerCase();
+            const email = (item.email || '').toLowerCase();
+
+            return (
+                (chaveIgnorada === 'nome' || nome.includes(filtros.nome.toLowerCase().trim())) &&
+                (chaveIgnorada === 'email' || email.includes(filtros.email.toLowerCase().trim()))
+            );
+        });
+    };
+
+    const opcoesNome = useMemo(() => {
+        const dados = filtrarUsuariosExcecao('nome');
+        return Array.from(new Set(dados.map(u => u.nome).filter(Boolean)));
+    }, [usuariosValidos, filtros]);
+
+    const opcoesEmail = useMemo(() => {
+        const dados = filtrarUsuariosExcecao('email');
+        return Array.from(new Set(dados.map(u => u.email).filter(Boolean)));
+    }, [usuariosValidos, filtros]);
+
+    // Schema do FiltroBar para a tabela de Usuários
+    const schemaFiltroUsuarios = [
+        {
+            key: "nome",
+            label: "Funcionário",
+            tipo: "inputlist",
+            placeholder: "Buscar por nome...",
+            options: opcoesNome
+        },
+        {
+            key: "email",
+            label: "E-mail",
+            tipo: "inputlist",
+            placeholder: "Buscar por e-mail...",
+            options: opcoesEmail
+        }
+    ];
+
+    // Dados filtrados aplicados na tabela principal
+    const usuariosFiltrados = useMemo(() => {
+        return usuariosValidos.filter((item) => {
+            const nome = (item.nome || '').toLowerCase();
+            const email = (item.email || '').toLowerCase();
+
+            return (
+                nome.includes(filtros.nome.toLowerCase().trim()) &&
+                email.includes(filtros.email.toLowerCase().trim())
+            );
+        });
+    }, [usuariosValidos, filtros]);
 
     // Abre o gerenciador buscando quais contratantes o funcionário já acessa
     const handleAbrirGerenciador = async (funcionario) => {
@@ -142,10 +219,22 @@ export default function PermissoesTab({ token, usuarios = [], contratantes = [] 
                     <p style={{ marginBottom: "15px" }}>
                         Selecione um funcionário para gerenciar a quais contratantes ele tem acesso.
                     </p>
+
+                    {/* BARRA DE FILTROS */}
+                    <div className="card-filtros mb-4">
+                        <div className="form-row">
+                            <FiltroBar
+                                schema={schemaFiltroUsuarios}
+                                filtros={filtros}
+                                onChange={handleFilterChange}
+                                onLimpar={limparFiltros}
+                            />
+                        </div>
+                    </div>
+
                     <Table
                         columns={colunasPermissoes}
-                        // Filtra para exibir apenas os Funcionários ativos (perfil 2)
-                        data={usuarios.filter(u => Number(u.perfil) === 2 && Number(u.status) === 1)}
+                        data={usuariosFiltrados}
                     />
                 </Card>
             ) : (
@@ -174,7 +263,7 @@ export default function PermissoesTab({ token, usuarios = [], contratantes = [] 
                                 }}
                                 options={contratantesDisponiveis}
                                 valueKey="nome"
-                                />
+                            />
 
                             <Button onClick={handleConfirmarAdicao} disabled={carregando || !termoBusca}>
                                 {carregando ? "Adicionando..." : "Adicionar Vínculo"}

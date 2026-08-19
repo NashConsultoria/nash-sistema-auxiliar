@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
 import Table from "../table/Table";
 import Inputlist from "../Inputlist/Inputlist";
+import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
 
-// Dicionário de mapeamento local (ou importe do seu constants/perfis)
+// Dicionário de mapeamento local
 const nomesPerfis = {
     1: "Administrador",
     2: "Funcionário",
@@ -27,11 +28,103 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
         contratanteTextoBusca: ""
     });
 
+    // --- ESTADOS DO FILTROBAR ---
+    const [filtros, setFiltros] = useState({
+        nome: '',
+        email: '',
+        perfil: ''
+    });
+
+    const handleFilterChange = (key, value) => {
+        setFiltros((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const limparFiltros = () => {
+        setFiltros({
+            nome: '',
+            email: '',
+            perfil: ''
+        });
+    };
+
+    // --- LÓGICA DE FILTRAGEM DINÂMICA (EXCEL STYLE) ---
+    const filtrarUsuariosExcecao = (chaveIgnorada) => {
+        return usuarios.filter((item) => {
+            const passaStatus = mostrarInativos ? true : Number(item.status) === 1;
+            const nome = (item.nome || '').toLowerCase();
+            const email = (item.email || '').toLowerCase();
+            const perfilTexto = (nomesPerfis[item.perfil] || '').toLowerCase();
+
+            return (
+                passaStatus &&
+                (chaveIgnorada === 'nome' || nome.includes(filtros.nome.toLowerCase().trim())) &&
+                (chaveIgnorada === 'email' || email.includes(filtros.email.toLowerCase().trim())) &&
+                (chaveIgnorada === 'perfil' || perfilTexto.includes(filtros.perfil.toLowerCase().trim()))
+            );
+        });
+    };
+
+    const opcoesNome = useMemo(() => {
+        const dados = filtrarUsuariosExcecao('nome');
+        return Array.from(new Set(dados.map(u => u.nome).filter(Boolean)));
+    }, [usuarios, filtros, mostrarInativos]);
+
+    const opcoesEmail = useMemo(() => {
+        const dados = filtrarUsuariosExcecao('email');
+        return Array.from(new Set(dados.map(u => u.email).filter(Boolean)));
+    }, [usuarios, filtros, mostrarInativos]);
+
+    const opcoesPerfil = useMemo(() => {
+        const dados = filtrarUsuariosExcecao('perfil');
+        return Array.from(new Set(dados.map(u => nomesPerfis[u.perfil]).filter(Boolean)));
+    }, [usuarios, filtros, mostrarInativos]);
+
+    // Schema do FiltroBar para Usuários
+    const schemaFiltroUsuarios = [
+        {
+            key: "nome",
+            label: "Nome",
+            tipo: "inputlist",
+            placeholder: "Buscar por Nome...",
+            options: opcoesNome
+        },
+        {
+            key: "email",
+            label: "E-mail",
+            tipo: "inputlist",
+            placeholder: "Buscar por E-mail...",
+            options: opcoesEmail
+        },
+        {
+            key: "perfil",
+            label: "Perfil",
+            tipo: "inputlist",
+            placeholder: "Buscar por Perfil...",
+            options: opcoesPerfil
+        }
+    ];
+
+    // Dados filtrados aplicados na tabela principal
+    const usuariosFiltrados = useMemo(() => {
+        return usuarios.filter((item) => {
+            const passaStatus = mostrarInativos ? true : Number(item.status) === 1;
+            const nome = (item.nome || '').toLowerCase();
+            const email = (item.email || '').toLowerCase();
+            const perfilTexto = (nomesPerfis[item.perfil] || '').toLowerCase();
+
+            return (
+                passaStatus &&
+                nome.includes(filtros.nome.toLowerCase().trim()) &&
+                email.includes(filtros.email.toLowerCase().trim()) &&
+                perfilTexto.includes(filtros.perfil.toLowerCase().trim())
+            );
+        });
+    }, [usuarios, filtros, mostrarInativos]);
+
     // Dispara ao salvar (Cadastrar ou Editar)
     const handleSalvarUsuario = async (e) => {
         e.preventDefault();
 
-        // VALIDAÇÃO: Se for Cliente (perfil 3), exige um contratante válido selecionado
         if (formData.perfil === "3" && !formData.contratanteId) {
             alert("Por favor, selecione um contratante válido da lista antes de salvar.");
             return;
@@ -73,12 +166,10 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
             const resposta = await res.json();
 
             if (!res.ok) {
-                // Trata e-mail duplicado
                 if (res.status === 400 && (resposta.detail?.toLowerCase().includes("email") || resposta.detail?.toLowerCase().includes("e-mail"))) {
                     throw new Error("⚠️ Este e-mail já está cadastrado em outro usuário. Por favor, utilize outro.");
                 }
 
-                // Trata validações do backend (FastAPI 422)
                 if (res.status === 422 && resposta.detail) {
                     const erroMsg = Array.isArray(resposta.detail)
                         ? resposta.detail.map(err => `${err.loc.join('.')}: ${err.msg}`).join('\n')
@@ -89,7 +180,6 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                 throw new Error(resposta.detail || "Erro ao processar operação.");
             }
 
-            // Atualiza o estado global se o usuário estiver editando a si mesmo
             if (editandoId && Number(editandoId) === Number(usuario?.id) && setUsuario) {
                 setUsuario({
                     ...usuario,
@@ -264,9 +354,21 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                         </Button>
                     </div>
 
+                    {/* BARRA DE FILTROS */}
+                    <div className="card-filtros mb-4">
+                        <div className="form-row">
+                            <FiltroBar
+                                schema={schemaFiltroUsuarios}
+                                filtros={filtros}
+                                onChange={handleFilterChange}
+                                onLimpar={limparFiltros}
+                            />
+                        </div>
+                    </div>
+
                     <Table
                         columns={colunasUsuarios}
-                        data={usuarios.filter((usr) => mostrarInativos ? true : Number(usr.status) === 1)}
+                        data={usuariosFiltrados}
                         getRowClassName={(row) => Number(row.status) === 2 ? "usuario-inativo" : ""}
                     />
                 </Card>
@@ -341,13 +443,13 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
                                     onChange={(e) => {
                                         const valorDigitado = e.target.value;
                                         const encontrado = contratantes.find(
-                                        (c) => (c.nome || c.razaoSocial || "").trim().toLowerCase() === valorDigitado.trim().toLowerCase()
+                                            (c) => (c.nome || c.razaoSocial || "").trim().toLowerCase() === valorDigitado.trim().toLowerCase()
                                         );
 
                                         setFormData((prev) => ({
-                                        ...prev,
-                                        contratanteTextoBusca: valorDigitado,
-                                        contratanteId: encontrado ? encontrado.id : ""
+                                            ...prev,
+                                            contratanteTextoBusca: valorDigitado,
+                                            contratanteId: encontrado ? encontrado.id : ""
                                         }));
                                     }}
                                     options={contratantes.filter((c) => Number(c.status) === 1)}

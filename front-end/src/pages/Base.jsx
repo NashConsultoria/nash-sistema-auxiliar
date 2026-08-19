@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Table from "../components/table/Table";
 import Card from "../components/card/Card";
 import Button from "../components/button/Button";
-import Inputlist from "../components/Inputlist/Inputlist";
+import FiltroBar from "../components/filtro/FiltroBar";
 import { useAuth } from "../context/AuthContext";
 
 export default function Base() {
@@ -131,10 +131,7 @@ export default function Base() {
         setLoading(true);
         setErro(null);
         // Limpa filtros ao trocar de aba
-        setBuscaGlobal("");
-        setFiltrosColuna({});
-        setValorMin("");
-        setValorMax("");
+        limparFiltros();
 
         const bancoSalvo = localStorage.getItem("nash_selected_db");
 
@@ -156,7 +153,7 @@ export default function Base() {
                     setLoading(false);
                 });
         }
-    }, [requisicaoPermissaoConcluida, tipoVisao]); // Dispara também na troca do tipoVisao
+    }, [requisicaoPermissaoConcluida, tipoVisao]);
 
     const fazerFetchConsolidado = (banco) => {
         setBancoAtivo(banco);
@@ -169,7 +166,6 @@ export default function Base() {
             return;
         }
 
-        // URL Dinâmica usando o endpoint configurado na visão ativa
         let url = `${API_URL}/${banco}/${configAtual.endpoint}`;
 
         if (!ehAdminOuSupremo && contratantesPermitidos.length > 0) {
@@ -189,11 +185,11 @@ export default function Base() {
 
             if (Array.isArray(listaDados) && listaDados.length > 0) {
                 setData(listaDados);
-            } else if (Array.isArray(listaDados) && listaDados.length === 0) {
-                setData([]);
             } else {
                 setData([]);
-                setErro(`Resposta inválida do servidor ao buscar ${configAtual.titulo}.`);
+                if (!Array.isArray(listaDados)) {
+                    setErro(`Resposta inválida do servidor ao buscar ${configAtual.titulo}.`);
+                }
             }
             setLoading(false);
             })
@@ -205,7 +201,9 @@ export default function Base() {
             });
     };
 
-    // OPÇÕES ÚNICAS PARA FILTROS estilo EXCEL
+    // ==================================================================
+    // LÓGICA DO FILTROBAR E OPÇÕES EXCEL
+    // ==================================================================
     const obterOpcoesUnicasCruzadas = (chaveAtual) => {
         if (!Array.isArray(data)) return [];
 
@@ -231,32 +229,56 @@ export default function Base() {
         return [...new Set(valores)].sort();
     };
 
-    const handleFiltroColunaChange = (chave, valor) => {
+    const handleFiltroColunaChange = (key, value) => {
         setFiltrosColuna(prev => ({
             ...prev,
-            [chave]: valor
+            [key]: value
         }));
     };
 
+    const limparFiltros = () => {
+        setBuscaGlobal("");
+        setFiltrosColuna({});
+        setValorMin("");
+        setValorMax("");
+    };
+
+    // Monta o Schema dinâmico para o FiltroBar com base nas colunas da visão ativa
+    const schemaFiltrosDinamico = useMemo(() => {
+        return configAtual.columns
+            .filter(col => !configAtual.colunasSemSelect.includes(col.key))
+            .map(col => ({
+                key: col.key,
+                label: col.label,
+                tipo: "inputlist",
+                placeholder: `Filtrar ${col.label.toLowerCase()}...`,
+                options: obterOpcoesUnicasCruzadas(col.key)
+            }));
+    }, [configAtual, data, filtrosColuna, buscaGlobal, valorMin, valorMax]);
+
     // LÓGICA DE FILTRAGEM FINAL
-    const dadosFiltrados = Array.isArray(data) ? data.filter((item) => {
-        if (buscaGlobal) {
-            const termo = buscaGlobal.toLowerCase();
-            if (!Object.values(item).some(val => String(val).toLowerCase().includes(termo))) return false;
-        }
+    const dadosFiltrados = useMemo(() => {
+        if (!Array.isArray(data)) return [];
 
-        for (const [chave, valorSelect] of Object.entries(filtrosColuna)) {
-            if (valorSelect && String(item[chave]) !== valorSelect) {
-                return false;
+        return data.filter((item) => {
+            if (buscaGlobal) {
+                const termo = buscaGlobal.toLowerCase();
+                if (!Object.values(item).some(val => String(val).toLowerCase().includes(termo))) return false;
             }
-        }
 
-        const valorItem = Number(item.valor) || 0;
-        if (valorMin && valorItem < Number(valorMin)) return false;
-        if (valorMax && valorItem > Number(valorMax)) return false;
+            for (const [chave, valorSelect] of Object.entries(filtrosColuna)) {
+                if (valorSelect && String(item[chave]) !== valorSelect) {
+                    return false;
+                }
+            }
 
-        return true;
-    }) : [];
+            const valorItem = Number(item.valor) || 0;
+            if (valorMin && valorItem < Number(valorMin)) return false;
+            if (valorMax && valorItem > Number(valorMax)) return false;
+
+            return true;
+        });
+    }, [data, buscaGlobal, filtrosColuna, valorMin, valorMax]);
 
     return (
         <div className="page-container">
@@ -267,7 +289,7 @@ export default function Base() {
                     variant="toggle"
                     active={tipoVisao === "dre"}
                     onClick={() => setTipoVisao("dre")}
-                    >
+                >
                     📈 Base E-DRE
                 </Button>
 
@@ -275,14 +297,16 @@ export default function Base() {
                     variant="toggle"
                     active={tipoVisao === "folha"}
                     onClick={() => setTipoVisao("folha")}
-                    >
+                >
                     👥 Folha de Pagamento
                 </Button>
             </div>
             
             {!loading && !erro && data.length > 0 && (
                 <Card title={`🔍 Filtrar - ${configAtual.titulo}`}>
-                    <div style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end" }}>
+                    
+                    {/* BUSCA GERAL E MÍNIMO/MÁXIMO */}
+                    <div style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "16px" }}>
                         <div style={{ flex: "1", minWidth: "250px", display: "flex", flexDirection: "column", gap: "5px" }}>
                             <label className="form-label">Pesquisa Geral:</label>
                             <input 
@@ -316,44 +340,18 @@ export default function Base() {
                                 />
                             </div>
                         </div>
-
-                        <Button 
-                            onClick={() => {
-                                setBuscaGlobal("");
-                                setFiltrosColuna({});
-                                setValorMin("");
-                                setValorMax("");
-                            }}>
-                            Limpar Filtros
-                        </Button>
                     </div>
-                
-                    <div style={{ 
-                        display: "grid", 
-                        gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", 
-                        gap: "12px",
-                        paddingTop: "15px"
-                    }}>
-                        {configAtual.columns
-                            .filter(col => !configAtual.colunasSemSelect.includes(col.key))
-                            .map((col) => {
-                                const opcoesDisponiveis = obterOpcoesUnicasCruzadas(col.key);
-                                const listId = `list-filtro-${col.key}`;
-                                
-                                return (
-                                    <div key={col.key} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                                        <Inputlist
-                                            id={`filtro-coluna-${col.key}`}
-                                            label={`${col.label}:`}
-                                            placeholder="Filtrar ou buscar..."
-                                            value={filtrosColuna[col.key] || ""}
-                                            onChange={(e) => handleFiltroColunaChange(col.key, e.target.value)}
-                                            options={opcoesDisponiveis}
-                                        />
-                                    </div>
-                                );
-                            })
-                        }
+
+                    {/* BARRA DE FILTROS DAS COLUNAS (FiltroBar) */}
+                    <div className="card-filtros">
+                        <div className="form-row">
+                            <FiltroBar
+                                schema={schemaFiltrosDinamico}
+                                filtros={filtrosColuna}
+                                onChange={handleFiltroColunaChange}
+                                onLimpar={limparFiltros}
+                            />
+                        </div>
                     </div>
                 </Card>
             )}
