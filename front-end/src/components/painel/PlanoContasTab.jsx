@@ -6,12 +6,26 @@ import Inputlist from "../Inputlist/Inputlist";
 import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
 
-export default function PlanoContasTab({ token, banco }) {
-    const [planoContas, setPlanoContas] = useState([]);
-    const [carregandoPlano, setCarregandoPlano] = useState(false);
+const estiloCarregando = { textAlign: "center", padding: "20px", color: "#94a3b8" };
 
-    // Estados dos Filtros
-    const [filtros, setFiltros] = useState({
+export default function PlanoContasTab({ token, banco }) {
+    // ==========================================================
+    // ESTADOS
+    // ==========================================================
+
+    // Filtros da tabela de Regras
+    const [filtrosRegra, setFiltrosRegra] = useState({
+        contratante: '',
+        unidade: '',
+        banco: '',
+        descricao: '',
+        tipo: '',
+        fornecedor: '',
+        plano: ''
+    });
+
+    // Filtros da tabela de Plano de Contas
+    const [filtrosPlano, setFiltrosPlano] = useState({
         plano: '',
         grupo: '',
         edre: '',
@@ -19,12 +33,152 @@ export default function PlanoContasTab({ token, banco }) {
         efolha: ''
     });
 
+    // Dados principais
+    const [planoContas, setPlanoContas] = useState([]);
+    const [carregandoPlano, setCarregandoPlano] = useState(false);
+    const [regras, setRegras] = useState([]);
+    const [carregandoRegras, setCarregandoRegras] = useState(false);
+
+    // Listas auxiliares (datalists)
+    const [contratantes, setContratantes] = useState([]);
+    const [unidades, setUnidades] = useState([]);
+    const [bancos, setBancos] = useState([]);
+
+    // Estados do formulário do Modal
+    const [modalAberto, setModalAberto] = useState(false);
+    const [termoDescricao, setTermoDescricao] = useState('');
+    const [termoTipo, setTermoTipo] = useState('');
+    const [termoFornecedor, setTermoFornecedor] = useState('');
+    const [planoContaTexto, setPlanoContaTexto] = useState('');
+    const [contratanteTexto, setContratanteTexto] = useState('');
+    const [unidadeTexto, setUnidadeTexto] = useState('');
+    const [bancoTexto, setBancoTexto] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [regraEmEdicao, setRegraEmEdicao] = useState(null);
+
+    // ==========================================================
+    // FILTROS - REGRAS
+    // ==========================================================
+
+    const handleFilterRegraChange = (key, value) => {
+        setFiltrosRegra((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const limparFiltrosRegra = () => {
+        setFiltrosRegra({
+            contratante: '',
+            unidade: '',
+            banco: '',
+            descricao: '',
+            tipo: '',
+            fornecedor: '',
+            plano: ''
+        });
+    };
+
+    // Aplica os filtros de Regras ignorando uma chave específica (para gerar opções estilo Excel)
+    const filtrarRegraExcecao = (chaveIgnorada) => {
+        return regras.filter((item) => {
+            const contratante = (item.contratanteNome || '- Geral -').toLowerCase();
+            const unidade = (item.unidadeNome || '- Todas -').toLowerCase();
+            const banco = (item.bancoNome || '- Todos -').toLowerCase();
+            const descricao = (item.termoDescricao || '- Qualquer -').toLowerCase();
+            const tipo = (item.termoTipo || '- Qualquer -').toLowerCase();
+            const fornecedor = (item.termoFornecedor || '- Qualquer -').toLowerCase();
+            const plano = (item.destino || item.planoConta || '').toLowerCase();
+
+            return (
+                (chaveIgnorada === 'contratante' || contratante.includes(filtrosRegra.contratante.toLowerCase().trim())) &&
+                (chaveIgnorada === 'unidade' || unidade.includes(filtrosRegra.unidade.toLowerCase().trim())) &&
+                (chaveIgnorada === 'banco' || banco.includes(filtrosRegra.banco.toLowerCase().trim())) &&
+                (chaveIgnorada === 'descricao' || descricao.includes(filtrosRegra.descricao.toLowerCase().trim())) &&
+                (chaveIgnorada === 'tipo' || tipo.includes(filtrosRegra.tipo.toLowerCase().trim())) &&
+                (chaveIgnorada === 'fornecedor' || fornecedor.includes(filtrosRegra.fornecedor.toLowerCase().trim())) &&
+                (chaveIgnorada === 'plano' || plano.includes(filtrosRegra.plano.toLowerCase().trim()))
+            );
+        });
+    };
+
+    // Opções dinâmicas estilo Excel para os filtros de Regras
+    const opcoesRegraContratante = useMemo(() => {
+        const dados = filtrarRegraExcecao('contratante');
+        return Array.from(new Set(dados.map(r => r.contratanteNome || '- Geral -').filter(Boolean)));
+    }, [regras, filtrosRegra]);
+
+    const opcoesRegraUnidade = useMemo(() => {
+        const dados = filtrarRegraExcecao('unidade');
+        return Array.from(new Set(dados.map(r => r.unidadeNome || '- Todas -').filter(Boolean)));
+    }, [regras, filtrosRegra]);
+
+    const opcoesRegraBanco = useMemo(() => {
+        const dados = filtrarRegraExcecao('banco');
+        return Array.from(new Set(dados.map(r => r.bancoNome || '- Todos -').filter(Boolean)));
+    }, [regras, filtrosRegra]);
+
+    const opcoesRegraDescricao = useMemo(() => {
+        const dados = filtrarRegraExcecao('descricao');
+        return Array.from(new Set(dados.map(r => r.termoDescricao || '- Qualquer -').filter(Boolean)));
+    }, [regras, filtrosRegra]);
+
+    const opcoesRegraTipo = useMemo(() => {
+        const dados = filtrarRegraExcecao('tipo');
+        return Array.from(new Set(dados.map(r => r.termoTipo || '- Qualquer -').filter(Boolean)));
+    }, [regras, filtrosRegra]);
+
+    const opcoesRegraFornecedor = useMemo(() => {
+        const dados = filtrarRegraExcecao('fornecedor');
+        return Array.from(new Set(dados.map(r => r.termoFornecedor || '- Qualquer -').filter(Boolean)));
+    }, [regras, filtrosRegra]);
+
+    const opcoesRegraPlano = useMemo(() => {
+        const dados = filtrarRegraExcecao('plano');
+        return Array.from(new Set(dados.map(r => r.destino || r.planoConta).filter(Boolean)));
+    }, [regras, filtrosRegra]);
+
+    // Schema de filtros para o FiltroBar de Regras
+    const schemaFiltroRegra = [
+        { key: "contratante", label: "Contratante", tipo: "inputlist", placeholder: "Buscar contratante...", options: opcoesRegraContratante },
+        { key: "unidade", label: "Unidade", tipo: "inputlist", placeholder: "Buscar unidade...", options: opcoesRegraUnidade },
+        { key: "banco", label: "Banco", tipo: "inputlist", placeholder: "Buscar banco...", options: opcoesRegraBanco },
+        { key: "descricao", label: "Descrição", tipo: "inputlist", placeholder: "Buscar descrição...", options: opcoesRegraDescricao },
+        { key: "tipo", label: "Tipo", tipo: "inputlist", placeholder: "Buscar tipo...", options: opcoesRegraTipo },
+        { key: "fornecedor", label: "Fornecedor", tipo: "inputlist", placeholder: "Buscar fornecedor...", options: opcoesRegraFornecedor },
+        { key: "plano", label: "Plano de Conta", tipo: "inputlist", placeholder: "Buscar plano...", options: opcoesRegraPlano }
+    ];
+
+    // Filtragem final aplicada à tabela de Regras
+    const regrasFiltradas = useMemo(() => {
+        return regras.filter((item) => {
+            const contratante = (item.contratanteNome || '- Geral -').toLowerCase();
+            const unidade = (item.unidadeNome || '- Todas -').toLowerCase();
+            const banco = (item.bancoNome || '- Todos -').toLowerCase();
+            const descricao = (item.termoDescricao || '- Qualquer -').toLowerCase();
+            const tipo = (item.termoTipo || '- Qualquer -').toLowerCase();
+            const fornecedor = (item.termoFornecedor || '- Qualquer -').toLowerCase();
+            const plano = (item.destino || item.planoConta || '').toLowerCase();
+
+            return (
+                contratante.includes(filtrosRegra.contratante.toLowerCase().trim()) &&
+                unidade.includes(filtrosRegra.unidade.toLowerCase().trim()) &&
+                banco.includes(filtrosRegra.banco.toLowerCase().trim()) &&
+                descricao.includes(filtrosRegra.descricao.toLowerCase().trim()) &&
+                tipo.includes(filtrosRegra.tipo.toLowerCase().trim()) &&
+                fornecedor.includes(filtrosRegra.fornecedor.toLowerCase().trim()) &&
+                plano.includes(filtrosRegra.plano.toLowerCase().trim())
+            );
+        });
+    }, [regras, filtrosRegra]);
+
+    // ==========================================================
+    // FILTROS - PLANO DE CONTAS
+    // ==========================================================
+
     const handleFilterChange = (key, value) => {
-        setFiltros((prev) => ({ ...prev, [key]: value }));
+        setFiltrosPlano((prev) => ({ ...prev, [key]: value }));
     };
 
     const limparFiltros = () => {
-        setFiltros({
+        setFiltrosPlano({
             plano: '',
             grupo: '',
             edre: '',
@@ -33,7 +187,7 @@ export default function PlanoContasTab({ token, banco }) {
         });
     };
 
-    // Função auxiliar para aplicar filtros ignorando uma chave específica
+    // Aplica os filtros do Plano de Contas ignorando uma chave específica
     const filtrarPlanoExcecao = (chaveIgnorada) => {
         return planoContas.filter((item) => {
             const plano = (item.planoConta || item.planoconta || '').toLowerCase();
@@ -43,81 +197,51 @@ export default function PlanoContasTab({ token, banco }) {
             const efolha = (item.efolha || item.eFolha || '').toLowerCase();
 
             return (
-                (chaveIgnorada === 'plano' || plano.includes(filtros.plano.toLowerCase().trim())) &&
-                (chaveIgnorada === 'grupo' || grupo.includes(filtros.grupo.toLowerCase().trim())) &&
-                (chaveIgnorada === 'edre' || edre.includes(filtros.edre.toLowerCase().trim())) &&
-                (chaveIgnorada === 'dfc' || dfc.includes(filtros.dfc.toLowerCase().trim())) &&
-                (chaveIgnorada === 'efolha' || efolha.includes(filtros.efolha.toLowerCase().trim()))
+                (chaveIgnorada === 'plano' || plano.includes(filtrosPlano.plano.toLowerCase().trim())) &&
+                (chaveIgnorada === 'grupo' || grupo.includes(filtrosPlano.grupo.toLowerCase().trim())) &&
+                (chaveIgnorada === 'edre' || edre.includes(filtrosPlano.edre.toLowerCase().trim())) &&
+                (chaveIgnorada === 'dfc' || dfc.includes(filtrosPlano.dfc.toLowerCase().trim())) &&
+                (chaveIgnorada === 'efolha' || efolha.includes(filtrosPlano.efolha.toLowerCase().trim()))
             );
         });
     };
 
-    // Opções dinâmicas estilo Excel
+    // Opções dinâmicas estilo Excel para os filtros do Plano de Contas
     const opcoesPlano = useMemo(() => {
         const dados = filtrarPlanoExcecao('plano');
         return Array.from(new Set(dados.map(p => p.planoConta || p.planoconta).filter(Boolean)));
-    }, [planoContas, filtros]);
+    }, [planoContas, filtrosPlano]);
 
     const opcoesGrupo = useMemo(() => {
         const dados = filtrarPlanoExcecao('grupo');
         return Array.from(new Set(dados.map(p => p.grupoConta).filter(Boolean)));
-    }, [planoContas, filtros]);
+    }, [planoContas, filtrosPlano]);
 
     const opcoesEDre = useMemo(() => {
         const dados = filtrarPlanoExcecao('edre');
         return Array.from(new Set(dados.map(p => p.edre).filter(Boolean)));
-    }, [planoContas, filtros]);
+    }, [planoContas, filtrosPlano]);
 
     const opcoesDfc = useMemo(() => {
         const dados = filtrarPlanoExcecao('dfc');
         return Array.from(new Set(dados.map(p => p.dfc).filter(Boolean)));
-    }, [planoContas, filtros]);
+    }, [planoContas, filtrosPlano]);
 
     const opcoesEFolha = useMemo(() => {
         const dados = filtrarPlanoExcecao('efolha');
         return Array.from(new Set(dados.map(p => p.efolha || p.eFolha).filter(Boolean)));
-    }, [planoContas, filtros]);
+    }, [planoContas, filtrosPlano]);
 
-    // Definição da estrutura do filtro genérico
+    // Schema de filtros para o FiltroBar do Plano de Contas
     const schemaFiltroPlano = [
-        {
-            key: "plano",
-            label: "Plano de Conta",
-            tipo: "inputlist",
-            placeholder: "Buscar plano...",
-            options: opcoesPlano
-        },
-        {
-            key: "grupo",
-            label: "Grupo de Conta",
-            tipo: "inputlist",
-            placeholder: "Buscar grupo...",
-            options: opcoesGrupo
-        },
-        {
-            key: "edre",
-            label: "E-DRE",
-            tipo: "inputlist",
-            placeholder: "Buscar E-DRE...",
-            options: opcoesEDre
-        },
-        {
-            key: "dfc",
-            label: "DFC",
-            tipo: "inputlist",
-            placeholder: "Buscar DFC...",
-            options: opcoesDfc
-        },
-        {
-            key: "efolha",
-            label: "E-Folha",
-            tipo: "inputlist",
-            placeholder: "Buscar E-Folha...",
-            options: opcoesEFolha
-        }
+        { key: "plano", label: "Plano de Conta", tipo: "inputlist", placeholder: "Buscar plano...", options: opcoesPlano },
+        { key: "grupo", label: "Grupo de Conta", tipo: "inputlist", placeholder: "Buscar grupo...", options: opcoesGrupo },
+        { key: "edre", label: "E-DRE", tipo: "inputlist", placeholder: "Buscar E-DRE...", options: opcoesEDre },
+        { key: "dfc", label: "DFC", tipo: "inputlist", placeholder: "Buscar DFC...", options: opcoesDfc },
+        { key: "efolha", label: "E-Folha", tipo: "inputlist", placeholder: "Buscar E-Folha...", options: opcoesEFolha }
     ];
 
-    // Lógica de Filtragem Final para a Tabela
+    // Filtragem final aplicada à tabela de Plano de Contas
     const planoContasFiltrados = useMemo(() => {
         return planoContas.filter((item) => {
             const plano = (item.planoConta || item.planoconta || '').toLowerCase();
@@ -127,36 +251,22 @@ export default function PlanoContasTab({ token, banco }) {
             const efolha = (item.efolha || item.eFolha || '').toLowerCase();
 
             return (
-                plano.includes(filtros.plano.toLowerCase().trim()) &&
-                grupo.includes(filtros.grupo.toLowerCase().trim()) &&
-                edre.includes(filtros.edre.toLowerCase().trim()) &&
-                dfc.includes(filtros.dfc.toLowerCase().trim()) &&
-                efolha.includes(filtros.efolha.toLowerCase().trim())
+                plano.includes(filtrosPlano.plano.toLowerCase().trim()) &&
+                grupo.includes(filtrosPlano.grupo.toLowerCase().trim()) &&
+                edre.includes(filtrosPlano.edre.toLowerCase().trim()) &&
+                dfc.includes(filtrosPlano.dfc.toLowerCase().trim()) &&
+                efolha.includes(filtrosPlano.efolha.toLowerCase().trim())
             );
         });
-    }, [planoContas, filtros]);
+    }, [planoContas, filtrosPlano]);
 
-    const [regras, setRegras] = useState([]);
-    const [carregandoRegras, setCarregandoRegras] = useState(false);
-
-    // Estados para Listas Auxiliares (Datalists)
-    const [contratantes, setContratantes] = useState([]);
-    const [unidades, setUnidades] = useState([]);
-    const [bancos, setBancos] = useState([]);
-
-    // Estados do Formulário do Modal
-    const [modalAberto, setModalAberto] = useState(false);
-    const [termoDescricao, setTermoDescricao] = useState('');
-    const [termoFornecedor, setTermoFornecedor] = useState('');
-    const [planoContaTexto, setPlanoContaTexto] = useState('');
-    const [contratanteTexto, setContratanteTexto] = useState('');
-    const [unidadeTexto, setUnidadeTexto] = useState('');
-    const [bancoTexto, setBancoTexto] = useState('');
-    const [salvando, setSalvando] = useState(false);
-    const [regraEmEdicao, setRegraEmEdicao] = useState(null);
+    // ==========================================================
+    // MODAL DE CADASTRO / EDIÇÃO DE REGRA
+    // ==========================================================
 
     const fecharModal = () => {
         setTermoDescricao('');
+        setTermoTipo('');
         setTermoFornecedor('');
         setPlanoContaTexto('');
         setContratanteTexto('');
@@ -165,6 +275,10 @@ export default function PlanoContasTab({ token, banco }) {
         setRegraEmEdicao(null);
         setModalAberto(false);
     };
+
+    // ==========================================================
+    // CHAMADAS À API
+    // ==========================================================
 
     // 1. Busca do Plano de Contas
     const carregarPlanoContas = async () => {
@@ -184,31 +298,30 @@ export default function PlanoContasTab({ token, banco }) {
         }
     };
 
-    // 2. Busca dos Cadastros Auxiliares (Contratantes, Unidades, Bancos)
+    // 2. Busca dos cadastros auxiliares (Contratantes, Unidades, Bancos)
     const carregarListasAuxiliares = async () => {
+        if (!token) return;
         try {
             const headers = { Authorization: `Bearer ${token}` };
 
-            const [resCont, resUni, resBanc] = await Promise.all([
-                fetch(`${API_BASE}/api/contratantes`, { headers }),
-                //fetch(`${API_BASE}/api/${banco}/unidades`, { headers }).catch(() => null), //para quando cadastrar unidades
-                //fetch(`${API_BASE}/api/${banco}/bancos`, { headers }).catch(() => null)
-            ]);
-
-            if (resCont && resCont.ok) {
+            const resCont = await fetch(`${API_BASE}/api/contratantes`, { headers });
+            if (resCont.ok) {
                 const dadosCont = await resCont.json();
-                setContratantes(dadosCont);
+                setContratantes(Array.isArray(dadosCont) ? dadosCont : dadosCont.dados || []);
             }
 
-            if (resUni && resUni.ok) {
-                const dadosUni = await resUni.json();
-                setUnidades(Array.isArray(dadosUni) ? dadosUni : dadosUni.dados || []);
-            }
-
-            if (resBanc && resBanc.ok) {
-                const dadosBanc = await resBanc.json();
-                setBancos(Array.isArray(dadosBanc) ? dadosBanc : dadosBanc.dados || []);
-            }
+            // TODO: habilitar quando as APIs de unidades e bancos estiverem disponíveis
+            // const resUni = await fetch(`${API_BASE}/api/${banco}/unidades`, { headers });
+            // if (resUni.ok) {
+            //     const dadosUni = await resUni.json();
+            //     setUnidades(Array.isArray(dadosUni) ? dadosUni : dadosUni.dados || []);
+            // }
+            //
+            // const resBanc = await fetch(`${API_BASE}/api/${banco}/bancos`, { headers });
+            // if (resBanc.ok) {
+            //     const dadosBanc = await resBanc.json();
+            //     setBancos(Array.isArray(dadosBanc) ? dadosBanc : dadosBanc.dados || []);
+            // }
         } catch (err) {
             console.error("Erro ao carregar listas auxiliares:", err);
         }
@@ -224,7 +337,13 @@ export default function PlanoContasTab({ token, banco }) {
             });
             if (!res.ok) throw new Error("Erro ao buscar regras");
             const dados = await res.json();
-            setRegras(Array.isArray(dados) ? dados : dados.regras || []);
+            
+            // Garante suporte tanto para lista direta quanto para { dados: [...] } ou { regras: [...] }
+            const listaRegras = Array.isArray(dados) 
+                ? dados 
+                : (dados.dados || dados.regras || []);
+
+            setRegras(listaRegras);
         } catch (err) {
             console.error("Erro ao carregar regras:", err);
         } finally {
@@ -232,12 +351,12 @@ export default function PlanoContasTab({ token, banco }) {
         }
     };
 
-    // 4. Salvar Nova Regra ou Edição
+    // 4. Salvar nova regra ou edição
     const handleSalvarRegra = async (e) => {
         e.preventDefault();
 
-        if (!termoDescricao.trim() && !termoFornecedor.trim()) {
-            alert("Preencha ao menos um dos termos: Descrição ou Fornecedor!");
+        if (!termoDescricao.trim() && !termoTipo.trim() && !termoFornecedor.trim()) {
+            alert("Preencha ao menos um dos termos: Descrição, Tipo ou Fornecedor!");
             return;
         }
 
@@ -248,7 +367,7 @@ export default function PlanoContasTab({ token, banco }) {
         }
 
         const textoPlano = planoContaTexto.trim().toLowerCase();
-        const contaEncontrada = planoContas.find(p => 
+        const contaEncontrada = planoContas.find(p =>
             String(p.planoConta || p.planoconta || "").trim().toLowerCase() === textoPlano
         );
 
@@ -261,7 +380,7 @@ export default function PlanoContasTab({ token, banco }) {
         let idContratante = null;
         if (contratanteTexto && contratanteTexto.trim() !== '') {
             const textoCont = contratanteTexto.trim().toLowerCase();
-            const contratanteEncontrado = contratantes.find(c => 
+            const contratanteEncontrado = contratantes.find(c =>
                 String(c.nome || c.razaoSocial || "").trim().toLowerCase() === textoCont
             );
 
@@ -276,7 +395,7 @@ export default function PlanoContasTab({ token, banco }) {
         let idUnidade = null;
         if (unidadeTexto && unidadeTexto.trim() !== '') {
             const textoUni = unidadeTexto.trim().toLowerCase();
-            const unidadeEncontrada = unidades.find(u => 
+            const unidadeEncontrada = unidades.find(u =>
                 String(u.nome || u.descricao || "").trim().toLowerCase() === textoUni
             );
 
@@ -288,11 +407,10 @@ export default function PlanoContasTab({ token, banco }) {
         }
 
         // --- VALIDAÇÃO DO BANCO ---
-        // --- VALIDAÇÃO DO BANCO ---
         let idBanco = null;
         if (bancoTexto && bancoTexto.trim() !== '') {
             const textoBanc = bancoTexto.trim().toLowerCase();
-            const bancoEncontrado = bancos.find(b => 
+            const bancoEncontrado = bancos.find(b =>
                 String(b.banco || b.descricao || b.nome || "").trim().toLowerCase() === textoBanc
             );
 
@@ -305,7 +423,7 @@ export default function PlanoContasTab({ token, banco }) {
 
         // --- MONTAGEM DO PAYLOAD ---
         const isEdicao = Boolean(regraEmEdicao);
-        const url = isEdicao 
+        const url = isEdicao
             ? `${API_BASE}/api/${banco}/regras-planocontas/${regraEmEdicao.id}`
             : `${API_BASE}/api/${banco}/regras-planocontas`;
 
@@ -313,6 +431,7 @@ export default function PlanoContasTab({ token, banco }) {
 
         const payload = {
             termoDescricao: termoDescricao.trim() || null,
+            termoTipo: termoTipo.trim() || null,
             termoFornecedor: termoFornecedor.trim() || null,
             planoContaId: Number(contaEncontrada.id),
             contratanteId: idContratante ? Number(idContratante) : null,
@@ -339,7 +458,7 @@ export default function PlanoContasTab({ token, banco }) {
             }
 
             alert(isEdicao ? "Regra atualizada com sucesso!" : "Regra cadastrada com sucesso!");
-            
+
             fecharModal();
             carregarRegras();
         } catch (err) {
@@ -352,6 +471,7 @@ export default function PlanoContasTab({ token, banco }) {
     const handleEditarRegra = (row) => {
         setRegraEmEdicao(row);
         setTermoDescricao(row.termoDescricao || '');
+        setTermoTipo(row.termoTipo || '');
         setTermoFornecedor(row.termoFornecedor || '');
         setPlanoContaTexto(row.destino || row.planoConta || '');
         setContratanteTexto(row.contratanteNome || '');
@@ -378,7 +498,10 @@ export default function PlanoContasTab({ token, banco }) {
         }
     };
 
-    // Colunas Tabela Plano de Contas
+    // ==========================================================
+    // COLUNAS DAS TABELAS
+    // ==========================================================
+
     const colunasPlanoContas = [
         { label: "Plano de Contas", key: "planoConta", width: "30%" },
         { label: "Grupo de Contas", key: "grupoConta", width: "25%" },
@@ -387,41 +510,46 @@ export default function PlanoContasTab({ token, banco }) {
         { label: "e-Folha", key: "efolha", width: "15%" }
     ];
 
-    // Colunas Tabela de Regras Atualizada
     const colunasRegras = [
-        { 
-            label: "Contratante", 
-            key: "contratanteNome", 
+        {
+            label: "Contratante",
+            key: "contratanteNome",
             width: "15%",
             Cell: ({ row }) => row.contratanteNome || <span>- Geral -</span>
         },
-        { 
-            label: "Unidade", 
-            key: "unidadeNome", 
+        {
+            label: "Unidade",
+            key: "unidadeNome",
             width: "12%",
             Cell: ({ row }) => row.unidadeNome || <span>- Todas -</span>
         },
-        { 
-            label: "Banco", 
-            key: "bancoNome", 
+        {
+            label: "Banco",
+            key: "bancoNome",
             width: "12%",
             Cell: ({ row }) => row.bancoNome || <span>- Todos -</span>
         },
-        { 
-            label: "Descrição", 
-            key: "termoDescricao", 
+        {
+            label: "Descrição",
+            key: "termoDescricao",
             width: "18%",
             Cell: ({ row }) => row.termoDescricao || <span>- Qualquer -</span>
         },
-        { 
-            label: "Fornecedor", 
-            key: "termoFornecedor", 
+        {
+            label: "Tipo",
+            key: "termoTipo",
+            width: "18%",
+            Cell: ({ row }) => row.termoTipo || <span>- Qualquer -</span>
+        },
+        {
+            label: "Fornecedor",
+            key: "termoFornecedor",
             width: "18%",
             Cell: ({ row }) => row.termoFornecedor || <span>- Qualquer -</span>
         },
-        { 
-            label: "Plano de Contas", 
-            key: "destino", 
+        {
+            label: "Plano de Contas",
+            key: "destino",
             width: "15%",
             Cell: ({ row }) => (
                 <span>
@@ -447,11 +575,19 @@ export default function PlanoContasTab({ token, banco }) {
         }
     ];
 
+    // ==========================================================
+    // EFFECTS
+    // ==========================================================
+
     useEffect(() => {
         carregarPlanoContas();
         carregarRegras();
         carregarListasAuxiliares();
     }, [token, banco]);
+
+    // ==========================================================
+    // RENDER
+    // ==========================================================
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -464,10 +600,17 @@ export default function PlanoContasTab({ token, banco }) {
                     </Button>
                 </div>
 
+                <FiltroBar
+                    schema={schemaFiltroRegra}
+                    filtros={filtrosRegra}
+                    onChange={handleFilterRegraChange}
+                    onLimpar={limparFiltrosRegra}
+                />
+
                 {carregandoRegras ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>Carregando regras...</div>
+                    <div style={estiloCarregando}>Carregando regras...</div>
                 ) : (
-                    <Table columns={colunasRegras} data={regras} />
+                    <Table columns={colunasRegras} data={regrasFiltradas} />
                 )}
             </Card>
 
@@ -526,11 +669,11 @@ export default function PlanoContasTab({ token, banco }) {
                                     valueKey={(b) => b.banco || b.descricao || b.nome || ""}
                                 />
                             </div>
-                            
+
                             {/* Termo Descrição */}
                             <div>
                                 <label className="form-label">Termo na Descrição:</label>
-                                <input 
+                                <input
                                     className="form-input"
                                     type="text"
                                     placeholder="Ex: TARIFA, ALUGUEL..."
@@ -539,10 +682,22 @@ export default function PlanoContasTab({ token, banco }) {
                                 />
                             </div>
 
+                            {/* Termo Tipo */}
+                            <div>
+                                <label className="form-label">Termo no Tipo:</label>
+                                <input
+                                    className="form-input"
+                                    type="text"
+                                    placeholder="Ex: TARIFA, ALUGUEL..."
+                                    value={termoTipo}
+                                    onChange={(e) => setTermoTipo(e.target.value)}
+                                />
+                            </div>
+
                             {/* Termo Fornecedor */}
                             <div>
                                 <label className="form-label">Termo no Fornecedor:</label>
-                                <input 
+                                <input
                                     className="form-input"
                                     type="text"
                                     placeholder="Ex: BANCO DO BRASIL"
@@ -559,7 +714,7 @@ export default function PlanoContasTab({ token, banco }) {
                                     placeholder="Digite ou escolha o plano de contas..."
                                     value={planoContaTexto}
                                     onChange={(e) => setPlanoContaTexto(e.target.value)}
-                                    options={planoContasFiltrados}
+                                    options={planoContas}
                                     valueKey={(p) => p.planoConta || p.planoconta || ""}
                                     required
                                 />
@@ -585,7 +740,7 @@ export default function PlanoContasTab({ token, banco }) {
                     <div className="form-row">
                         <FiltroBar
                             schema={schemaFiltroPlano}
-                            filtros={filtros}
+                            filtros={filtrosPlano}
                             onChange={handleFilterChange}
                             onLimpar={limparFiltros}
                         />
@@ -593,7 +748,7 @@ export default function PlanoContasTab({ token, banco }) {
                 </div>
 
                 {carregandoPlano ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>Carregando plano...</div>
+                    <div style={estiloCarregando}>Carregando plano...</div>
                 ) : (
                     <Table columns={colunasPlanoContas} data={planoContasFiltrados} />
                 )}

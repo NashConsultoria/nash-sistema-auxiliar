@@ -30,6 +30,7 @@ async def obter_regras_planocontas(banco: str):
             SELECT 
                 pdp.id,
                 pdp.termoDescricao,
+                pdp.termoTipo,
                 pdp.termoFornecedor,
                 pdp.planoContaId,
                 pdp.contratanteId,
@@ -56,10 +57,18 @@ async def obter_regras_planocontas(banco: str):
 @router.post("/{banco}/regras-planocontas")
 async def criar_regra_planocontas(banco: str, regra: RegraPlanoSchema):
     try:
-        # 1. Verifica se já existe uma regra idêntica para todas as opções
+        # VALIDAÇÃO: Pelo menos um dos termos deve estar preenchido
+        if not (regra.termoDescricao or regra.termoTipo or regra.termoFornecedor):
+            raise HTTPException(
+                status_code=400,
+                detail="Preencha ao menos um dos campos: Descrição, Tipo ou Fornecedor."
+            )
+
+        # 1. Verifica se já existe uma regra idêntica
         sql_check = """
             SELECT id FROM PlanoDePara 
             WHERE ISNULL(termoDescricao, '') = ISNULL(?, '')
+              AND ISNULL(termoTipo, '') = ISNULL(?, '')
               AND ISNULL(termoFornecedor, '') = ISNULL(?, '')
               AND ISNULL(contratanteId, 0) = ISNULL(?, 0)
               AND ISNULL(unidadeId, 0) = ISNULL(?, 0)
@@ -67,6 +76,7 @@ async def criar_regra_planocontas(banco: str, regra: RegraPlanoSchema):
         """
         params_check = (
             regra.termoDescricao,
+            regra.termoTipo,
             regra.termoFornecedor,
             regra.contratanteId,
             regra.unidadeId,
@@ -80,23 +90,25 @@ async def criar_regra_planocontas(banco: str, regra: RegraPlanoSchema):
                 detail="Já existe uma regra idêntica cadastrada para estes critérios."
             )
 
-        # 2. Insere com as novas colunas
+        # 2. Insere com as novas colunas (Vírgula corrigida após termoTipo)
         sql_insert = """
             INSERT INTO PlanoDePara (
                 contratanteId, 
                 unidadeId, 
                 bancoId, 
                 termoDescricao, 
+                termoTipo,
                 termoFornecedor, 
                 planoContaId
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """
         params_insert = (
             regra.contratanteId,
             regra.unidadeId,
             regra.bancoId,
             regra.termoDescricao,
+            regra.termoTipo,
             regra.termoFornecedor,
             regra.planoContaId
         )
@@ -117,13 +129,20 @@ async def atualizar_regra_planocontas(
     banco: str, regra_id: int, regra: RegraPlanoSchema
 ):
     try:
-        # Define importacaoLoteId = NULL para desvincular a regra do lote de importação
+        # VALIDAÇÃO: Pelo menos um dos termos deve estar preenchido
+        if not (regra.termoDescricao or regra.termoTipo or regra.termoFornecedor):
+            raise HTTPException(
+                status_code=400,
+                detail="Preencha ao menos um dos campos: Descrição, Tipo ou Fornecedor."
+            )
+
         sql = """
             UPDATE PlanoDePara 
             SET contratanteId = ?, 
                 unidadeId = ?, 
                 bancoId = ?, 
                 termoDescricao = ?, 
+                termoTipo = ?,
                 termoFornecedor = ?, 
                 planoContaId = ?,
                 importacaoLoteId = NULL
@@ -134,6 +153,7 @@ async def atualizar_regra_planocontas(
             regra.unidadeId,
             regra.bancoId,
             regra.termoDescricao,
+            regra.termoTipo,
             regra.termoFornecedor,
             regra.planoContaId,
             regra_id,
@@ -145,6 +165,8 @@ async def atualizar_regra_planocontas(
             "sucesso": True,
             "mensagem": "Regra atualizada com sucesso e salva como customizada!",
         }
+    except HTTPException as http_err:
+        raise http_err
     except Exception as e:
         print(f"Erro ao atualizar regra: {str(e)}")
         raise HTTPException(

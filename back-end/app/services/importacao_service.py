@@ -150,7 +150,7 @@ def processar_importacao_regra_plano(
     """
     Processa o upload do Excel com as Regras do Plano de Contas (PlanoDePara) vinculando ao ImportacaoLote.
     Aba esperada: 'Regras_Plano'
-    Colunas esperadas: CONTRATANTE, UNIDADE, BANCO, DESCRICAO, FORNECEDOR, PLANO DE CONTA
+    Colunas esperadas: CONTRATANTE, UNIDADE, BANCO, DESCRICAO, TIPO, FORNECEDOR, PLANO DE CONTA
     """
     conexao = None
     try:
@@ -166,7 +166,7 @@ def processar_importacao_regra_plano(
         df.columns = [str(col).strip().upper().replace("-", "") for col in df.columns]
 
         # 1. Validação de Colunas Obrigatórias
-        colunas_necessarias = ["CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "FORNECEDOR", "PLANO DE CONTA"]
+        colunas_necessarias = ["CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "TIPO", "FORNECEDOR", "PLANO DE CONTA"]
         for col in colunas_necessarias:
             if col not in df.columns:
                 raise HTTPException(
@@ -187,8 +187,9 @@ def processar_importacao_regra_plano(
         cursor.execute("SELECT id, LOWER(banco) FROM dbo.BancoConta WHERE banco IS NOT NULL")
         map_bancos = {row[1].strip(): row[0] for row in cursor.fetchall()}
 
-        cursor.execute("SELECT id, LOWER(planoConta) FROM dbo.PlanoContas WHERE planoConta IS NOT NULL")
-        map_planos = {row[1].strip(): row[0] for row in cursor.fetchall()}
+        # Normaliza a chave da tabela do banco exatamente como é feito na planilha
+        cursor.execute("SELECT id, planoConta FROM dbo.PlanoContas WHERE planoConta IS NOT NULL")
+        map_planos = {normalizar_texto(row[1]): row[0] for row in cursor.fetchall()}
 
         # 3. Gestão do Lote de Importação
         cursor.execute("""
@@ -213,14 +214,14 @@ def processar_importacao_regra_plano(
             
             lote_id = int(row_lote[0])
 
-        # 4. Limpa as regras anteriores deste mesmo lote ou reescreve a tabela
+        # 4. Limpa as regras anteriores deste mesmo lote
         cursor.execute("DELETE FROM dbo.PlanoDePara WHERE importacaoLoteId = ?", (lote_id,))
 
-        # 5. Processamento e Inserção com importacaoLoteId
+        # 5. Processamento e Inserção
         query_insert = """
             INSERT INTO dbo.PlanoDePara 
-            (contratanteId, unidadeId, bancoId, termoDescricao, termoFornecedor, planoContaId, importacaoLoteId)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (contratanteId, unidadeId, bancoId, termoDescricao, termoTipo, termoFornecedor, planoContaId, importacaoLoteId)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         def limpar_e_normalizar(val):
@@ -239,12 +240,15 @@ def processar_importacao_regra_plano(
             val_unidade = limpar_e_normalizar(row["UNIDADE"])
             val_banco = limpar_e_normalizar(row["BANCO"])
             termo_descricao = limpar_e_normalizar(row["DESCRICAO"])
+            termo_tipo = limpar_e_normalizar(row["TIPO"])
             termo_fornecedor = limpar_e_normalizar(row["FORNECEDOR"])
             val_plano = limpar_e_normalizar(row["PLANO DE CONTA"])
 
-            # Validação: É necessário ao menos Descrição ou Fornecedor
-            if not termo_descricao and not termo_fornecedor:
-                erros_validacao.append(f"Linha {linha_num}: Preencha ao menos 'DESCRICAO' ou 'FORNECEDOR'.")
+            # Validação: É necessário ao menos Descrição, Tipo ou Fornecedor
+            if not termo_descricao and not termo_tipo and not termo_fornecedor:
+                erros_validacao.append(
+                    f"Linha {linha_num}: Preencha ao menos 'DESCRICAO', 'TIPO' ou 'FORNECEDOR'."
+                )
                 continue
 
             # Validação: Plano de Contas obrigatório
@@ -252,30 +256,30 @@ def processar_importacao_regra_plano(
                 erros_validacao.append(f"Linha {linha_num}: 'PLANO DE CONTA' é obrigatório.")
                 continue
 
-            plano_id = map_planos.get(val_plano.lower())
-            if not plano_id:
+            plano_id = map_planos.get(val_plano)
+            if plano_id is None:
                 erros_validacao.append(f"Linha {linha_num}: Plano de Contas '{val_plano}' não está cadastrado no sistema.")
                 continue
 
-            # Validação e Resolução de IDs opcionais (NULL = Regra Geral)
+            # Validação e Resolução de IDs opcionais (Reseta para None a cada linha)
             contratante_id = None
             if val_contratante:
                 contratante_id = map_contratantes.get(val_contratante.lower())
-                if not contratante_id:
+                if contratante_id is None:
                     erros_validacao.append(f"Linha {linha_num}: Contratante '{val_contratante}' não encontrado.")
                     continue
 
             unidade_id = None
             if val_unidade:
                 unidade_id = map_unidades.get(val_unidade.lower())
-                if not unidade_id:
+                if unidade_id is None:
                     erros_validacao.append(f"Linha {linha_num}: Unidade '{val_unidade}' não encontrada.")
                     continue
 
             banco_id = None
             if val_banco:
                 banco_id = map_bancos.get(val_banco.lower())
-                if not banco_id:
+                if banco_id is None:
                     erros_validacao.append(f"Linha {linha_num}: Banco '{val_banco}' não encontrado.")
                     continue
 
@@ -284,6 +288,7 @@ def processar_importacao_regra_plano(
                 unidade_id,
                 banco_id,
                 termo_descricao,
+                termo_tipo,
                 termo_fornecedor,
                 plano_id,
                 lote_id

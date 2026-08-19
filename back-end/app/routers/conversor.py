@@ -20,15 +20,28 @@ def gerar_fornecedor_com_filtro(descricao_texto: str) -> str:
     if not descricao_texto:
         return ""
 
-    palavras_escapadas = [re.escape(palavra) for palavra in PALAVRAS_REMOVIDAS]
-    pattern = re.compile(
-        r"\b(" + "|".join(palavras_escapadas) + r")\b", flags=re.IGNORECASE
-    )
-    fornecedor_limpo = pattern.sub("", descricao_texto)
-    fornecedor_limpo = re.sub(r"\s*-\s*-\s*", " - ", fornecedor_limpo)
-    fornecedor_limpo = re.sub(r"^\s*-\s*", "", fornecedor_limpo)
-    fornecedor_limpo = re.sub(r"\s*-\s*$", "", fornecedor_limpo)
-    return re.sub(r"\s+", " ", fornecedor_limpo).strip()
+    texto_limpo = descricao_texto
+
+    # 1. Remove Datas nos formatos DD/MM ou DD/MM/AAAA (ex: 03/06, 16/06/2026)
+    texto_limpo = re.sub(r"\b\d{2}/\d{2}(?:/\d{2,4})?\b", "", texto_limpo)
+
+    # 2. Remove Horários nos formatos HH:MM ou HH:MM:SS (ex: 13:03, 16:17:30)
+    texto_limpo = re.sub(r"\b\d{2}:\d{2}(?::\d{2})?\b", "", texto_limpo)
+
+    # 3. Remove palavras banidas da lista PALAVRAS_REMOVIDAS
+    if PALAVRAS_REMOVIDAS:
+        palavras_escapadas = [re.escape(palavra) for palavra in PALAVRAS_REMOVIDAS]
+        pattern = re.compile(
+            r"\b(" + "|".join(palavras_escapadas) + r")\b", flags=re.IGNORECASE
+        )
+        texto_limpo = pattern.sub("", texto_limpo)
+
+    # 4. Trata hífens sobrantes e espaços duplicados
+    texto_limpo = re.sub(r"\s*-\s*-\s*", " - ", texto_limpo)
+    texto_limpo = re.sub(r"^\s*-\s*", "", texto_limpo)
+    texto_limpo = re.sub(r"\s*-\s*$", "", texto_limpo)
+    
+    return re.sub(r"\s+", " ", texto_limpo).strip()
 
 def identificar_fornecedor(descricao: str, banco_val: str) -> str:
     desc_lower = descricao.lower()
