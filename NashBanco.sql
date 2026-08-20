@@ -69,25 +69,30 @@ create table PlanoContas
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
-CREATE TABLE PlanoDePara 
-(
-    id					int					not null		primary key		identity,
-    contratanteId       int						null,						-- NULL = Regra Global
-	unidadeId			int						null,						-- NULL = Regra Global
-	bancoId				int						null,						-- NULL = Regra Global
-    termoDescricao      varchar(255)			null,						-- Busca na Descrição (Ex: "TARIFA")
-    termoFornecedor     varchar(255)			null,						-- Busca no Fornecedor (Ex: "ITAU")
-    planoContaId        int						not null,					-- Mapeia para PlanoContas
-	importacaoLoteId	int,
+CREATE TABLE PlanoDePara (
+    id					int					not null		primary key		identity(1,1),
+    contratanteId       int                     null,                       -- NULL = Regra Global
+    unidadeId           int                     null,                       -- NULL = Regra Global
+    bancoId             int						null,                       -- NULL = Regra Global
+    termoDescricao      varchar(255)			null,                       -- Busca na Descrição (Ex: "TARIFA")
+    termoTipo           varchar(255)			null,                       -- Busca no Tipo (Ex: "RECEBIMENTO")
+    termoFornecedor     varchar(255)			null,                       -- Busca no Fornecedor (Ex: "ITAU")
+    planoContaId        int					not null,                       -- Mapeia para PlanoContas
+    importacaoLoteId    int,
 
     -- Chaves Estrangeiras
-	CONSTRAINT FK_PlanoDePara_Contratante		foreign key (contratanteId) references Contratante(id) on delete cascade,
-	CONSTRAINT FK_PlanoDePara_Unidade			foreign key (unidadeId) references Unidade(id) on delete cascade,
-	CONSTRAINT FK_PlanoDePara_BancoConta		foreign key (bancoId) references BancoConta(id) on delete cascade,
-    CONSTRAINT FK_PlanoDePara_PlanoContas		foreign key (planoContaId) references PlanoContas(id) on delete cascade,
-												foreign key (importacaoLoteId) references ImportacaoLote(id) on delete cascade,
-    -- Validação: Pelo menos um dos dois termos DEVE estar preenchido
-    CONSTRAINT CK_PlanoDePara_PeloMenosUmTermo CHECK (termoDescricao IS NOT NULL OR termoFornecedor IS NOT NULL)
+    CONSTRAINT FK_PlanoDePara_Contratante       FOREIGN KEY (contratanteId)		references Contratante(id) ON DELETE CASCADE,
+    CONSTRAINT FK_PlanoDePara_Unidade           FOREIGN KEY (unidadeId)			references Unidade(id) ON DELETE CASCADE,
+    CONSTRAINT FK_PlanoDePara_BancoConta        FOREIGN KEY (bancoId)			references BancoConta(id) ON DELETE CASCADE,
+    CONSTRAINT FK_PlanoDePara_PlanoContas       FOREIGN KEY (planoContaId)		references PlanoContas(id) ON DELETE CASCADE,
+                                                FOREIGN KEY (importacaoLoteId)	references ImportacaoLote(id) ON DELETE CASCADE,
+
+    -- Validação: Pelo menos UM dos três termos DEVE estar preenchido
+    CONSTRAINT CK_PlanoDePara_PeloMenosUmTermo CHECK (
+        termoDescricao IS NOT NULL OR 
+        termoTipo IS NOT NULL OR 
+        termoFornecedor IS NOT NULL
+    )
 );
 
 create table Movimentacao

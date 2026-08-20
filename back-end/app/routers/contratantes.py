@@ -9,7 +9,7 @@ from app.security import exigir_perfil, registrar_log
 router = APIRouter(prefix="/api/contratantes", tags=["Contratantes"])
 
 @router.get("")
-def listar_contratantes(admin: UsuarioToken = Depends(exigir_perfil(1))):
+def listar_contratantes(admin: UsuarioToken = Depends(exigir_perfil(1, 2))):
     try:
         conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()

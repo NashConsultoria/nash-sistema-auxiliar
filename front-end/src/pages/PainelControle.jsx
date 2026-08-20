@@ -12,10 +12,9 @@ import PlanoContasTab from "../components/painel/PlanoContasTab";
 import LotesTab from "../components/painel/LotesTab";
 import LogsTab from "../components/painel/LogsTab";
 
-import { API_BASE } from "../context/AuthContext";
-import { useAuth } from "../context/AuthContext";
+import { API_BASE, useAuth } from "../context/AuthContext";
 
-import { CiSettings, CiLogout } from "react-icons/ci";
+import { CiLogout } from "react-icons/ci";
 import { FaUsers } from "react-icons/fa6";
 import { FaUser, FaHistory  } from "react-icons/fa";
 import { IoMdSettings } from "react-icons/io";
@@ -33,14 +32,25 @@ export default function PainelControle() {
     const [lotes, setLotes] = useState([]);
     const [carregandoLotes, setCarregandoLotes] = useState(false);
 
+    // ==========================================================
+    // HELPER DE PERMISSÃO
+    // ==========================================================
+    const temAcesso = (...perfisPermitidos) => {
+        if (!usuario) return false;
+        // Permite se o usuário é super/protegido ou se o perfil dele está na lista liberada
+        return Boolean(usuario.protegido) || perfisPermitidos.includes(usuario.perfil);
+    };
+
+    // ==========================================================
+    // CARREGAMENTO DE DADOS
+    // ==========================================================
     const carregarContratantes = async () => {
         try {
             const res = await fetch(`${API_BASE}/api/contratantes`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (!res.ok) throw new Error("Erro ao buscar contratantes");
-            const dados = await res.json();
-            setContratantes(dados);
+            setContratantes(await res.json());
         } catch (err) {
             console.error("Erro contratantes:", err);
         }
@@ -52,8 +62,7 @@ export default function PainelControle() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (!res.ok) throw new Error("Erro ao buscar usuários");
-            const dados = await res.json();
-            setUsuarios(dados);
+            setUsuarios(await res.json());
         } catch (err) {
             console.error("Erro usuários:", err);
         }
@@ -67,9 +76,7 @@ export default function PainelControle() {
             });
             if (!res.ok) throw new Error("Erro ao buscar lotes");
             const dados = await res.json();
-            if (dados.sucesso) {
-                setLotes(dados.lotes);
-            }
+            if (dados.sucesso) setLotes(dados.lotes);
         } catch (err) {
             console.error("Erro lotes:", err);
         } finally {
@@ -78,7 +85,7 @@ export default function PainelControle() {
     };
 
     useEffect(() => {
-        if (usuario && (usuario.perfil === 1 || usuario.protegido === 1)) {
+        if (temAcesso(1)) {
             carregarUsuarios();
             carregarContratantes();
             carregarLotes();
@@ -92,66 +99,115 @@ export default function PainelControle() {
         }
     };
 
+    // ==========================================================
+    // CONFIGURAÇÃO DAS ABAS / PERMISSÕES
+    // ==========================================================
+    const menuItems = [
+        {
+            id: "perfil",
+            label: "Perfil",
+            icon: <FaUser />,
+            perfis: [1, 2, 3],
+            component: <PerfilTab usuario={usuario} />
+        },
+        {
+            id: "usuarios",
+            label: "Usuários",
+            icon: <FaUsers />,
+            perfis: [1],
+            component: (
+                <UsuariosTab 
+                    usuario={usuario}
+                    setUsuario={setUsuario}
+                    token={token} 
+                    usuarios={usuarios} 
+                    contratantes={contratantes} 
+                    carregarUsuarios={carregarUsuarios}
+                />
+            )
+        },
+        {
+            id: "permissoes",
+            label: "Gerenciar Permissões",
+            icon: <IoMdSettings />,
+            perfis: [1],
+            component: (
+                <PermissoesTab 
+                    token={token} 
+                    usuarios={usuarios} 
+                    contratantes={contratantes} 
+                />
+            )
+        },
+        {
+            id: "contratantes",
+            label: "Contratantes",
+            icon: <GrUserManager />,
+            perfis: [1],
+            component: (
+                <ContratantesTab 
+                    token={token} 
+                    contratantes={contratantes} 
+                    carregarContratantes={carregarContratantes} 
+                />
+            )
+        },
+        {
+            id: "planocontas",
+            label: "Plano de Contas",
+            icon: <GrPlan />,
+            perfis: [1, 2],
+            component: (
+                <PlanoContasTab 
+                    token={token} 
+                    banco={banco} 
+                />
+            )
+        },
+        {
+            id: "lotes",
+            label: "Lotes de Importações",
+            icon: <BiImport />,
+            perfis: [1],
+            component: (
+                <LotesTab 
+                    token={token}
+                    banco={banco}
+                    lotes={lotes}
+                    carregandoLotes={carregandoLotes}
+                    carregarLotes={carregarLotes}
+                />
+            )
+        },
+        {
+            id: "logs",
+            label: "Logs",
+            icon: <FaHistory />,
+            perfis: [1], 
+            component: <LogsTab token={token} />
+        }
+    ];
+
+    // Filtra apenas os itens de menu autorizados para o usuário logado
+    const menuAutorizado = menuItems.filter(item => temAcesso(...item.perfis));
+    const abaAtualObj = menuAutorizado.find(item => item.id === abaAtiva);
+
     return (
         <div className="usuario-page-layout">
             {/* SIDEBAR */}
             <aside className="page-sidebar">
                 <Card title="Painel de Controle">
                     <div className="sidebar-menu">
-                        <Button 
-                            className={`menu-btn ${abaAtiva === "perfil" ? "active" : ""}`}
-                            onClick={() => setAbaAtiva("perfil")}
-                        >
-                            <FaUser />
-                            <span>Perfil</span>
-                        </Button>
-
-                        {(usuario?.perfil === 1 || usuario?.id === 1) && (
-                            <>
-                                <Button 
-                                    className={`menu-btn ${abaAtiva === "usuarios" ? "active" : ""}`}
-                                    onClick={() => setAbaAtiva("usuarios")}
-                                >
-                                    <FaUsers />
-                                    <span>Usuários</span>
-                                </Button>
-                                <Button 
-                                    className={`menu-btn ${abaAtiva === "permissoes" ? "active" : ""}`}
-                                    onClick={() => setAbaAtiva("permissoes")}
-                                >
-                                    <IoMdSettings />
-                                    <span>Gerenciar Permissões</span>
-                                </Button>
-                                <Button 
-                                    className={`menu-btn ${abaAtiva === "contratantes" ? "active" : ""}`}
-                                    onClick={() => setAbaAtiva("contratantes")}
-                                >
-                                    <GrUserManager />
-                                    <span>Contratantes</span>
-                                </Button>
-                                <Button 
-                                    className={`menu-btn ${abaAtiva === "planocontas" ? "active" : ""}`}
-                                    onClick={() => setAbaAtiva("planocontas")}
-                                >
-                                    <GrPlan />
-                                    <span>Plano de Contas</span>
-                                </Button>
-                                <Button 
-                                    className={`menu-btn ${abaAtiva === "lotes" ? "active" : ""}`}
-                                    onClick={() => setAbaAtiva("lotes")}
-                                >
-                                    <BiImport />
-                                    <span>Lotes de Importações</span>
-                                </Button>
-                                <Button 
-                                    className={`menu-btn ${abaAtiva === "logs" ? "active" : ""}`}
-                                    onClick={() => setAbaAtiva("logs")}
-                                >
-                                    <FaHistory />
-                                    <span>Logs</span>
-                                </Button>
-                            </>
-                        )}
+                        {menuAutorizado.map((item) => (
+                            <Button 
+                                key={item.id}
+                                className={`menu-btn ${abaAtiva === item.id ? "active" : ""}`}
+                                onClick={() => setAbaAtiva(item.id)}
+                            >
+                                {item.icon}
+                                <span>{item.label}</span>
+                            </Button>
+                        ))}
 
                         <Button className="menu-btn logout" onClick={handleLogout}>
                             <CiLogout />
@@ -163,55 +219,7 @@ export default function PainelControle() {
 
             {/* CONTEÚDO PRINCIPAL */}
             <main className="page-main-content">
-                {abaAtiva === "perfil" && <PerfilTab usuario={usuario} />}
-
-                {abaAtiva === "usuarios" && (usuario?.perfil === 1 || usuario?.id === 1) && (
-                    <UsuariosTab 
-                        usuario={usuario}
-                        setUsuario={setUsuario}
-                        token={token} 
-                        usuarios={usuarios} 
-                        contratantes={contratantes} 
-                        carregarUsuarios={carregarUsuarios}
-                    />
-                )}
-
-                {abaAtiva === "permissoes" && (usuario?.perfil === 1 || usuario?.id === 1) && (
-                    <PermissoesTab 
-                        token={token} 
-                        usuarios={usuarios} 
-                        contratantes={contratantes} 
-                    />
-                )}
-
-                {abaAtiva === "contratantes" && (usuario?.perfil === 1 || usuario?.id === 1) && (
-                    <ContratantesTab 
-                        token={token} 
-                        contratantes={contratantes} 
-                        carregarContratantes={carregarContratantes} 
-                    />
-                )}
-
-                {abaAtiva === "planocontas" && (usuario?.perfil === 1 || usuario?.id === 1) && (
-                    <PlanoContasTab 
-                        token={token} 
-                        banco={banco} 
-                    />
-                )}
-
-                {abaAtiva === "lotes" && (usuario?.perfil === 1 || usuario?.id === 1) && (
-                    <LotesTab 
-                        token={token}
-                        banco={banco}
-                        lotes={lotes}
-                        carregandoLotes={carregandoLotes}
-                        carregarLotes={carregarLotes}
-                    />
-                )}
-
-                {abaAtiva === "logs" && (usuario?.perfil === 1 || usuario?.id === 1) && (
-                    <LogsTab token={token} />
-                )}
+                {abaAtualObj ? abaAtualObj.component : menuAutorizado[0]?.component}
             </main>
         </div>
     );

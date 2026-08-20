@@ -269,19 +269,9 @@ def processar_importacao_regra_plano(
                     erros_validacao.append(f"Linha {linha_num}: Contratante '{val_contratante}' não encontrado.")
                     continue
 
-            unidade_id = None
-            if val_unidade:
-                unidade_id = map_unidades.get(val_unidade.lower())
-                if unidade_id is None:
-                    erros_validacao.append(f"Linha {linha_num}: Unidade '{val_unidade}' não encontrada.")
-                    continue
+            unidade_id = map_unidades.get(val_unidade.lower()) if val_unidade else None
 
-            banco_id = None
-            if val_banco:
-                banco_id = map_bancos.get(val_banco.lower())
-                if banco_id is None:
-                    erros_validacao.append(f"Linha {linha_num}: Banco '{val_banco}' não encontrado.")
-                    continue
+            banco_id = map_bancos.get(val_banco.lower()) if val_banco else None
 
             cursor.execute(query_insert, (
                 contratante_id,
