@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
-from app.schemas.usuarios import UsuarioToken
+from app.schemas.usuarios_schema import UsuarioToken
 from app.database import executar_query
 from app.security import obter_usuario_atual
 

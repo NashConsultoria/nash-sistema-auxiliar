@@ -4,7 +4,7 @@ from decimal import Decimal
 import pandas as pd
 import io
 
-from app.schemas.usuarios import UsuarioToken
+from app.schemas.usuarios_schema import UsuarioToken
 from app.config import BANCO_AUTENTICACAO
 from app.database import obter_conexao
 from app.security import registrar_log

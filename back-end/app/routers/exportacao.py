@@ -7,7 +7,7 @@ import pandas as pd
 
 from app.config import BANCO_AUTENTICACAO, TABELAS_PERMITIDAS, PERFIL_ADMIN
 from app.database import obter_conexao
-from app.schemas.usuarios import UsuarioToken
+from app.schemas.usuarios_schema import UsuarioToken
 from app.security import exigir_perfil, registrar_log
 
 router = APIRouter(prefix="/api", tags=["Exportação"])

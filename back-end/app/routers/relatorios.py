@@ -5,7 +5,7 @@ from datetime import date
 
 from app.config import ORDEM_DRE, PERFIL_CLIENTE
 from app.database import obter_conexao
-from app.schemas.usuarios import UsuarioToken
+from app.schemas.usuarios_schema import UsuarioToken
 from app.security import obter_usuario_atual
 from app.utils import obter_ordem_efolha, normalizar_texto
 

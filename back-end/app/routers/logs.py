@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN
 from app.database import obter_conexao
-from app.schemas.usuarios import UsuarioToken
+from app.schemas.usuarios_schema import UsuarioToken
 from app.security import exigir_perfil
 
 router = APIRouter(prefix="/api/logs", tags=["Logs & Auditoria"])

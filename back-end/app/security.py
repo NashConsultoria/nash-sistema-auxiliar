@@ -8,7 +8,7 @@ from jose import JWTError, jwt
 
 from app.config import PERFIL_ADMIN, oauth2_scheme, BANCO_AUTENTICACAO
 from app.database import obter_conexao
-from app.schemas.usuarios import UsuarioToken
+from app.schemas.usuarios_schema import UsuarioToken
 
 # Constantes de Segurança / Configuração
 SECRET_KEY = "SUA_CHAVE_SECRETA_AQUI"  # Garanta que esta chave venha de variável de ambiente ou config

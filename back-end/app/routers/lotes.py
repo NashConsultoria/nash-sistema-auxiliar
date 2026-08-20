@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.config import PERFIL_ADMIN, PERFIL_CLIENTE
 from app.database import obter_conexao
-from app.schemas.usuarios import UsuarioToken
+from app.schemas.usuarios_schema import UsuarioToken
 from app.security import exigir_perfil, obter_usuario_atual, registrar_log
 
 router = APIRouter(prefix="/api", tags=["Lotes de Importação"])

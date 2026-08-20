@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.schemas.usuarios import UsuarioToken
+from app.schemas.usuarios_schema import UsuarioToken
+from app.schemas.regraplano_schema import RegraPlanoSchema
 from app.config import PERFIL_ADMIN, PERFIL_FUNCIONARIO
 from app.database import executar_query
 from app.security import exigir_perfil, registrar_log
-from app.schemas.regraplano import RegraPlanoSchema
 
 router = APIRouter(prefix="/api", tags=["Plano de Contas"])
 

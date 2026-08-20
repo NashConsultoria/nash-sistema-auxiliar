@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.schemas.usuarios import UsuarioToken
-from app.schemas.contratante import ContratanteCreate, ContratanteUpdate
+from app.schemas.usuarios_schema import UsuarioToken
+from app.schemas.contratantes_schema import ContratanteCreate, ContratanteUpdate
 from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN, PERFIL_FUNCIONARIO
 from app.database import obter_conexao
 from app.security import exigir_perfil, registrar_log

@@ -30,6 +30,11 @@ create table Unidade
 	foreign key (contratanteId)				references Contratante(id),
 )
 
+create table Banco
+(
+	id					int					not null		primary key		identity,
+)
+
 create table BancoConta
 (
 	id					int					not null		primary key		identity,

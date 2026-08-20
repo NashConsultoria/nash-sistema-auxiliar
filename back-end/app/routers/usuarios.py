@@ -8,7 +8,7 @@ from app.config import (
     PERFIL_FUNCIONARIO,
 )
 from app.database import obter_conexao
-from app.schemas.usuarios import (
+from app.schemas.usuarios_schema import (
     UsuarioCriar,
     UsuarioEditar,
     UsuarioToken,

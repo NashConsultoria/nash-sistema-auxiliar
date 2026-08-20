@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 
 from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN
-from app.schemas.usuarios import UsuarioToken
+from app.schemas.usuarios_schema import UsuarioToken
 from app.security import exigir_perfil
 from app.services.importacao_service import (
     processar_importacao_movimentacoes,
