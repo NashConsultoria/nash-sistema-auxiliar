@@ -118,7 +118,13 @@ def deletar_lote_importacao(
         )
         linhas_regras = cursor.rowcount
 
-        # 3. Deleta as movimentações financeiras e de folha
+        # 3. Deleta os dados do Plano de Contas
+        cursor.execute(
+            "DELETE FROM dbo.PlanoContas WHERE importacaoLoteId = ?", (lote_id,)
+        )
+        linhas_plano_contas = cursor.rowcount
+
+        # 4. Deleta as movimentações financeiras e de folha
         cursor.execute(
             "DELETE FROM dbo.Movimentacao WHERE importacaoLoteId = ?", (lote_id,)
         )
@@ -130,7 +136,7 @@ def deletar_lote_importacao(
         )
         linhas_folha = cursor.rowcount
 
-        # 4. LIMPEZA DE CADASTROS ÓRFÃOS (Considera também regras em PlanoDePara)
+        # 5. LIMPEZA DE CADASTROS ÓRFÃOS (Considera também regras em PlanoDePara)
 
         # A) Limpa Fornecedores sem referência
         cursor.execute(
@@ -173,15 +179,16 @@ def deletar_lote_importacao(
         )
         unidades_removidas = cursor.rowcount
 
-        # 5. Deleta o lote em si
+        # 6. Deleta o lote em si
         cursor.execute("DELETE FROM dbo.ImportacaoLote WHERE id = ?", (lote_id,))
 
-        # 6. Registra log de auditoria
+        # 7. Registra log de auditoria
         detalhes_log = {
             "loteId": lote_id,
             "arquivo": nome_arquivo,
             "linhasApagadas": {
                 "regrasPlano": linhas_regras,
+                "planoContas": linhas_plano_contas,
                 "movimentacoes": linhas_movimentacao,
                 "folhaPagamento": linhas_folha,
             },
@@ -207,6 +214,7 @@ def deletar_lote_importacao(
             "mensagem": f"Lote '{nome_arquivo}' (ID: {lote_id}) excluído com sucesso!",
             "detalhes": {
                 "regrasExcluidas": linhas_regras,
+                "planoContas": linhas_plano_contas,
                 "movimentacoesExcluidas": linhas_movimentacao,
                 "folhaExcluida": linhas_folha,
                 "fornecedoresOrfaosRemovidos": fornecedores_removidos,

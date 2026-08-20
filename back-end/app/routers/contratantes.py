@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.schemas.usuarios import UsuarioToken
 from app.schemas.contratante import ContratanteCreate, ContratanteUpdate
-from app.config import BANCO_AUTENTICACAO
+from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN, PERFIL_FUNCIONARIO
 from app.database import obter_conexao
 from app.security import exigir_perfil, registrar_log
 
 router = APIRouter(prefix="/api/contratantes", tags=["Contratantes"])
 
 @router.get("")
-def listar_contratantes(admin: UsuarioToken = Depends(exigir_perfil(1, 2))):
+def listar_contratantes(admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))):
     try:
         conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()
@@ -43,7 +43,7 @@ def listar_contratantes(admin: UsuarioToken = Depends(exigir_perfil(1, 2))):
 def criar_contratante(
     dados: ContratanteCreate,
     request: Request,
-    admin: UsuarioToken = Depends(exigir_perfil(1)),
+    admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN)),
 ):
     conexao = obter_conexao(BANCO_AUTENTICACAO)
     cursor = conexao.cursor()
@@ -120,7 +120,7 @@ def atualizar_contratante(
     id: int,
     dados: ContratanteUpdate,
     request: Request,
-    admin: UsuarioToken = Depends(exigir_perfil(1)),
+    admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN)),
 ):
     conexao = obter_conexao(BANCO_AUTENTICACAO)
     cursor = conexao.cursor()
@@ -198,7 +198,7 @@ def atualizar_contratante(
 
 @router.delete("/{id}")
 def inativar_contratante(
-    id: int, request: Request, admin: UsuarioToken = Depends(exigir_perfil(1))
+    id: int, request: Request, admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN))
 ):
     conexao = obter_conexao(BANCO_AUTENTICACAO)
     cursor = conexao.cursor()

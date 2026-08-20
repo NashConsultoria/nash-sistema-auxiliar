@@ -269,9 +269,29 @@ def processar_importacao_regra_plano(
                     erros_validacao.append(f"Linha {linha_num}: Contratante '{val_contratante}' não encontrado.")
                     continue
 
-            unidade_id = map_unidades.get(val_unidade.lower()) if val_unidade else None
+            unidade_id = None
+            if val_unidade:
+                unidade_id = map_unidades.get(val_unidade.lower())
+                if unidade_id is None:
+                    erros_validacao.append(f"Linha {linha_num}: Unidade '{val_unidade}' não encontrada.")
+                    continue
 
-            banco_id = map_bancos.get(val_banco.lower()) if val_banco else None
+            banco_id = None
+            if val_banco:
+                banco_chave = val_banco.lower()
+                banco_id = map_bancos.get(banco_chave)
+
+                # Se o banco não for encontrado na memória nem no banco de dados, insere automaticamente
+                if banco_id is None:
+                    nome_banco_formatado = str(row["BANCO"]).strip()
+                    cursor.execute(
+                        "INSERT INTO dbo.BancoConta (banco) OUTPUT INSERTED.id VALUES (?)",
+                        (nome_banco_formatado,)
+                    )
+                    banco_id = int(cursor.fetchone()[0])
+                    
+                    # Atualiza o dicionário em memória para reaproveitar nas próximas linhas da mesma planilha
+                    map_bancos[banco_chave] = banco_id
 
             cursor.execute(query_insert, (
                 contratante_id,

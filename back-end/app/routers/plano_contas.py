@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.schemas.usuarios import UsuarioToken
+from app.config import PERFIL_ADMIN, PERFIL_FUNCIONARIO
 from app.database import executar_query
 from app.security import exigir_perfil, registrar_log
 from app.schemas.regraplano import RegraPlanoSchema
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/api", tags=["Plano de Contas"])
 @router.get("/{banco}/planocontas")
 async def obter_plano_contas(
     banco: str,
-    usuario: UsuarioToken = Depends(exigir_perfil(1, 2))
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
 ):
     try:
         sql = "SELECT id, planoConta, grupoConta, edre, dfc, efolha FROM planocontas"
@@ -25,7 +26,7 @@ async def obter_plano_contas(
 @router.get("/{banco}/regras-planocontas")
 async def obter_regras_planocontas(
     banco: str,
-    usuario: UsuarioToken = Depends(exigir_perfil(1, 2))
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
 ):
     try:
         sql = """
@@ -62,7 +63,7 @@ async def criar_regra_planocontas(
     banco: str, 
     regra: RegraPlanoSchema, 
     request: Request,
-    usuario: UsuarioToken = Depends(exigir_perfil(1, 2))
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
 ):
     try:
         if not (regra.termoDescricao or regra.termoTipo or regra.termoFornecedor):
@@ -146,7 +147,7 @@ async def atualizar_regra_planocontas(
     regra_id: int,
     regra: RegraPlanoSchema,
     request: Request,
-    usuario: UsuarioToken = Depends(exigir_perfil(1, 2))
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
 ):
     try:
         if not (regra.termoDescricao or regra.termoTipo or regra.termoFornecedor):
@@ -210,7 +211,7 @@ async def excluir_regra_planocontas(
     banco: str,
     regra_id: int,
     request: Request,
-    usuario: UsuarioToken = Depends(exigir_perfil(1, 2))
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
 ):
     try:
         sql_verifica = "SELECT id FROM PlanoDePara WHERE id = ?"

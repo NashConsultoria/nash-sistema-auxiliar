@@ -137,15 +137,11 @@ def processar_ofx(conteudo_texto: str) -> list:
     transacoes_dados = []
 
     for bloco in blocos_transacao:
-        tipo_match = re.search(r"<TRNTYPE>(.*?)(?:<|$)", bloco, re.IGNORECASE)
         data_match = re.search(r"<DTPOSTED>(.*?)(?:<|$)", bloco, re.IGNORECASE)
         valor_match = re.search(r"<TRNAMT>(.*?)(?:<|$)", bloco, re.IGNORECASE)
         memo_match = re.search(r"<MEMO>(.*?)(?:<|$)", bloco, re.IGNORECASE)
         payee_match = re.search(r"<NAME>(.*?)(?:<|$)", bloco, re.IGNORECASE)
         checknum_match = re.search(r"<CHECKNUM>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-
-        tipo_bruto = tipo_match.group(1).strip().upper() if tipo_match else "OTHER"
-        tipo = "RECEBIMENTO" if tipo_bruto == "CREDIT" else ("PAGAMENTO" if tipo_bruto == "DEBIT" else tipo_bruto)
 
         data_str = data_match.group(1).strip() if data_match else ""
         data_formatada = f"{data_str[6:8]}/{data_str[4:6]}/{data_str[0:4]}" if len(data_str) >= 8 else data_str
@@ -166,6 +162,21 @@ def processar_ofx(conteudo_texto: str) -> list:
             descricao_original = payee or memo
 
         fornecedor_val = identificar_fornecedor(descricao_original, banco_val)
+
+        # ==========================================================
+        # DETERMINAÇÃO INTELIGENTE DO TIPO DE TRANSAÇÃO
+        # ==========================================================
+        desc_lower = descricao_original.lower()
+        forn_lower = (fornecedor_val or "").lower()
+
+        # 1. Verifica se é Saldo pela Descrição ou Fornecedor
+        if "saldo" in desc_lower or "saldo" in forn_lower:
+            tipo = "SALDO"
+        # 2. Se não for saldo, valida pelo valor numérico
+        elif valor < 0:
+            tipo = "PAGAMENTO"
+        else:
+            tipo = "RECEBIMENTO"
 
         transacoes_dados.append({
             "contratante": "",

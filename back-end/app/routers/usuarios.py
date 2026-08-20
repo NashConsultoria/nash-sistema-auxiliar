@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/usuarios", tags=["Usuários"])
 
 
 @router.get("/")
-def listar_usuarios(admin: UsuarioToken = Depends(exigir_perfil(1))):
+def listar_usuarios(admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN))):
     try:
         conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()
@@ -70,7 +70,7 @@ def listar_usuarios(admin: UsuarioToken = Depends(exigir_perfil(1))):
 def cadastrar_usuario(
     dados: UsuarioCriar,
     request: Request,
-    admin: UsuarioToken = Depends(exigir_perfil(1)),
+    admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN)),
 ):
     conexao = obter_conexao(BANCO_AUTENTICACAO)
     cursor = conexao.cursor()
@@ -287,7 +287,7 @@ def editar_usuario(
 def excluir_usuario_logico(
     usuario_id: int,
     request: Request,
-    admin: UsuarioToken = Depends(exigir_perfil(1)),
+    admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN)),
 ):
     if usuario_id == 1:
         raise HTTPException(
@@ -373,7 +373,7 @@ def vincular_contratante(
     usuario_id: int,
     dados: VincularContratante,
     request: Request,
-    admin: UsuarioToken = Depends(exigir_perfil(1)),
+    admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN)),
 ):
     conexao = obter_conexao(BANCO_AUTENTICACAO)
     cursor = conexao.cursor()
@@ -432,7 +432,7 @@ def remover_vinculo_contratante(
     usuario_id: int,
     contratante_id: int,
     request: Request,
-    admin: UsuarioToken = Depends(exigir_perfil(1)),
+    admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN)),
 ):
     conexao = obter_conexao(BANCO_AUTENTICACAO)
     cursor = conexao.cursor()

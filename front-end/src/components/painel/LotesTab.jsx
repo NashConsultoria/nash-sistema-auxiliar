@@ -130,7 +130,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
                 colunaFiltro: "importacaoLoteId",
                 valorFiltro: row.id,
                 colunas: [
-                    "CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "FORNECEDOR", "PLANO DE CONTA"
+                    "CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "TIPO", "FORNECEDOR", "PLANO DE CONTA"
                 ],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });

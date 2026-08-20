@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 
-from app.config import BANCO_AUTENTICACAO
+from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN
 from app.schemas.usuarios import UsuarioToken
 from app.security import exigir_perfil
 from app.services.importacao_service import (
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api", tags=["Importação"])
 async def importar_arquivo_generico(
     request: Request,
     file: UploadFile = File(...),
-    admin: UsuarioToken = Depends(exigir_perfil(1)),
+    admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN)),
 ):
     conteudo = await file.read()
     nome_arquivo_lower = file.filename.lower()

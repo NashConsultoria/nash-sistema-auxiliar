@@ -1,7 +1,7 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.config import BANCO_AUTENTICACAO
+from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN
 from app.database import obter_conexao
 from app.schemas.usuarios import UsuarioToken
 from app.security import exigir_perfil
@@ -9,7 +9,7 @@ from app.security import exigir_perfil
 router = APIRouter(prefix="/api/logs", tags=["Logs & Auditoria"])
 
 @router.get("")
-def listar_logs_usuarios(admin: UsuarioToken = Depends(exigir_perfil(1))):
+def listar_logs_usuarios(admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN))):
     """Retorna o histórico de ações realizadas no sistema (Apenas para Administradores)"""
     conexao = obter_conexao(BANCO_AUTENTICACAO)
     cursor = conexao.cursor()

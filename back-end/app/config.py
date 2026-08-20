@@ -62,6 +62,7 @@ TABELAS_PERMITIDAS = {
                 u.nome AS [UNIDADE], 
                 b.banco AS [BANCO], 
                 p.termoDescricao AS [DESCRICAO], 
+                p.termoTipo AS [TIPO],
                 p.termoFornecedor AS [FORNECEDOR], 
                 pc.planoConta AS [PLANO DE CONTA] 
             FROM dbo.PlanoDePara p LEFT JOIN dbo.Contratante c ON p.contratanteId = c.id 

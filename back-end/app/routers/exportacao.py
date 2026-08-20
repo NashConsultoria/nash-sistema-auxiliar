@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from openpyxl.styles import PatternFill, Font, Alignment
 import pandas as pd
 
-from app.config import BANCO_AUTENTICACAO, TABELAS_PERMITIDAS
+from app.config import BANCO_AUTENTICACAO, TABELAS_PERMITIDAS, PERFIL_ADMIN
 from app.database import obter_conexao
 from app.schemas.usuarios import UsuarioToken
 from app.security import exigir_perfil, registrar_log
@@ -23,7 +23,7 @@ def exportar_excel(
     colunas: Optional[str] = Query(
         None, description="Colunas desejadas separadas por vírgula"
     ),
-    admin: UsuarioToken = Depends(exigir_perfil(1)),
+    admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN)),
 ):
     try:
         tabela_alias_lower = tabela_alias.lower()
