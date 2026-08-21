@@ -30,6 +30,7 @@ export default function PainelControle() {
 
     const [abaAtiva, setAbaAtiva] = useState("perfil");
     const [contratantes, setContratantes] = useState([]);
+    const [unidades, setUnidades] = useState([]);
     const [bancos, setBancos] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
     const [lotes, setLotes] = useState([]);
@@ -55,6 +56,18 @@ export default function PainelControle() {
             setContratantes(await res.json());
         } catch (err) {
             console.error("Erro contratantes:", err);
+        }
+    };
+
+    const carregarUnidades = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/unidades`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error("Erro ao buscar unidades");
+            setUnidades(await res.json());
+        } catch (err) {
+            console.error("Erro unidades:", err);
         }
     };
 
@@ -101,6 +114,7 @@ export default function PainelControle() {
     useEffect(() => {
         if (temAcesso(1, 2)) {
             carregarBancos();
+            carregarUnidades();
         }
         if (temAcesso(1)) {
             carregarUsuarios();
@@ -177,8 +191,8 @@ export default function PainelControle() {
             component: (
                 <UnidadesTab 
                     token={token} 
-                    contratantes={contratantes} 
-                    carregarContratantes={carregarContratantes} 
+                    unidades={unidades} 
+                    carregarUnidades={carregarUnidades} 
                 />
             )
         },

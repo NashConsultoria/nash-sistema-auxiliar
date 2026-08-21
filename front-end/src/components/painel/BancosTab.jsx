@@ -9,11 +9,14 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
     const [modoCadastroBanco, setModoCadastroBanco] = useState(false);
     const [editandoBancoId, setEditandoBancoId] = useState(null);
     const [mostrarInativos, setMostrarInativos] = useState(false);
-    const [formBanco, setFormBanco] = useState({ nome: "" });
+    
+    // 1. ESTADO COMPLETO DO FORMULÁRIO
+    const [formBanco, setFormBanco] = useState({ codigo: "", nome: "" });
     const [carregando, setCarregando] = useState(false);
 
     // --- ESTADOS DO FILTROBAR ---
     const [filtros, setFiltros] = useState({
+        codigo: '',
         nome: ''
     });
 
@@ -23,6 +26,7 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
 
     const limparFiltros = () => {
         setFiltros({
+            codigo: '',
             nome: ''
         });
     };
@@ -30,12 +34,14 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
     // --- LÓGICA DE FILTRAGEM DINÂMICA ---
     const filtrarBancosExcecao = (chaveIgnorada) => {
         return bancos.filter((item) => {
-            // Status 1 = Ativo, Status 2 = Inativo
             const passaStatus = mostrarInativos ? true : Number(item.status) === 1;
+            const codigo = (item.codigo || '').toLowerCase();
             const nome = (item.nome || '').toLowerCase();
 
+            // 2. CORRIGIDO: Adicionado && entre as checagens
             return (
                 passaStatus &&
+                (chaveIgnorada === 'codigo' || codigo.includes(filtros.codigo.toLowerCase().trim())) &&
                 (chaveIgnorada === 'nome' || nome.includes(filtros.nome.toLowerCase().trim()))
             );
         });
@@ -46,7 +52,19 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
         return Array.from(new Set(dados.map(b => b.nome).filter(Boolean)));
     }, [bancos, filtros, mostrarInativos]);
 
+    const opcoesCodigo = useMemo(() => {
+        const dados = filtrarBancosExcecao('codigo');
+        return Array.from(new Set(dados.map(b => b.codigo).filter(Boolean)));
+    }, [bancos, filtros, mostrarInativos]);
+
     const schemaFiltroBanco = [
+        {
+            key: "codigo",
+            label: "Código do Banco",
+            tipo: "inputlist",
+            placeholder: "Buscar por Código...",
+            options: opcoesCodigo // 3. CORRIGIDO: usa opcoesCodigo
+        },
         {
             key: "nome",
             label: "Nome do Banco",
@@ -56,22 +74,29 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
         }
     ];
 
-    // Lista filtrada final que alimenta a Tabela
+    // 4. CORRIGIDO: Lista filtrada considerando o filtro de código
     const bancosFiltrados = useMemo(() => {
         return bancos.filter((item) => {
             const passaStatus = mostrarInativos ? true : Number(item.status) === 1;
+            const codigo = (item.codigo || '').toLowerCase();
             const nome = (item.nome || '').toLowerCase();
 
             return (
                 passaStatus &&
+                codigo.includes(filtros.codigo.toLowerCase().trim()) &&
                 nome.includes(filtros.nome.toLowerCase().trim())
             );
         });
     }, [bancos, filtros, mostrarInativos]);
 
-    // --- SALVAR BANCO (CRIAR / ATUALIZAR) ---
+    // --- SALVAR BANCO ---
     const handleSalvarBanco = async (e) => {
         e.preventDefault();
+
+        if (!formBanco.codigo.trim()) {
+            alert("O Código do Banco é obrigatório.");
+            return;
+        }
 
         if (!formBanco.nome.trim()) {
             alert("O Nome do Banco é obrigatório.");
@@ -87,6 +112,7 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
         const metodo = editandoBancoId ? "PUT" : "POST";
 
         const payload = {
+            codigo: formBanco.codigo.trim(),
             nome: formBanco.nome.trim()
         };
 
@@ -115,20 +141,19 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
 
     const handleIniciarEdicaoBanco = (banco) => {
         setFormBanco({
+            codigo: banco.codigo || "",
             nome: banco.nome || ""
         });
         setEditandoBancoId(banco.id);
         setModoCadastroBanco(true);
     };
 
-    // --- ALTERAR STATUS (CORRIGIDO PARA UTILIZAR O STATUS === 1) ---
     const handleAlternarStatusBanco = async (banco) => {
         const isAtivo = Number(banco.status) === 1;
         const confirmacao = window.confirm(`Deseja realmente ${isAtivo ? "desativar" : "reativar"} o banco "${banco.nome}"?`);
         if (!confirmacao) return;
 
         try {
-            // Passa o booleano invertido na URL conforme esperado pelo backend FastAPI
             const res = await fetch(`${API_BASE}/api/bancos/${banco.id}/status?ativo=${!isAtivo}`, {
                 method: "PATCH",
                 headers: {
@@ -146,11 +171,18 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
         }
     };
 
+    // 5. ADICIONADA A COLUNA DE CÓDIGO NA TABELA
     const colunasBancos = [
+        {
+            label: "Código",
+            key: "codigo",
+            width: "25%",
+            Cell: ({ row }) => <span style={{ fontWeight: "600" }}>{row.codigo || "-"}</span>
+        },
         {
             label: "Nome do Banco",
             key: "nome",
-            width: "80%",
+            width: "55%",
             Cell: ({ row }) => (
                 <div style={{ display: "flex", alignItems: "center" }}>
                     <span style={{ fontWeight: "500" }}>{row.nome}</span>
@@ -216,7 +248,7 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
                         <Button
                             onClick={() => {
                                 setEditandoBancoId(null);
-                                setFormBanco({ nome: "" });
+                                setFormBanco({ codigo: "", nome: "" });
                                 setModoCadastroBanco(true);
                             }}
                         >
@@ -244,6 +276,21 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
             ) : (
                 <Card title={editandoBancoId ? "Editar Banco" : "Cadastrar Novo Banco"}>
                     <form onSubmit={handleSalvarBanco} style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "12px" }}>
+                        
+                        {/* 6. CAMPO DE INPUT PARA O CÓDIGO */}
+                        <div className="form-group">
+                            <label className="form-label">Código do Banco *</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                required
+                                value={formBanco.codigo}
+                                onChange={(e) => setFormBanco({ ...formBanco, codigo: e.target.value })}
+                                placeholder="Ex: 001, 341, 104"
+                            />
+                        </div>
+
+                        {/* CAMPO DE INPUT PARA O NOME */}
                         <div className="form-group">
                             <label className="form-label">Nome do Banco *</label>
                             <input
@@ -252,7 +299,7 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
                                 required
                                 value={formBanco.nome}
                                 onChange={(e) => setFormBanco({ ...formBanco, nome: e.target.value })}
-                                placeholder="Ex: Itaú, Banco do Brasil, Bradesco"
+                                placeholder="Ex: Banco do Brasil, Itaú, Caixa"
                             />
                         </div>
 

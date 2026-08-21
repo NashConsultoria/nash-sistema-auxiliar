@@ -1,0 +1,219 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from typing import List
+
+from app.database import obter_conexao
+from app.security import exigir_perfil, registrar_log
+from app.schemas.usuarios_schema import UsuarioToken
+from app.schemas.unidades_schema import UnidadeCreate, UnidadeUpdate, UnidadeResponse
+from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN, PERFIL_FUNCIONARIO
+
+router = APIRouter(prefix="/api/unidades", tags=["Unidades"])
+
+# 1. LISTAR UNIDADES
+@router.get("", response_model=List[UnidadeResponse])
+async def listar_unidades(
+    apenas_ativas: bool = False,
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
+):
+    conexao = obter_conexao(BANCO_AUTENTICACAO)
+    cursor = conexao.cursor()
+    try:
+        sql = "SELECT id, nome, razaoSocial, cnpj, contratanteId, tipo, status FROM dbo.Unidade"
+        if apenas_ativas:
+            sql += " WHERE status = 1"
+        sql += " ORDER BY nome ASC"
+
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": row[0],
+                "nome": row[1],
+                "razaoSocial": row[2],
+                "cnpj": row[3],
+                "contratanteId": row[4],
+                "tipo": int(row[5]),
+                "status": int(row[6])
+            }
+            for row in rows
+        ]
+    finally:
+        conexao.close()
+
+# 2. CRIAR UNIDADE
+@router.post("", response_model=UnidadeResponse, status_code=status.HTTP_201_CREATED)
+async def criar_unidade(
+    dados: UnidadeCreate,
+    request: Request,
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
+):
+    conexao = obter_conexao(BANCO_AUTENTICACAO)
+    cursor = conexao.cursor()
+    try:
+        nome_limpo = dados.nome.strip()
+        razao_limpa = dados.razaoSocial.strip() if dados.razaoSocial else None
+        cnpj_limpo = dados.cnpj.strip() if dados.cnpj else None
+
+        # Valida duplicidade de nome
+        cursor.execute("SELECT id FROM dbo.Unidade WHERE UPPER(nome) = UPPER(?)", (nome_limpo,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Já existe uma unidade com este nome.")
+
+        # Valida existência do Contratante (OBRIGATÓRIO: sem IF condicional)
+        cursor.execute("SELECT id FROM dbo.Contratante WHERE id = ?", (dados.contratanteId,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Contratante informado não existe.")
+
+        cursor.execute(
+            """
+            INSERT INTO dbo.Unidade (nome, razaoSocial, cnpj, contratanteId, tipo, status)
+            OUTPUT INSERTED.id
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (nome_limpo, razao_limpa, cnpj_limpo, dados.contratanteId, dados.tipo, dados.status)
+        )
+        novo_id = int(cursor.fetchone()[0])
+
+        registrar_log(
+            usuario_id=usuario.id,
+            acao="Cadastro",
+            tabela="Unidade",
+            detalhes={"id": novo_id, "nome": nome_limpo, "contratanteId": dados.contratanteId},
+            request=request
+        )
+        conexao.commit()
+
+        return {
+            "id": novo_id,
+            "nome": nome_limpo,
+            "razaoSocial": razao_limpa,
+            "cnpj": cnpj_limpo,
+            "contratanteId": dados.contratanteId,
+            "tipo": dados.tipo,
+            "status": dados.status
+        }
+    except HTTPException as http_err:
+        conexao.rollback()
+        raise http_err
+    except Exception as e:
+        conexao.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao cadastrar unidade: {str(e)}")
+    finally:
+        conexao.close()
+
+
+# 3. ATUALIZAR UNIDADE
+@router.put("/{unidade_id}", response_model=UnidadeResponse)
+async def atualizar_unidade(
+    unidade_id: int,
+    dados: UnidadeUpdate,
+    request: Request,
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
+):
+    conexao = obter_conexao(BANCO_AUTENTICACAO)
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("SELECT id, nome, razaoSocial, cnpj, contratanteId, tipo, status FROM dbo.Unidade WHERE id = ?", (unidade_id,))
+        row_existente = cursor.fetchone()
+        if not row_existente:
+            raise HTTPException(status_code=404, detail="Unidade não encontrada.")
+
+        nome_atual, razao_atual, cnpj_atual, contratante_atual, tipo_atual, status_atual = (
+            row_existente[1], row_existente[2], row_existente[3], row_existente[4], row_existente[5], row_existente[6]
+        )
+
+        novo_nome = dados.nome.strip() if dados.nome else nome_atual
+        nova_razao = dados.razaoSocial.strip() if dados.razaoSocial is not None else razao_atual
+        novo_cnpj = dados.cnpj.strip() if dados.cnpj is not None else cnpj_atual
+        novo_contratante = dados.contratanteId if dados.contratanteId is not None else contratante_atual
+        novo_tipo = dados.tipo if dados.tipo is not None else tipo_atual
+        novo_status = dados.status if dados.status is not None else status_atual
+
+        # Trava para garantir que o contratante não fique nulo na edição
+        if novo_contratante is None:
+            raise HTTPException(status_code=400, detail="A unidade deve possuir um contratante vinculado.")
+
+        # Valida duplicidade de nome
+        if dados.nome:
+            cursor.execute("SELECT id FROM dbo.Unidade WHERE UPPER(nome) = UPPER(?) AND id <> ?", (novo_nome, unidade_id))
+            if cursor.fetchone():
+                raise HTTPException(status_code=400, detail="Já existe outra unidade cadastrada com este nome.")
+
+        # Valida existência do Contratante (se foi alterado ou se precisa revalidar)
+        if dados.contratanteId is not None:
+            cursor.execute("SELECT id FROM dbo.Contratante WHERE id = ?", (novo_contratante,))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=400, detail="Contratante informado não existe.")
+
+        cursor.execute(
+            """
+            UPDATE dbo.Unidade 
+            SET nome = ?, razaoSocial = ?, cnpj = ?, contratanteId = ?, tipo = ?, status = ?
+            WHERE id = ?
+            """,
+            (novo_nome, nova_razao, novo_cnpj, novo_contratante, novo_tipo, novo_status, unidade_id)
+        )
+
+        registrar_log(
+            usuario_id=usuario.id,
+            acao="Edição",
+            tabela="Unidade",
+            detalhes={"id": unidade_id, "novo_nome": novo_nome, "novo_contratante": novo_contratante, "novo_status": novo_status},
+            request=request
+        )
+        conexao.commit()
+
+        return {
+            "id": unidade_id,
+            "nome": novo_nome,
+            "razaoSocial": nova_razao,
+            "cnpj": novo_cnpj,
+            "contratanteId": novo_contratante,
+            "tipo": novo_tipo,
+            "status": novo_status
+        }
+    except HTTPException as http_err:
+        conexao.rollback()
+        raise http_err
+    except Exception as e:
+        conexao.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar unidade: {str(e)}")
+    finally:
+        conexao.close()
+
+# 4. ALTERAR STATUS (PATCH)
+@router.patch("/{unidade_id}/status")
+async def alternar_status_unidade(
+    unidade_id: int,
+    ativo: bool,
+    request: Request,
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
+):
+    conexao = obter_conexao(BANCO_AUTENTICACAO)
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("SELECT id, nome FROM dbo.Unidade WHERE id = ?", (unidade_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Unidade não encontrada.")
+
+        novo_status = 1 if ativo else 2
+        cursor.execute("UPDATE dbo.Unidade SET status = ? WHERE id = ?", (novo_status, unidade_id))
+
+        registrar_log(
+            usuario_id=usuario.id,
+            acao="Alteração de Status",
+            tabela="Unidade",
+            detalhes={"id": unidade_id, "novo_status": novo_status},
+            request=request
+        )
+        conexao.commit()
+        return {"mensagem": f"Unidade {'ativada' if ativo else 'inativada'} com sucesso."}
+    except HTTPException as http_err:
+        conexao.rollback()
+        raise http_err
+    except Exception as e:
+        conexao.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao alterar status da unidade: {str(e)}")
+    finally:
+        conexao.close()

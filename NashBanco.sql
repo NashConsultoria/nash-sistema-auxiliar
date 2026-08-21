@@ -24,7 +24,7 @@ create table Unidade
 	nome				varchar(255)		not null		unique,
 	razaoSocial			varchar(255)			null,
 	cnpj				varchar(20)				null,
-	contratanteId		int,
+	contratanteId		int					not null,
 	tipo				int					not null		default 1,		-- 1.Registro, 2.Atuação, 3.Ambos
 	status				int					not null		default 1		-- 1.Ativo, 2.Inativo
 	foreign key (contratanteId)				references Contratante(id),
@@ -33,15 +33,20 @@ create table Unidade
 create table Banco
 (
 	id					int					not null		primary key		identity,
+	codigo				varchar(10)			not null		unique,
+	nome				varchar(255)		not null,
+	status				int					not null		default 1		-- 1.Ativo, 2.Inativo
 )
 
 create table BancoConta
 (
 	id					int					not null		primary key		identity,
-	banco				varchar(255),
+	bancoId				int					not null,
 	agencia				varchar(50),
 	conta				varchar(50),
-	constraint UC_BancoConta				unique (banco, agencia, conta)
+
+	foreign key (bancoId)					references Banco(id),
+	constraint UC_BancoConta				unique (bancoId, agencia, conta),
 )
 
 create table Fornecedor 
@@ -211,6 +216,7 @@ create table LogUsuario
 ---------------------------------------------------------------------------------
 select * from Contratante
 select * from Unidade
+select * from Banco
 select * from BancoConta
 select * from Fornecedor
 select * from ImportacaoLote

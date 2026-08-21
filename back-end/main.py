@@ -14,6 +14,7 @@ from app.routers import (
     lotes,
     plano_contas,
     relatorios,
+    unidades,
     usuarios,
 )
 from app.security import criar_admin_padrao_se_necessario
@@ -49,6 +50,7 @@ app.include_router(logs.router)
 app.include_router(lotes.router)
 app.include_router(plano_contas.router)
 app.include_router(relatorios.router, prefix="/api")
+app.include_router(unidades.router)
 app.include_router(usuarios.router)
 
 if __name__ == "__main__":
