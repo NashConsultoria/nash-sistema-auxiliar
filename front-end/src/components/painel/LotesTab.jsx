@@ -107,12 +107,27 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
 
     // Exportação customizada por tipo de lote
     const handleExportarLote = (row) => {
-        const nomeOriginal = row.nomeArquivo ? row.nomeArquivo.replace(/\.[^/.]+$/, "") : `Lote_${row.id}`;
+        const nomeOriginal = row.nomeArquivo 
+            ? row.nomeArquivo.replace(/\.[^/.]+$/, "") 
+            : `Lote_${row.id}`;
+            
         const nomeArquivoDownload = `${nomeOriginal}.xlsx`;
         const nomeArqLower = (row.nomeArquivo || row.nome_arquivo || "").toLowerCase();
+        const contratanteLower = (row.contratante || "").toLowerCase();
+
+        // Identificação dos tipos de lote
+        const ehUnidade = 
+            nomeArqLower.includes("unidade") || 
+            contratanteLower.includes("unidades") ||
+            row.tipoLote?.toLowerCase().includes("unidade");
+
+        const ehBanco = 
+            nomeArqLower.includes("banco") || 
+            contratanteLower.includes("bancos") ||
+            row.tipoLote?.toLowerCase().includes("banco");
 
         const ehPlanoContas = 
-            nomeArqLower.includes("plano") && !nomeArqLower.includes("regra") || 
+            (nomeArqLower.includes("plano") && !nomeArqLower.includes("regra")) || 
             row.contratante === "PLANO DE CONTAS (SISTEMA)";
 
         const ehRegraPlano = 
@@ -122,9 +137,26 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         const ehFolhaPagamento = 
             nomeArqLower.includes("folha") || 
             row.tipoLote?.toLowerCase().includes("folha") ||
-            row.contratante?.toLowerCase().includes("folha");
+            contratanteLower.includes("folha");
 
-        if (ehRegraPlano) {
+        // Lógica de Direcionamento por Alias
+        if (ehUnidade) {
+            ExportarExcel({
+                tabela: "unidade",
+                colunaFiltro: "importacaoLoteId",
+                valorFiltro: row.id,
+                colunas: ["CONTRATANTE", "NOME", "RAZAO SOCIAL", "CNPJ", "TIPO"],
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else if (ehBanco) {
+            ExportarExcel({
+                tabela: "banco",
+                colunaFiltro: "importacaoLoteId",
+                valorFiltro: row.id,
+                colunas: ["CODIGO", "BANCO"],
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else if (ehRegraPlano) {
             ExportarExcel({
                 tabela: "planodepara",
                 colunaFiltro: "importacaoLoteId",
@@ -137,7 +169,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         } else if (ehPlanoContas) {
             ExportarExcel({
                 tabela: "planocontas",
-                colunas: ["PLANO DE CONTAS", "GRUPO DE CONTAS", "edre", "dfc", "efolha"],
+                colunas: ["PLANO DE CONTAS", "GRUPO DE CONTAS", "EDRE", "DFC", "EFOLHA"],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });
         } else if (ehFolhaPagamento) {

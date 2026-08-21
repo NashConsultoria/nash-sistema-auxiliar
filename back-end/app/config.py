@@ -53,17 +53,30 @@ TABELAS_PERMITIDAS = {
         "nome_aba": "PLANO_CONTA",
         "coluna_padrao_id": "id"
     },
+    "unidade": {
+        "nome_aba": "MAPA_UNIDADES",
+        "query_customizada": """
+            SELECT 
+                u.importacaoLoteId,
+                c.nome AS CONTRATANTE,
+                u.nome AS NOME,
+                u.razaoSocial AS [RAZAO SOCIAL],
+                u.cnpj AS CNPJ,
+                u.tipo AS TIPO
+            FROM dbo.Unidade u
+            LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
+        """
+    },
     "banco": {
-            "query_customizada": """
-                SELECT 
-                    id,
-                    codigo,
-                    nome,
-                FROM dbo.Banco
-            """,
-            "nome_aba": "MAPA_BANCOS",
-            "coluna_padrao_id": "id"
-        },
+        "nome_aba": "MAPA_BANCOS",
+        "query_customizada": """
+            SELECT
+                b.importacaoLoteId,
+                b.codigo AS CODIGO,
+                b.nome AS BANCO
+            FROM dbo.Banco b
+        """
+    },
     "planodepara": {
         "query_customizada": """
             SELECT 

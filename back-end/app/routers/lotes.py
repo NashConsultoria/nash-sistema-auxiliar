@@ -27,6 +27,8 @@ def listar_lotes_importacao(
                 CASE 
                     WHEN l.contratanteId IS NOT NULL THEN c.nome
                     WHEN LOWER(l.nomeArquivo) LIKE '%regra%' THEN 'REGRAS (SISTEMA)'
+                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_bancos%' OR LOWER(l.nomeArquivo) LIKE '%mapa_banco%' THEN 'SISTEMA (MAPA BANCOS)'
+                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_unidades%' OR LOWER(l.nomeArquivo) LIKE '%mapa_unidade%' THEN 'SISTEMA (MAPA UNIDADES)'
                     ELSE 'PLANO DE CONTAS (SISTEMA)'
                 END AS contratante,
                 l.criadoEm,
@@ -34,8 +36,14 @@ def listar_lotes_importacao(
                     WHEN LOWER(l.nomeArquivo) LIKE '%regra%' THEN (
                         ISNULL((SELECT COUNT(*) FROM dbo.PlanoDePara WHERE importacaoLoteId = l.id), 0)
                     )
+                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_bancos%' OR LOWER(l.nomeArquivo) LIKE '%mapa_banco%' THEN (
+                        ISNULL((SELECT COUNT(*) FROM dbo.Banco WHERE importacaoLoteId = l.id), 0)
+                    )
+                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_unidades%' OR LOWER(l.nomeArquivo) LIKE '%mapa_unidade%' THEN (
+                        ISNULL((SELECT COUNT(*) FROM dbo.Unidade WHERE importacaoLoteId = l.id), 0)
+                    )
                     WHEN l.contratanteId IS NULL THEN (
-                        ISNULL((SELECT COUNT(*) FROM dbo.PlanoContas), 0)
+                        ISNULL((SELECT COUNT(*) FROM dbo.PlanoContas WHERE importacaoLoteId = l.id), 0)
                     )
                     ELSE (
                         ISNULL((SELECT COUNT(*) FROM dbo.Movimentacao WHERE importacaoLoteId = l.id), 0) +
@@ -69,7 +77,6 @@ def listar_lotes_importacao(
                     "id": row[0],
                     "nomeArquivo": row[1],
                     "contratante": row[2],
-                    # Retorna no padrão ISO para o frontend manipular sem erro de 'Invalid Date'
                     "criadoEm": row[3].isoformat() if row[3] else None,
                     "totalMovimentacoes": row[4],
                     "valorTotal": float(row[5]) if row[5] is not None else 0.0,
@@ -112,19 +119,27 @@ def deletar_lote_importacao(
 
         nome_arquivo = lote[0]
 
-        # 2. Deleta as regras do Plano de Contas atreladas a este lote
+        # 2. Deleta os registros das tabelas associadas ao lote
+        cursor.execute(
+            "DELETE FROM dbo.Banco WHERE importacaoLoteId = ?", (lote_id,)
+        )
+        linhas_bancos = cursor.rowcount
+
+        cursor.execute(
+            "DELETE FROM dbo.Unidade WHERE importacaoLoteId = ?", (lote_id,)
+        )
+        linhas_unidades = cursor.rowcount
+
         cursor.execute(
             "DELETE FROM dbo.PlanoDePara WHERE importacaoLoteId = ?", (lote_id,)
         )
         linhas_regras = cursor.rowcount
 
-        # 3. Deleta os dados do Plano de Contas
         cursor.execute(
             "DELETE FROM dbo.PlanoContas WHERE importacaoLoteId = ?", (lote_id,)
         )
         linhas_plano_contas = cursor.rowcount
 
-        # 4. Deleta as movimentações financeiras e de folha
         cursor.execute(
             "DELETE FROM dbo.Movimentacao WHERE importacaoLoteId = ?", (lote_id,)
         )
@@ -136,7 +151,7 @@ def deletar_lote_importacao(
         )
         linhas_folha = cursor.rowcount
 
-        # 5. LIMPEZA DE CADASTROS ÓRFÃOS (Considera também regras em PlanoDePara)
+        # 3. LIMPEZA DE CADASTROS ÓRFÃOS
 
         # A) Limpa Fornecedores sem referência
         cursor.execute(
@@ -160,13 +175,13 @@ def deletar_lote_importacao(
             )
         """
         )
-        bancos_removidos = cursor.rowcount
+        bancos_contas_removidos = cursor.rowcount
 
-        # C) Limpa Unidades sem referência
+        # C) Limpa Unidades órfãs que não possuem mais lote e nem vinculação ativa
         cursor.execute(
             """
             DELETE FROM dbo.Unidade 
-            WHERE id NOT IN (
+            WHERE importacaoLoteId IS NULL AND id NOT IN (
                 SELECT DISTINCT unidadeId FROM dbo.Movimentacao WHERE unidadeId IS NOT NULL
                 UNION
                 SELECT DISTINCT unidadeRegistroId FROM dbo.MovimentacaoFolhaPagamento WHERE unidadeRegistroId IS NOT NULL
@@ -177,16 +192,18 @@ def deletar_lote_importacao(
             )
         """
         )
-        unidades_removidas = cursor.rowcount
+        unidades_orfas_removidas = cursor.rowcount
 
-        # 6. Deleta o lote em si
+        # 4. Deleta o lote em si
         cursor.execute("DELETE FROM dbo.ImportacaoLote WHERE id = ?", (lote_id,))
 
-        # 7. Registra log de auditoria
+        # 5. Registra log de auditoria
         detalhes_log = {
             "loteId": lote_id,
             "arquivo": nome_arquivo,
             "linhasApagadas": {
+                "bancos": linhas_bancos,
+                "unidades": linhas_unidades,
                 "regrasPlano": linhas_regras,
                 "planoContas": linhas_plano_contas,
                 "movimentacoes": linhas_movimentacao,
@@ -194,8 +211,8 @@ def deletar_lote_importacao(
             },
             "orfaosLimpos": {
                 "fornecedores": fornecedores_removidos,
-                "bancos": bancos_removidos,
-                "unidades": unidades_removidas,
+                "bancosContas": bancos_contas_removidos,
+                "unidadesOrfas": unidades_orfas_removidas,
             },
         }
 
@@ -212,15 +229,7 @@ def deletar_lote_importacao(
         return {
             "sucesso": True,
             "mensagem": f"Lote '{nome_arquivo}' (ID: {lote_id}) excluído com sucesso!",
-            "detalhes": {
-                "regrasExcluidas": linhas_regras,
-                "planoContas": linhas_plano_contas,
-                "movimentacoesExcluidas": linhas_movimentacao,
-                "folhaExcluida": linhas_folha,
-                "fornecedoresOrfaosRemovidos": fornecedores_removidos,
-                "bancosOrfaosRemovidos": bancos_removidos,
-                "unidadesOrfasRemovidas": unidades_removidas,
-            },
+            "detalhes": detalhes_log["linhasApagadas"],
         }
 
     except HTTPException as http_err:

@@ -12,6 +12,13 @@ from app.security import exigir_perfil, registrar_log
 
 router = APIRouter(prefix="/api", tags=["Exportação"])
 
+# Mapeamento descritivo dos tipos de Unidade para exportação
+TIPOS_UNIDADE_MAP = {
+    1: "Registro",
+    2: "Atuação",
+    3: "Ambos"
+}
+
 @router.get("/exportar-excel/{tabela_alias}")
 def exportar_excel(
     request: Request,
@@ -36,17 +43,21 @@ def exportar_excel(
         config_tabela = TABELAS_PERMITIDAS[tabela_alias_lower]
         query_base = config_tabela["query_customizada"]
 
-        # Define o nome da aba com suporte a Regras_Plano
+        # 1. Definição Dinâmica do Nome da Aba
         nome_aba = config_tabela.get("nome_aba")
         if not nome_aba:
-            if "regra" in tabela_alias_lower or "depara" in tabela_alias_lower:
+            if "banco" in tabela_alias_lower:
+                nome_aba = "MAPA_BANCOS"
+            elif "unidade" in tabela_alias_lower:
+                nome_aba = "MAPA_UNIDADES"
+            elif "regra" in tabela_alias_lower or "depara" in tabela_alias_lower:
                 nome_aba = "Regras_Plano"
             elif "folha" in tabela_alias_lower:
                 nome_aba = "FOLHA_PAGAMENTO"
             else:
                 nome_aba = "BASE_FINANCEIRA"
 
-        # 1. Aplicação do Filtro via Subquery
+        # 2. Aplicação do Filtro via Subquery
         if coluna_filtro and valor_filtro:
             coluna_sanitizada = "".join(
                 c for c in coluna_filtro if c.isalnum() or c in ["_", "."]
@@ -67,7 +78,11 @@ def exportar_excel(
                 detail="Nenhum registro encontrado para exportar.",
             )
 
-        # 2. Filtro de Colunas Solicitadas
+        # 3. Tratamento de Enums / Tipos Específicos
+        if "unidade" in tabela_alias_lower and "tipo" in df.columns:
+            df["tipo"] = df["tipo"].map(lambda x: TIPOS_UNIDADE_MAP.get(x, x))
+
+        # 4. Filtro de Colunas Solicitadas
         if colunas:
             colunas_solicitadas = [
                 c.strip() for c in colunas.split(",") if c.strip()
@@ -76,15 +91,14 @@ def exportar_excel(
             if colunas_validas:
                 df = df[colunas_validas]
 
-        # 2.1 Transformar todos os nomes das colunas para MAIÚSCULO
+        # 4.1 Transformar os nomes das colunas para MAIÚSCULO
         df.columns = [str(col).upper() for col in df.columns]
 
-        # 3. Gerar Excel em memória com formatação de cores e nome da aba personalizado
+        # 5. Gerar Excel em memória com formatação
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name=nome_aba)
             
-            # Acessa a planilha (worksheet) pelo nome configurado
             worksheet = writer.sheets[nome_aba]
 
             fill_header = PatternFill(start_color="35448A", end_color="35448A", fill_type="solid")
@@ -105,7 +119,7 @@ def exportar_excel(
 
         output.seek(0)
 
-        # 4. Log com IP e Detalhes
+        # 6. Log de Auditoria
         registrar_log(
             usuario_id=admin.id,
             acao="EXPORTAR_EXCEL",
@@ -118,7 +132,7 @@ def exportar_excel(
             request=request,
         )
 
-        # 5. Download
+        # 7. Retorno do Download
         nome_download = f"Exportacao_{tabela_alias_lower}.xlsx"
         headers = {
             "Content-Disposition": f'attachment; filename="{nome_download}"'
