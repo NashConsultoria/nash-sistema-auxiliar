@@ -53,6 +53,17 @@ TABELAS_PERMITIDAS = {
         "nome_aba": "PLANO_CONTA",
         "coluna_padrao_id": "id"
     },
+    "banco": {
+            "query_customizada": """
+                SELECT 
+                    id,
+                    codigo,
+                    nome,
+                FROM dbo.Banco
+            """,
+            "nome_aba": "MAPA_BANCOS",
+            "coluna_padrao_id": "id"
+        },
     "planodepara": {
         "query_customizada": """
             SELECT 

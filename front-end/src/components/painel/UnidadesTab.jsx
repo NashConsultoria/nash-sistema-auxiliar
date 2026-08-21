@@ -109,6 +109,11 @@ export default function UnidadesTab({
         return contratantes.map(c => c.nome || c.razaoSocial).filter(Boolean);
     }, [contratantes]);
 
+    const opcoesCnpj = useMemo(() => {
+        const dados = filtrarUnidadesExcecao('cnpj');
+        return Array.from(new Set(dados.map(u => u.cnpj).filter(Boolean)));
+    }, [unidades, filtros, mostrarInativos]);
+
     // Sincroniza o texto do Inputlist com o contratanteId correspondente
     const handleContratanteChange = (valorTexto) => {
         const texto = typeof valorTexto === 'object' ? valorTexto.target?.value || '' : valorTexto;
@@ -145,6 +150,13 @@ export default function UnidadesTab({
             tipo: "inputlist",
             placeholder: "Buscar por Contratante...",
             options: opcoesContratantes
+        },
+        {
+            key: "cnpj",
+            label: "CNPJ",
+            tipo: "inputlist",
+            placeholder: "Buscar por CNPJ...",
+            options: opcoesCnpj
         },
         {
             key: "tipo",
@@ -273,6 +285,15 @@ export default function UnidadesTab({
     };
 
     const colunasUnidades = [
+        {
+            label: "Contratante",
+            key: "contratanteId",
+            width: "18%",
+            Cell: ({ row }) => {
+                const contratante = contratantes.find(c => Number(c.id) === Number(row.contratanteId));
+                return contratante ? (contratante.nome || contratante.razaoSocial) : "-";
+            }
+        },
         {
             label: "Nome Fantasia",
             key: "nome",

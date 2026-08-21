@@ -8,7 +8,7 @@ from app.schemas.usuarios_schema import UsuarioToken
 from app.config import BANCO_AUTENTICACAO
 from app.database import obter_conexao
 from app.security import registrar_log
-from app.utils import normalizar_texto
+from app.utils import normalizar_texto, limpar_e_normalizar
 
 def processar_importacao_plano_contas(
     conteudo_arquivo: bytes, 
@@ -88,13 +88,6 @@ def processar_importacao_plano_contas(
         
         total_linhas = 0
         for _, row in df.iterrows():
-            # Tratamento de 'nan' ou valores vazios para NULL no Banco de Dados
-            def limpar_e_normalizar(val):
-                val_str = str(val).strip()
-                if val_str.lower() in ["nan", "none", "", "null"]:
-                    return None
-                # Normaliza acentos, tira espaços extras e joga para maiúsculo
-                return normalizar_texto(val_str)
 
             plano = limpar_e_normalizar(row["PLANO DE CONTAS"])
             grupo = limpar_e_normalizar(row["GRUPO DE CONTAS"])
@@ -140,6 +133,332 @@ def processar_importacao_plano_contas(
     finally:
         if conexao:
             conexao.close()
+
+def processar_importacao_banco(
+    conteudo_arquivo: bytes, 
+    nome_arquivo: str, 
+    usuario_id: int, 
+    request: Request
+):
+    """
+    Processa o upload do Excel com os Bancos vinculando ao ImportacaoLote.
+    Aba esperada: 'MAPA_BANCOS'
+    Colunas esperadas: CODIGO, BANCO
+    """
+    conexao = None
+    try:
+        buffer = io.BytesIO(conteudo_arquivo)
+                
+        try:
+            df = pd.read_excel(buffer, sheet_name='MAPA_BANCOS', dtype=str)
+        except Exception:
+            buffer.seek(0)
+            df = pd.read_excel(buffer)
+
+        # Padroniza nomes das colunas (Remove espaços, hífen e converte para maiúsculo)
+        df.columns = [str(col).strip().upper().replace("-", "") for col in df.columns]
+
+        # 1. Validação de Colunas Obrigatórias
+        colunas_necessarias = ["CODIGO", "BANCO"]
+        for col in colunas_necessarias:
+            if col not in df.columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Coluna obrigatória '{col}' não foi encontrada na planilha."
+                )
+
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
+        cursor = conexao.cursor()
+
+        # 2. Gestão do Lote de Importação
+        cursor.execute("""
+            SELECT id FROM dbo.ImportacaoLote 
+            WHERE nomeArquivo = ?
+        """, (nome_arquivo,))
+        lote_existente = cursor.fetchone()
+
+        if lote_existente:
+            lote_id = lote_existente[0]
+            cursor.execute("UPDATE dbo.ImportacaoLote SET criadoEm = GETDATE() WHERE id = ?", (lote_id,))
+        else:
+            cursor.execute("""
+                INSERT INTO dbo.ImportacaoLote (nomeArquivo, contratanteId, criadoEm) 
+                OUTPUT INSERTED.id
+                VALUES (?, NULL, GETDATE())
+            """, (nome_arquivo,))
+            
+            row_lote = cursor.fetchone()
+            if not row_lote or row_lote[0] is None:
+                raise HTTPException(status_code=500, detail="Não foi possível gerar o ID do Lote de Importação.")
+            
+            lote_id = int(row_lote[0])
+
+        # 3. Limpa os registros anteriores de bancos atrelados a este lote
+        cursor.execute("DELETE FROM dbo.Banco WHERE importacaoLoteId = ?", (lote_id,))
+
+        total_linhas = 0
+        erros_validacao = []
+
+        # Query utilizando MERGE (Upsert) para inserir ou atualizar o nome/status caso o código do banco já exista
+        query_upsert = """
+            MERGE dbo.Banco AS target
+            USING (SELECT ? AS codigo, ? AS nome, ? AS importacaoLoteId) AS source
+            ON (target.codigo = source.codigo)
+            WHEN MATCHED THEN
+                UPDATE SET target.nome = source.nome, 
+                           target.status = 1, 
+                           target.importacaoLoteId = source.importacaoLoteId
+            WHEN NOT MATCHED THEN
+                INSERT (codigo, nome, status, importacaoLoteId)
+                VALUES (source.codigo, source.nome, 1, source.importacaoLoteId);
+        """
+
+        # 4. Processamento das Linhas do DataFrame
+        for idx, row in df.iterrows():
+            linha_num = idx + 2  # Considera o cabeçalho como linha 1
+
+            val_codigo = limpar_e_normalizar(row["CODIGO"])
+            val_banco = limpar_e_normalizar(row["BANCO"])
+
+            # Validações dos campos obrigatórios por linha
+            if not val_codigo:
+                erros_validacao.append(f"Linha {linha_num}: 'CODIGO' é obrigatório.")
+                continue
+            if not val_banco:
+                erros_validacao.append(f"Linha {linha_num}: 'BANCO' é obrigatório.")
+                continue
+
+            # Executa a inserção / atualização
+            cursor.execute(query_upsert, (val_codigo, val_banco, lote_id))
+            total_linhas += 1
+
+        # Interrompe o processo e desfaz as alterações caso existam erros de validação
+        if erros_validacao:
+            conexao.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail={"mensagem": "Erros de validação encontrados no arquivo.", "erros": erros_validacao}
+            )
+
+        # 5. Log de Auditoria
+        registrar_log(
+            usuario_id=usuario_id,
+            acao="IMPORTAR_MAPA_BANCOS",
+            tabela="Banco",
+            detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
+            request=request
+        )
+
+        conexao.commit()
+
+        return {
+            "sucesso": True,
+            "tipo": "mapa_bancos",
+            "lote_id": lote_id,
+            "mensagem": f"Mapa de Bancos importado com sucesso no Lote #{lote_id}! ({total_linhas} registros)",
+            "total_registros": total_linhas
+        }
+
+    except HTTPException as http_err:
+        if conexao:
+            conexao.rollback()
+        raise http_err
+    except Exception as e:
+        if conexao:
+            conexao.rollback()
+        print(f"[ERRO AO IMPORTAR MAPA BANCOS]: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo do Mapa de Bancos: {str(e)}")
+    finally:
+        if conexao:
+            conexao.close()
+
+def processar_importacao_unidade(
+    conteudo_arquivo: bytes, 
+    nome_arquivo: str, 
+    usuario_id: int, 
+    request: Request
+):
+    """
+    Processa o upload do Excel com as Unidades vinculando ao ImportacaoLote.
+    Aba esperada: 'MAPA_UNIDADES'
+    Colunas esperadas: CONTRATANTE, NOME, RAZAO SOCIAL, CNPJ, TIPO
+    """
+    conexao = None
+    try:
+        buffer = io.BytesIO(conteudo_arquivo)
+                
+        try:
+            df = pd.read_excel(buffer, sheet_name='MAPA_UNIDADES', dtype=str)
+        except Exception:
+            buffer.seek(0)
+            df = pd.read_excel(buffer, dtype=str)
+
+        # Padroniza nomes das colunas (Remove espaços, hífen e converte para maiúsculo)
+        df.columns = [str(col).strip().upper().replace("-", "") for col in df.columns]
+
+        # 1. Validação de Colunas Obrigatórias
+        colunas_necessarias = ["CONTRATANTE", "NOME", "RAZAO SOCIAL", "CNPJ", "TIPO"]
+        for col in colunas_necessarias:
+            if col not in df.columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Coluna obrigatória '{col}' não foi encontrada na planilha."
+                )
+
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
+        cursor = conexao.cursor()
+
+        # 2. Mapeamento de Contratantes (Busca todos do BD para validação rápida)
+        cursor.execute("SELECT id, UPPER(nome), UPPER(razaoSocial) FROM dbo.Contratante")
+        mapa_contratantes = {}
+        for row in cursor.fetchall():
+            c_id, c_nome, c_razao = row[0], row[1], row[2]
+            if c_nome:
+                mapa_contratantes[c_nome.strip()] = c_id
+            if c_razao:
+                mapa_contratantes[c_razao.strip()] = c_id
+
+        # 3. Gestão do Lote de Importação
+        cursor.execute("""
+            SELECT id FROM dbo.ImportacaoLote 
+            WHERE nomeArquivo = ?
+        """, (nome_arquivo,))
+        lote_existente = cursor.fetchone()
+
+        if lote_existente:
+            lote_id = lote_existente[0]
+            cursor.execute("UPDATE dbo.ImportacaoLote SET criadoEm = GETDATE() WHERE id = ?", (lote_id,))
+        else:
+            cursor.execute("""
+                INSERT INTO dbo.ImportacaoLote (nomeArquivo, contratanteId, criadoEm) 
+                OUTPUT INSERTED.id
+                VALUES (?, NULL, GETDATE())
+            """, (nome_arquivo,))
+            
+            row_lote = cursor.fetchone()
+            if not row_lote or row_lote[0] is None:
+                raise HTTPException(status_code=500, detail="Não foi possível gerar o ID do Lote de Importação.")
+            
+            lote_id = int(row_lote[0])
+
+        # 4. Limpa as unidades anteriores atreladas a este lote
+        cursor.execute("DELETE FROM dbo.Unidade WHERE importacaoLoteId = ?", (lote_id,))
+
+        def limpar_campo(val):
+            if pd.isna(val):
+                return None
+            val_str = str(val).strip()
+            if val_str.endswith(".0"):
+                val_str = val_str[:-2]
+            if val_str.lower() in ["nan", "none", "", "null"]:
+                return None
+            return val_str
+
+        def mapear_tipo(tipo_str):
+            if not tipo_str:
+                return 1  # Valor default (1 - Registro)
+            t = tipo_str.strip().lower()
+            if t in ["1", "registro"]:
+                return 1
+            elif t in ["2", "atuacao", "atuação"]:
+                return 2
+            elif t in ["3", "ambos"]:
+                return 3
+            return 1
+
+        total_linhas = 0
+        erros_validacao = []
+
+        # Query MERGE baseada no campo NOME (único)
+        query_upsert = """
+            MERGE dbo.Unidade AS target
+            USING (SELECT ? AS nome, ? AS razaoSocial, ? AS cnpj, ? AS contratanteId, ? AS tipo, ? AS importacaoLoteId) AS source
+            ON (UPPER(target.nome) = UPPER(source.nome))
+            WHEN MATCHED THEN
+                UPDATE SET target.razaoSocial = source.razaoSocial, 
+                           target.cnpj = source.cnpj, 
+                           target.contratanteId = source.contratanteId, 
+                           target.tipo = source.tipo, 
+                           target.status = 1, 
+                           target.importacaoLoteId = source.importacaoLoteId
+            WHEN NOT MATCHED THEN
+                INSERT (nome, razaoSocial, cnpj, contratanteId, tipo, status, importacaoLoteId)
+                VALUES (source.nome, source.razaoSocial, source.cnpj, source.contratanteId, source.tipo, 1, source.importacaoLoteId);
+        """
+
+        # 5. Processamento das Linhas do DataFrame
+        for idx, row in df.iterrows():
+            linha_num = idx + 2  # Cabeçalho na linha 1
+
+            val_contratante = limpar_campo(row["CONTRATANTE"])
+            val_nome = limpar_campo(row["NOME"])
+            val_razao = limpar_campo(row["RAZAO SOCIAL"])
+            val_cnpj = limpar_campo(row["CNPJ"])
+            val_tipo_raw = limpar_campo(row["TIPO"])
+
+            # Validações dos campos obrigatórios
+            if not val_nome:
+                erros_validacao.append(f"Linha {linha_num}: 'NOME' da unidade é obrigatório.")
+                continue
+
+            if not val_contratante:
+                erros_validacao.append(f"Linha {linha_num}: 'CONTRATANTE' é obrigatório.")
+                continue
+
+            # Valida existência do Contratante no mapa
+            contratante_id = mapa_contratantes.get(val_contratante.upper())
+            if not contratante_id:
+                erros_validacao.append(f"Linha {linha_num}: Contratante '{val_contratante}' não foi encontrado no sistema.")
+                continue
+
+            val_tipo = mapear_tipo(val_tipo_raw)
+
+            # Executa Inserção ou Atualização
+            cursor.execute(query_upsert, (val_nome, val_razao, val_cnpj, contratante_id, val_tipo, lote_id))
+            total_linhas += 1
+
+        # Interrompe o processo e desfaz as alterações caso existam erros de validação
+        if erros_validacao:
+            conexao.rollback()
+            # Unifica os erros em uma mensagem legível com quebras de linha
+            mensagem_erro = "Erros de validação encontrados:\n" + "\n".join(erros_validacao)
+            raise HTTPException(
+                status_code=400,
+                detail=mensagem_erro
+            )
+
+        # 6. Log de Auditoria
+        registrar_log(
+            usuario_id=usuario_id,
+            acao="IMPORTAR_MAPA_UNIDADES",
+            tabela="Unidade",
+            detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
+            request=request
+        )
+
+        conexao.commit()
+
+        return {
+            "sucesso": True,
+            "tipo": "mapa_unidades",
+            "lote_id": lote_id,
+            "mensagem": f"Mapa de Unidades importado com sucesso no Lote #{lote_id}! ({total_linhas} registros)",
+            "total_registros": total_linhas
+        }
+
+    except HTTPException as http_err:
+        if conexao:
+            conexao.rollback()
+        raise http_err
+    except Exception as e:
+        if conexao:
+            conexao.rollback()
+        print(f"[ERRO AO IMPORTAR MAPA UNIDADES]: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo do Mapa de Unidades: {str(e)}")
+    finally:
+        if conexao:
+            conexao.close()
+
 
 def processar_importacao_regra_plano(
     conteudo_arquivo: bytes, 
@@ -223,12 +542,6 @@ def processar_importacao_regra_plano(
             (contratanteId, unidadeId, bancoId, termoDescricao, termoTipo, termoFornecedor, planoContaId, importacaoLoteId)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
-
-        def limpar_e_normalizar(val):
-            val_str = str(val).strip()
-            if val_str.lower() in ["nan", "none", "", "null"]:
-                return None
-            return normalizar_texto(val_str)
 
         total_linhas = 0
         erros_validacao = []

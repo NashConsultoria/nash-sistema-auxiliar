@@ -10,6 +10,14 @@ use NashBancoConsultoria
 --						Criando Tabelas
 ---------------------------------------------------------------------------------
 
+create table ImportacaoLote
+(
+	id					int					not null		primary key		identity,
+	nomeArquivo			varchar(255)		not null,
+	contratanteId		int						null,
+	criadoEm			datetime							default			getdate()
+)
+
 create table Contratante
 (
 	id					int					not null		primary key		identity,
@@ -26,8 +34,11 @@ create table Unidade
 	cnpj				varchar(20)				null,
 	contratanteId		int					not null,
 	tipo				int					not null		default 1,		-- 1.Registro, 2.Atuação, 3.Ambos
-	status				int					not null		default 1		-- 1.Ativo, 2.Inativo
+	status				int					not null		default 1,		-- 1.Ativo, 2.Inativo
+	importacaoLoteId	int,
+
 	foreign key (contratanteId)				references Contratante(id),
+	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
 create table Banco
@@ -35,7 +46,10 @@ create table Banco
 	id					int					not null		primary key		identity,
 	codigo				varchar(10)			not null		unique,
 	nome				varchar(255)		not null,
-	status				int					not null		default 1		-- 1.Ativo, 2.Inativo
+	status				int					not null		default 1,		-- 1.Ativo, 2.Inativo
+	importacaoLoteId	int,
+
+	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
 create table BancoConta
@@ -56,14 +70,6 @@ create table Fornecedor
     cpf_cnpj			varchar(50)				null,
     CONSTRAINT UC_Fornecedor				unique (cpf_cnpj, nome)			-- Evita cadastrar o mesmo cara duas vezes
 );
-
-create table ImportacaoLote
-(
-	id					int					not null		primary key		identity,
-	nomeArquivo			varchar(255)		not null,
-	contratanteId		int						null,
-	criadoEm			datetime							default			getdate()
-)
 
 create table PlanoContas
 (

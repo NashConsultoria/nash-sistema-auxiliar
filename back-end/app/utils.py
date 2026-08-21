@@ -48,6 +48,30 @@ def corrigir_encoding(texto: str) -> str:
     except (UnicodeEncodeError, UnicodeDecodeError):
         # Se falhar ou o texto já estiver correto, retorna o texto original
         return texto
+
+def limpar_e_normalizar(val, apenas_limpar=True):
+    if pd.isna(val) or val is None:
+        return None
+    
+    val_str = str(val).strip()
+    
+    # 1. Trata os sufixos decimais do Excel (.0)
+    if val_str.endswith(".0"):
+        val_str = val_str[:-2]
+        
+    # 2. Avalia se o texto é uma representação de valor nulo
+    if val_str.lower() in ["nan", "none", "", "null"]:
+        return None
+        
+    # 3. Corrige acentuação quebrada se houver
+    val_str = corrigir_encoding(val_str)
+    
+    # Se quiser apenas sanitizar mantendo o texto original (ex: para gravar no Banco)
+    if apenas_limpar:
+        return val_str
+        
+    # Se quiser normalizar completamente (remover acentos e colocar em caixa alta)
+    return normalizar_texto(val_str)
     
 def obter_ordem_efolha(nome_efolha: str) -> int:
     """
