@@ -84,7 +84,7 @@ TABELAS_PERMITIDAS = {
                 p.importacaoLoteId, 
                 c.nome AS [CONTRATANTE], 
                 u.nome AS [UNIDADE], 
-                b.banco AS [BANCO], 
+                b.nome AS [BANCO],
                 p.termoDescricao AS [DESCRICAO], 
                 p.termoTipo AS [TIPO],
                 p.termoFornecedor AS [FORNECEDOR], 

@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from app.config import MAPA_BANCOS, REGRAS_FORNECEDORES, PALAVRAS_REMOVIDAS
+from app.config import BANCO_AUTENTICACAO, REGRAS_FORNECEDORES, PALAVRAS_REMOVIDAS
 from app.database import obter_conexao
 from app.utils import corrigir_encoding
 
@@ -77,11 +77,12 @@ def aplicar_plano_conta(linhas_extrato: list, banco: str, contratante_id: Option
         except Exception as e:
             print(f"Aviso: Erro ao buscar nome do contratante: {e}")
 
-        # 2. Busca as regras ativas de DE/PARA com os dados do PlanoContas
+        # 2. Busca as regras ativas incluindo o termoTipo
         query_regras = """
             SELECT 
                 p.termoDescricao,
                 p.termoFornecedor,
+                p.termoTipo,
                 pc.planoConta,
                 pc.grupoConta,
                 pc.edre
@@ -98,13 +99,22 @@ def aplicar_plano_conta(linhas_extrato: list, banco: str, contratante_id: Option
         linha["contratante"] = nome_contratante
 
         desc = (linha.get("descricao") or "").upper().strip()
-        forn = (linha.get("fornecedor") or "").upper().strip()
+        forn = (
+            linha.get("fornecedor")
+            or linha.get("fornecedores")
+            or ""
+        ).upper().strip()
+        
+        tipo_linha = (linha.get("tipo") or "").upper().strip() # Pega o tipo da transação (PAGAMENTO / RECEBIMENTO)
 
-        for t_desc, t_forn, p_conta, g_conta, edre in regras:
+        for t_desc, t_forn, t_tipo, p_conta, g_conta, edre in regras:
             match_desc = True if not t_desc else (t_desc.upper() in desc)
             match_forn = True if not t_forn else (t_forn.upper() in forn)
+            
+            # Valida o tipo se ele estiver preenchido na regra
+            match_tipo = True if not t_tipo else (t_tipo.upper() == tipo_linha)
 
-            if match_desc and match_forn:
+            if match_desc and match_forn and match_tipo:
                 linha["planoConta"] = p_conta or ""
                 linha["grupoConta"] = g_conta or ""
                 linha["edre"] = edre or ""
@@ -116,20 +126,50 @@ def aplicar_plano_conta(linhas_extrato: list, banco: str, contratante_id: Option
 # PARSER OFX E ROTEADOR
 # ==============================================================================
 
-def processar_ofx(conteudo_texto: str) -> list:
-    bankid_match = re.search(r"<BANKID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
-    if bankid_match:
-        banco_codigo = bankid_match.group(1).strip().lstrip("0")
-        banco_val = MAPA_BANCOS.get(banco_codigo) or MAPA_BANCOS.get(banco_codigo.zfill(3)) or banco_codigo.upper()
-    else:
-        banco_val = "DESCONHECIDO"
+def processar_ofx(conteudo_texto: str, conexao) -> list:
+    """
+    Processa o conteúdo do arquivo OFX e valida se o banco extraído existe na dbo.Banco.
+    """
+    cursor = conexao.cursor()
 
+    # 1. Carrega o mapeamento de Bancos do banco de dados (chave: codigo sem zeros, valor: nome)
+    cursor.execute("SELECT codigo, nome FROM dbo.Banco WHERE codigo IS NOT NULL")
+    mapa_bancos_db = {}
+    for row in cursor.fetchall():
+        cod_db, nome_db = row[0], row[1]
+        if cod_db:
+            mapa_bancos_db[str(cod_db).strip().lstrip("0")] = nome_db.strip()
+
+    # 2. Extração do código do Banco no OFX
+    bankid_match = re.search(r"<BANKID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
+    
+    if not bankid_match or not bankid_match.group(1).strip():
+        raise HTTPException(
+            status_code=400, 
+            detail="Arquivo OFX inválido: Tag <BANKID> não encontrada."
+        )
+
+    banco_codigo_raw = bankid_match.group(1).strip()
+    banco_codigo_limpo = banco_codigo_raw.lstrip("0")
+
+    # 3. Busca o nome do banco no banco de dados pelo código
+    banco_val = mapa_bancos_db.get(banco_codigo_limpo)
+
+    # Bloqueia a importação caso o banco não esteja cadastrado na dbo.Banco
+    if not banco_val:
+        raise HTTPException(
+            status_code=400,
+            detail=f"O banco com código '{banco_codigo_raw}' informado no OFX não está cadastrado no sistema."
+        )
+
+    # Extração de Agência e Conta
     agencia_match = re.search(r"<BRANCHID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
     conta_match = re.search(r"<ACCTID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
 
     agencia_val = agencia_match.group(1).strip() if agencia_match else ""
     conta_val = conta_match.group(1).strip() if conta_match else ""
 
+    # Leitura dos blocos de transação
     blocos_transacao = re.findall(r"<STMTTRN>(.*?)</STMTTRN>", conteudo_texto, re.DOTALL | re.IGNORECASE)
     if not blocos_transacao:
         blocos_transacao = re.findall(r"<TRN>(.*?)</TRN>", conteudo_texto, re.DOTALL | re.IGNORECASE)
@@ -163,16 +203,12 @@ def processar_ofx(conteudo_texto: str) -> list:
 
         fornecedor_val = identificar_fornecedor(descricao_original, banco_val)
 
-        # ==========================================================
-        # DETERMINAÇÃO INTELIGENTE DO TIPO DE TRANSAÇÃO
-        # ==========================================================
+        # Determinação do Tipo
         desc_lower = descricao_original.lower()
         forn_lower = (fornecedor_val or "").lower()
 
-        # 1. Verifica se é Saldo pela Descrição ou Fornecedor
         if "saldo" in desc_lower or "saldo" in forn_lower:
             tipo = "SALDO"
-        # 2. Se não for saldo, valida pelo valor numérico
         elif valor < 0:
             tipo = "PAGAMENTO"
         else:
@@ -198,8 +234,7 @@ def processar_ofx(conteudo_texto: str) -> list:
 
     return transacoes_dados
 
-
-def processar_arquivo(file: UploadFile, conteudo_bytes: bytes) -> list:
+def processar_arquivo(file: UploadFile, conteudo_bytes: bytes, banco: str) -> list:
     filename_lower = file.filename.lower()
 
     if filename_lower.endswith(".ofx"):
@@ -212,7 +247,13 @@ def processar_arquivo(file: UploadFile, conteudo_bytes: bytes) -> list:
                 continue
         if not conteudo_texto:
             raise HTTPException(status_code=400, detail="Não foi possível decodificar o arquivo OFX.")
-        return processar_ofx(conteudo_texto)
+        
+        # Abre a conexão e passa para o processador do OFX
+        conexao = obter_conexao(banco)
+        try:
+            return processar_ofx(conteudo_texto, conexao)
+        finally:
+            conexao.close() # Garante que a conexão seja fechada
 
     elif filename_lower.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="O processamento de arquivos PDF estará disponível em breve.")
@@ -270,11 +311,10 @@ async def converter_preview(
     banco: str = Form("NashBancoConsultoria")
 ):
     conteudo_bytes = await file.read()
-    transacoes = processar_arquivo(file, conteudo_bytes)
+    # Passa o 'banco' aqui para abrir a conexão
+    transacoes = processar_arquivo(file, conteudo_bytes, banco) 
     
-    # Aplica as regras e preenche Contratante + Plano de Contas no Preview
     transacoes = aplicar_plano_conta(transacoes, banco, contratante_id=contratanteId)
-    
     return {"transacoes": transacoes}
 
 
@@ -286,7 +326,7 @@ async def converter_download(
 ):
     try:
         conteudo_bytes = await file.read()
-        transacoes = processar_arquivo(file, conteudo_bytes)
+        transacoes = processar_arquivo(file, conteudo_bytes, banco)
 
         if not transacoes:
             raise HTTPException(status_code=400, detail="Nenhuma transação encontrada no arquivo.")

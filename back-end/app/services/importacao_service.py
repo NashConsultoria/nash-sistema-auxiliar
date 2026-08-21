@@ -503,7 +503,7 @@ def processar_importacao_regra_plano(
         cursor.execute("SELECT id, LOWER(nome) FROM dbo.Unidade WHERE nome IS NOT NULL")
         map_unidades = {row[1].strip(): row[0] for row in cursor.fetchall()}
 
-        cursor.execute("SELECT id, LOWER(banco) FROM dbo.BancoConta WHERE banco IS NOT NULL")
+        cursor.execute("SELECT id, LOWER(nome) FROM dbo.Banco WHERE nome IS NOT NULL")
         map_bancos = {row[1].strip(): row[0] for row in cursor.fetchall()}
 
         # Normaliza a chave da tabela do banco exatamente como é feito na planilha
@@ -582,6 +582,7 @@ def processar_importacao_regra_plano(
                     erros_validacao.append(f"Linha {linha_num}: Contratante '{val_contratante}' não encontrado.")
                     continue
 
+            # Validação da existencia da Unidade
             unidade_id = None
             if val_unidade:
                 unidade_id = map_unidades.get(val_unidade.lower())
@@ -589,22 +590,13 @@ def processar_importacao_regra_plano(
                     erros_validacao.append(f"Linha {linha_num}: Unidade '{val_unidade}' não encontrada.")
                     continue
 
+            # Validação da existencia do Banco
             banco_id = None
             if val_banco:
-                banco_chave = val_banco.lower()
-                banco_id = map_bancos.get(banco_chave)
-
-                # Se o banco não for encontrado na memória nem no banco de dados, insere automaticamente
+                banco_id = map_bancos.get(val_banco.lower())
                 if banco_id is None:
-                    nome_banco_formatado = str(row["BANCO"]).strip()
-                    cursor.execute(
-                        "INSERT INTO dbo.BancoConta (banco) OUTPUT INSERTED.id VALUES (?)",
-                        (nome_banco_formatado,)
-                    )
-                    banco_id = int(cursor.fetchone()[0])
-                    
-                    # Atualiza o dicionário em memória para reaproveitar nas próximas linhas da mesma planilha
-                    map_bancos[banco_chave] = banco_id
+                    erros_validacao.append(f"Linha {linha_num}: Banco '{val_banco}' não está cadastrado no sistema.")
+                    continue
 
             cursor.execute(query_insert, (
                 contratante_id,

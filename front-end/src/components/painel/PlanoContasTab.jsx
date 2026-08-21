@@ -9,10 +9,6 @@ import { API_BASE } from "../../context/AuthContext";
 const estiloCarregando = { textAlign: "center", padding: "20px", color: "#94a3b8" };
 
 export default function PlanoContasTab({ token, banco }) {
-    // ==========================================================
-    // ESTADOS
-    // ==========================================================
-
     // Filtros da tabela de Regras
     const [filtrosRegra, setFiltrosRegra] = useState({
         contratante: '',
@@ -304,24 +300,26 @@ export default function PlanoContasTab({ token, banco }) {
         try {
             const headers = { Authorization: `Bearer ${token}` };
 
+            // Contratantes
             const resCont = await fetch(`${API_BASE}/api/contratantes`, { headers });
             if (resCont.ok) {
                 const dadosCont = await resCont.json();
                 setContratantes(Array.isArray(dadosCont) ? dadosCont : dadosCont.dados || []);
             }
 
-            // TODO: habilitar quando as APIs de unidades e bancos estiverem disponíveis
-            // const resUni = await fetch(`${API_BASE}/api/${banco}/unidades`, { headers });
-            // if (resUni.ok) {
-            //     const dadosUni = await resUni.json();
-            //     setUnidades(Array.isArray(dadosUni) ? dadosUni : dadosUni.dados || []);
-            // }
-            //
-            // const resBanc = await fetch(`${API_BASE}/api/${banco}/bancos`, { headers });
-            // if (resBanc.ok) {
-            //     const dadosBanc = await resBanc.json();
-            //     setBancos(Array.isArray(dadosBanc) ? dadosBanc : dadosBanc.dados || []);
-            // }
+            // Unidades (AJUSTADO E HABILITADO)
+            const resUni = await fetch(`${API_BASE}/api/unidades`, { headers });
+            if (resUni.ok) {
+                const dadosUni = await resUni.json();
+                setUnidades(Array.isArray(dadosUni) ? dadosUni : dadosUni.dados || []);
+            }
+
+            // Bancos (AJUSTADO E HABILITADO)
+            const resBanc = await fetch(`${API_BASE}/api/bancos`, { headers });
+            if (resBanc.ok) {
+                const dadosBanc = await resBanc.json();
+                setBancos(Array.isArray(dadosBanc) ? dadosBanc : dadosBanc.dados || []);
+            }
         } catch (err) {
             console.error("Erro ao carregar listas auxiliares:", err);
         }
@@ -411,7 +409,7 @@ export default function PlanoContasTab({ token, banco }) {
         if (bancoTexto && bancoTexto.trim() !== '') {
             const textoBanc = bancoTexto.trim().toLowerCase();
             const bancoEncontrado = bancos.find(b =>
-                String(b.banco || b.descricao || b.nome || "").trim().toLowerCase() === textoBanc
+                String(b.nome || b.codigo || "").trim().toLowerCase() === textoBanc
             );
 
             if (!bancoEncontrado) {
@@ -560,10 +558,16 @@ export default function PlanoContasTab({ token, banco }) {
         {
             label: "Ações",
             key: "acoes",
-            width: "10%",
-            style: { textAlign: "center" },
+            width: "120px", // É recomendável usar largura fixa em px quando a coluna é sticky
+            style: { 
+                textAlign: "center",
+                position: "sticky",
+                right: 0,
+                zIndex: 2,
+                boxShadow: "-2px 0 5px rgba(0,0,0,0.05)" // Opcional: efeito visual de sombra no limite do scroll
+            },
             Cell: ({ row }) => (
-                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
                     <Button onClick={() => handleEditarRegra(row)}>
                         Editar
                     </Button>
@@ -653,7 +657,7 @@ export default function PlanoContasTab({ token, banco }) {
                                     value={unidadeTexto}
                                     onChange={(e) => setUnidadeTexto(e.target.value)}
                                     options={unidades}
-                                    valueKey={(u) => u.nome || u.descricao || ""}
+                                    valueKey={(u) => u.nome || u.razaoSocial || ""}
                                 />
                             </div>
 
@@ -666,7 +670,7 @@ export default function PlanoContasTab({ token, banco }) {
                                     value={bancoTexto}
                                     onChange={(e) => setBancoTexto(e.target.value)}
                                     options={bancos}
-                                    valueKey={(b) => b.banco || b.descricao || b.nome || ""}
+                                    valueKey={(b) => b.nome || b.codigo || ""}
                                 />
                             </div>
 

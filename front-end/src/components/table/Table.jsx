@@ -1,7 +1,6 @@
 import "./Table.css"; 
 
 export default function Table({ columns = [], data = [], getRowClassName }) {
-    // 1. Evita quebrar o layout se nenhuma coluna for fornecida
     if (columns.length === 0) {
         return <p style={{ padding: "16px", textAlign: "center", color: "#64748b" }}>Nenhuma coluna configurada.</p>;
     }
@@ -12,14 +11,29 @@ export default function Table({ columns = [], data = [], getRowClassName }) {
                 <thead>
                     <tr>
                         {columns.map((col, idx) => {
-                            // Define a classe de alinhamento de forma limpa
                             const alignClass = col.style?.textAlign === "right" ? "text-right" : 
                                                col.style?.textAlign === "center" ? "text-center" : "text-left";
+                            
+                            // Se a coluna for sticky, garante background apropriado para o cabeçalho
+                            const isSticky = col.style?.position === "sticky";
+
+                            const headerStyle = {
+                                width: col.width,
+                                ...col.style,
+                                ...(isSticky ? { 
+                                    position: "sticky",
+                                    top: 0,                           // Garante a fixação vertical no topo
+                                    right: 0,                         // Garante a fixação horizontal à direita
+                                    backgroundColor: "var(--bg-color1)", // Mantém o fundo azul do cabeçalho
+                                    zIndex: 3                         // Fica acima das células da tabela (que usam zIndex: 2)
+                                } : {})
+                            };
+
                             return (
                                 <th 
                                     key={col.key || col.id || idx} 
                                     className={alignClass}
-                                    style={{ width: col.width }}
+                                    style={headerStyle}
                                 >
                                     {col.label}
                                 </th>
@@ -28,7 +42,6 @@ export default function Table({ columns = [], data = [], getRowClassName }) {
                     </tr>
                 </thead>
                 <tbody>
-                    {/* 2. Tratamento para lista vazia aproveitado do componente antigo */}
                     {data.length === 0 ? (
                         <tr>
                             <td colSpan={columns.length} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
@@ -45,12 +58,20 @@ export default function Table({ columns = [], data = [], getRowClassName }) {
                                         const value = row[col.key];
                                         const alignClass = col.style?.textAlign === "right" ? "text-right" : 
                                                            col.style?.textAlign === "center" ? "text-center" : "text-left";
+                                        
+                                        // Se a coluna for sticky, herda a cor exata da linha atual (preserva zebrado e hover)
+                                        const isSticky = col.style?.position === "sticky";
+                                        const cellStyle = {
+                                            ...col.style,
+                                            ...(isSticky ? { backgroundColor: "inherit" } : {})
+                                        };
+
                                         return (
                                             <td 
                                                 key={col.key || col.id || colIdx} 
                                                 className={alignClass}
+                                                style={cellStyle}
                                             >
-                                                {/* Mantém o poderoso recurso de renderização customizada ou fallback de string */}
                                                 {col.Cell ? col.Cell({ row, value }) : (value ?? "-")}
                                             </td>
                                         );

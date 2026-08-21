@@ -41,14 +41,14 @@ async def obter_regras_planocontas(
                 pdp.unidadeId,
                 u.nome AS unidadeNome,
                 pdp.bancoId,
-                b.banco AS bancoNome,
+                b.nome AS bancoNome,
                 pc.planoConta AS destino,
                 pc.grupoConta
             FROM PlanoDePara pdp
             INNER JOIN PlanoContas pc ON pdp.planoContaId = pc.id
             LEFT JOIN Contratante c ON pdp.contratanteId = c.id
             LEFT JOIN Unidade u ON pdp.unidadeId = u.id
-            LEFT JOIN BancoConta b ON pdp.bancoId = b.id
+            LEFT JOIN Banco b ON pdp.bancoId = b.id
             ORDER BY pdp.id DESC
         """
         dados = executar_query(sql, banco=banco)
