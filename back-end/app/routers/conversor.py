@@ -169,6 +169,28 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
     agencia_val = agencia_match.group(1).strip() if agencia_match else ""
     conta_val = conta_match.group(1).strip() if conta_match else ""
 
+    unidade_val = ""
+    contratante_val = ""
+
+    if banco_codigo_limpo and agencia_val and conta_val:
+        cursor.execute(
+            """
+            SELECT u.nome AS unidade_nome, c.nome AS contratante_nome
+            FROM dbo.BancoConta bc
+            INNER JOIN dbo.Banco b ON bc.bancoId = b.id
+            INNER JOIN dbo.Unidade u ON u.bancoContaId = bc.id
+            LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
+            WHERE LTRIM(RTRIM(REPLACE(b.codigo, '0', ''))) = ?
+              AND LTRIM(RTRIM(bc.agencia)) = ?
+              AND LTRIM(RTRIM(bc.conta)) = ?
+            """,
+            (banco_codigo_limpo, agencia_val, conta_val)
+        )
+        row_unidade = cursor.fetchone()
+        if row_unidade:
+            unidade_val = row_unidade[0] or ""
+            contratante_val = row_unidade[1] or ""
+
     # Leitura dos blocos de transação
     blocos_transacao = re.findall(r"<STMTTRN>(.*?)</STMTTRN>", conteudo_texto, re.DOTALL | re.IGNORECASE)
     if not blocos_transacao:
@@ -215,8 +237,8 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
             tipo = "RECEBIMENTO"
 
         transacoes_dados.append({
-            "contratante": "",
-            "unidade": "",
+            "contratante": contratante_val,
+            "unidade": unidade_val,
             "banco": banco_val,
             "agencia": agencia_val,
             "conta": conta_val,

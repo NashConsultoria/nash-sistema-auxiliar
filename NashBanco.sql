@@ -18,29 +18,6 @@ create table ImportacaoLote
 	criadoEm			datetime							default			getdate()
 )
 
-create table Contratante
-(
-	id					int					not null		primary key		identity,
-	nome				varchar(255)		not null		unique,
-	razaoSocial			varchar(255)			null,
-	status				int					not null		default 1		-- 1.Ativo, 2.Inativo
-)
-
-create table Unidade
-(
-	id					int					not null		primary key		identity,
-	nome				varchar(255)		not null		unique,
-	razaoSocial			varchar(255)			null,
-	cnpj				varchar(20)				null,
-	contratanteId		int					not null,
-	tipo				int					not null		default 1,		-- 1.Registro, 2.Atuação, 3.Ambos
-	status				int					not null		default 1,		-- 1.Ativo, 2.Inativo
-	importacaoLoteId	int,
-
-	foreign key (contratanteId)				references Contratante(id),
-	foreign key (importacaoLoteId)			references ImportacaoLote(id)
-)
-
 create table Banco
 (
 	id					int					not null		primary key		identity,
@@ -61,6 +38,31 @@ create table BancoConta
 
 	foreign key (bancoId)					references Banco(id),
 	constraint UC_BancoConta				unique (bancoId, agencia, conta),
+)
+
+create table Contratante
+(
+	id					int					not null		primary key		identity,
+	nome				varchar(255)		not null		unique,
+	razaoSocial			varchar(255)			null,
+	status				int					not null		default 1		-- 1.Ativo, 2.Inativo
+)
+
+create table Unidade
+(
+	id					int					not null		primary key		identity,
+	nome				varchar(255)		not null		unique,
+	razaoSocial			varchar(255)			null,
+	cnpj				varchar(20)				null,
+	contratanteId		int					not null,
+	bancoContaId		int						null,
+	tipo				int					not null		default 1,		-- 1.Registro, 2.Atuação, 3.Ambos
+	status				int					not null		default 1,		-- 1.Ativo, 2.Inativo
+	importacaoLoteId	int,
+
+	foreign key (contratanteId)				references Contratante(id),
+	foreign key (bancoContaId)				references BancoConta(id),
+	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
 create table Fornecedor 

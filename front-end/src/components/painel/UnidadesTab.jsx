@@ -6,7 +6,6 @@ import FiltroBar from "../filtro/FiltroBar";
 import Inputlist from "../Inputlist/Inputlist";
 import { API_BASE } from "../../context/AuthContext";
 
-// Mapeamento dos Tipos de Unidade
 const TIPOS_UNIDADE = {
     1: "Registro",
     2: "Atuação",
@@ -22,20 +21,28 @@ export default function UnidadesTab({
     const [editandoUnidadeId, setEditandoUnidadeId] = useState(null);
     const [mostrarInativos, setMostrarInativos] = useState(false);
     const [carregando, setCarregando] = useState(false);
+
+    // FORMULÁRIO DE UNIDADE
     const [formUnidade, setFormUnidade] = useState({ 
         nome: "", 
         razaoSocial: "", 
         cnpj: "", 
         contratanteId: "", 
+        bancoId: "",
+        agencia: "",
+        conta: "",
         tipo: 1 
     });
 
-    // ESTADOS DO CONTRATANTE
+    // ESTADOS AUXILIARES
     const [contratantes, setContratantes] = useState([]);
+    const [bancos, setBancos] = useState([]);
     const [contratanteTexto, setContratanteTexto] = useState("");
+    const [bancoTexto, setBancoTexto] = useState("");
 
     useEffect(() => {
         carregarContratantes();
+        carregarBancos();
     }, []);
     
     const carregarContratantes = async () => {
@@ -51,12 +58,47 @@ export default function UnidadesTab({
         }
     };
 
+    const carregarBancos = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/bancos`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error("Erro ao buscar bancos");
+            const dados = await res.json();
+            setBancos(dados);
+        } catch (err) {
+            console.error("Erro bancos:", err);
+        }
+    };
+
+    // FUNÇÕES AUXILIARES PARA RESOLVER NOMES DE BANCO E CONTRATANTE
+    const obterNomeBanco = (unidade) => {
+        if (unidade.banco) return unidade.banco;
+        
+        // Fallback buscando no array de bancos
+        const bId = unidade.bancoId || unidade.banco_id;
+        const banco = bancos.find(b => Number(b.id) === Number(bId));
+        return banco ? banco.nome : "";
+    };
+
+    const obterNomeContratante = (unidade) => {
+        if (unidade.contratante?.nome || unidade.contratante?.razaoSocial) {
+            return unidade.contratante.nome || unidade.contratante.razaoSocial;
+        }
+        const cId = unidade.contratanteId || unidade.contratante_id;
+        const contratante = contratantes.find(c => Number(c.id) === Number(cId));
+        return contratante ? (contratante.nome || contratante.razaoSocial) : "";
+    };
+
     // --- ESTADOS DO FILTROBAR ---
     const [filtros, setFiltros] = useState({
         nome: '',
         razaoSocial: '',
         cnpj: '',
         contratanteId: '',
+        banco: '',
+        agencia: '',
+        conta: '',
         tipo: ''
     });
 
@@ -70,57 +112,37 @@ export default function UnidadesTab({
             razaoSocial: '',
             cnpj: '',
             contratanteId: '',
+            banco: '',
+            agencia: '',
+            conta: '',
             tipo: ''
         });
     };
 
-    // --- LÓGICA DE FILTRAGEM DINÂMICA ---
-    const filtrarUnidadesExcecao = (chaveIgnorada) => {
-        return unidades.filter((item) => {
-            const passaStatus = mostrarInativos ? true : Number(item.status) === 1;
-            const nome = (item.nome || '').toLowerCase();
-            const razao = (item.razaoSocial || '').toLowerCase();
-            const cnpj = (item.cnpj || '').toLowerCase();
-            const contratanteId = String(item.contratanteId || '');
-            const tipo = String(item.tipo || '');
+    // OPÇÕES DOS AUTOCOMPLETES NO FILTRO (Apenas bancos presentes nas unidades cadastradas)
+    const opcoesNome = useMemo(() => Array.from(new Set(unidades.map(u => u.nome).filter(Boolean))), [unidades]);
+    const opcoesRazao = useMemo(() => Array.from(new Set(unidades.map(u => u.razaoSocial || u.razao_social).filter(Boolean))), [unidades]);
+    const opcoesCnpj = useMemo(() => Array.from(new Set(unidades.map(u => u.cnpj).filter(Boolean))), [unidades]);
+    const opcoesContratantes = useMemo(() => contratantes.map(c => c.nome || c.razaoSocial || c.razao_social).filter(Boolean), [contratantes]);
+    
+    // Pega apenas os nomes de bancos que realmente existem nas unidades cadastradas
+    const opcoesBancosFiltro = useMemo(() => {
+        const nomesBancosNasUnidades = unidades.map(u => obterNomeBanco(u)).filter(Boolean);
+        return Array.from(new Set(nomesBancosNasUnidades));
+    }, [unidades, bancos]);
 
-            return (
-                passaStatus &&
-                (chaveIgnorada === 'nome' || nome.includes(filtros.nome.toLowerCase().trim())) &&
-                (chaveIgnorada === 'razaoSocial' || razao.includes(filtros.razaoSocial.toLowerCase().trim())) &&
-                (chaveIgnorada === 'cnpj' || cnpj.includes(filtros.cnpj.toLowerCase().trim())) &&
-                (chaveIgnorada === 'contratanteId' || !filtros.contratanteId || contratanteId === String(filtros.contratanteId)) &&
-                (chaveIgnorada === 'tipo' || !filtros.tipo || tipo === String(filtros.tipo))
-            );
-        });
-    };
+    // Opções de Bancos para o SELECT/INPUTLIST do Formulário de Cadastro/Edição
+    const opcoesBancosCadastro = useMemo(() => bancos.map(b => b.nome).filter(Boolean), [bancos]);
 
-    const opcoesNome = useMemo(() => {
-        const dados = filtrarUnidadesExcecao('nome');
-        return Array.from(new Set(dados.map(u => u.nome).filter(Boolean)));
-    }, [unidades, filtros, mostrarInativos]);
+    const opcoesAgencia = useMemo(() => Array.from(new Set(unidades.map(u => u.agencia).filter(Boolean))), [unidades]);
+    const opcoesConta = useMemo(() => Array.from(new Set(unidades.map(u => u.conta).filter(Boolean))), [unidades]);
 
-    const opcoesRazao = useMemo(() => {
-        const dados = filtrarUnidadesExcecao('razaoSocial');
-        return Array.from(new Set(dados.map(u => u.razaoSocial).filter(Boolean)));
-    }, [unidades, filtros, mostrarInativos]);
-
-    const opcoesContratantes = useMemo(() => {
-        return contratantes.map(c => c.nome || c.razaoSocial).filter(Boolean);
-    }, [contratantes]);
-
-    const opcoesCnpj = useMemo(() => {
-        const dados = filtrarUnidadesExcecao('cnpj');
-        return Array.from(new Set(dados.map(u => u.cnpj).filter(Boolean)));
-    }, [unidades, filtros, mostrarInativos]);
-
-    // Sincroniza o texto do Inputlist com o contratanteId correspondente
     const handleContratanteChange = (valorTexto) => {
         const texto = typeof valorTexto === 'object' ? valorTexto.target?.value || '' : valorTexto;
         setContratanteTexto(texto);
 
         const encontrado = contratantes.find(
-            c => (c.nome || c.razaoSocial || "").toLowerCase() === texto.toLowerCase().trim()
+            c => (c.nome || c.razaoSocial || c.razao_social || "").toLowerCase() === texto.toLowerCase().trim()
         );
 
         setFormUnidade(prev => ({
@@ -129,35 +151,29 @@ export default function UnidadesTab({
         }));
     };
 
+    const handleBancoChange = (valorTexto) => {
+        const texto = typeof valorTexto === 'object' ? valorTexto.target?.value || '' : valorTexto;
+        setBancoTexto(texto);
+
+        const encontrado = bancos.find(b => {
+            const rotulo = `${b.codigo ? b.codigo + ' - ' : ''}${b.nome}`.toLowerCase();
+            return rotulo === texto.toLowerCase().trim() || b.nome.toLowerCase() === texto.toLowerCase().trim();
+        });
+
+        setFormUnidade(prev => ({
+            ...prev,
+            bancoId: encontrado ? encontrado.id : ""
+        }));
+    };
+
     const schemaFiltroUnidade = [
-        {
-            key: "nome",
-            label: "Nome Fantasia",
-            tipo: "inputlist",
-            placeholder: "Buscar por Nome...",
-            options: opcoesNome
-        },
-        {
-            key: "razaoSocial",
-            label: "Razão Social",
-            tipo: "inputlist",
-            placeholder: "Buscar por Razão...",
-            options: opcoesRazao
-        },
-        {
-            key: "contratanteId",
-            label: "Contratante",
-            tipo: "inputlist",
-            placeholder: "Buscar por Contratante...",
-            options: opcoesContratantes
-        },
-        {
-            key: "cnpj",
-            label: "CNPJ",
-            tipo: "inputlist",
-            placeholder: "Buscar por CNPJ...",
-            options: opcoesCnpj
-        },
+        { key: "nome", label: "Nome Fantasia", tipo: "inputlist", placeholder: "Buscar por Nome...", options: opcoesNome },
+        { key: "razaoSocial", label: "Razão Social", tipo: "inputlist", placeholder: "Buscar por Razão...", options: opcoesRazao },
+        { key: "contratanteId", label: "Contratante", tipo: "inputlist", placeholder: "Buscar por Contratante...", options: opcoesContratantes },
+        { key: "cnpj", label: "CNPJ", tipo: "inputlist", placeholder: "Buscar por CNPJ...", options: opcoesCnpj },
+        { key: "banco", label: "Banco", tipo: "inputlist", placeholder: "Buscar por Banco...", options: opcoesBancosFiltro },
+        { key: "agencia", label: "Agência", tipo: "inputlist", placeholder: "Buscar por Agência...", options: opcoesAgencia },
+        { key: "conta", label: "Conta", tipo: "inputlist", placeholder: "Buscar por Conta...", options: opcoesConta },
         {
             key: "tipo",
             label: "Tipo",
@@ -175,13 +191,14 @@ export default function UnidadesTab({
         return unidades.filter((item) => {
             const passaStatus = mostrarInativos ? true : Number(item.status) === 1;
             const nome = (item.nome || '').toLowerCase();
-            const razao = (item.razaoSocial || '').toLowerCase();
+            const razao = (item.razaoSocial || item.razao_social || '').toLowerCase();
             const cnpj = (item.cnpj || '').toLowerCase();
+            const agencia = (item.agencia || '').toLowerCase();
+            const conta = (item.conta || '').toLowerCase();
             const tipo = String(item.tipo || '');
 
-            // Busca o nome do contratante atrelado à unidade para comparar com o filtro
-            const contratanteDaUnidade = contratantes.find(c => Number(c.id) === Number(item.contratanteId));
-            const nomeContratante = (contratanteDaUnidade?.nome || contratanteDaUnidade?.razaoSocial || '').toLowerCase();
+            const nomeContratante = obterNomeContratante(item).toLowerCase();
+            const nomeBanco = obterNomeBanco(item).toLowerCase();
 
             return (
                 passaStatus &&
@@ -189,10 +206,13 @@ export default function UnidadesTab({
                 razao.includes(filtros.razaoSocial.toLowerCase().trim()) &&
                 cnpj.includes(filtros.cnpj.toLowerCase().trim()) &&
                 (!filtros.contratanteId || nomeContratante.includes(filtros.contratanteId.toLowerCase().trim())) &&
+                (!filtros.banco || nomeBanco.includes(filtros.banco.toLowerCase().trim())) &&
+                (!filtros.agencia || agencia.includes(filtros.agencia.toLowerCase().trim())) &&
+                (!filtros.conta || conta.includes(filtros.conta.toLowerCase().trim())) &&
                 (!filtros.tipo || tipo === String(filtros.tipo))
             );
         });
-    }, [unidades, filtros, mostrarInativos, contratantes]);
+    }, [unidades, filtros, mostrarInativos, contratantes, bancos]);
 
     // --- SALVAR (CRIAR / ATUALIZAR) ---
     const handleSalvarUnidade = async (e) => {
@@ -216,11 +236,18 @@ export default function UnidadesTab({
             
         const metodo = editandoUnidadeId ? "PUT" : "POST";
 
+        const cId = formUnidade.contratanteId ? Number(formUnidade.contratanteId) : null;
+        const bId = formUnidade.bancoId ? Number(formUnidade.bancoId) : null;
+
+        // Payload contendo apenas os campos conhecidos pelo schema da API
         const payload = {
             nome: formUnidade.nome.trim(),
             razaoSocial: formUnidade.razaoSocial.trim() || null,
             cnpj: formUnidade.cnpj.trim() || null,
-            contratanteId: formUnidade.contratanteId ? Number(formUnidade.contratanteId) : null,
+            contratanteId: cId,
+            bancoId: bId,
+            agencia: formUnidade.agencia.trim() || null,
+            conta: formUnidade.conta.trim() || null,
             tipo: Number(formUnidade.tipo) || 1
         };
 
@@ -235,7 +262,14 @@ export default function UnidadesTab({
             });
             
             const resposta = await res.json();
-            if (!res.ok) throw new Error(resposta.detail || "Erro ao salvar unidade.");
+            if (!res.ok) {
+                const erroMsg = typeof resposta.detail === 'string' 
+                    ? resposta.detail 
+                    : Array.isArray(resposta.detail) 
+                        ? resposta.detail.map(e => e.msg).join(', ') 
+                        : "Erro ao salvar unidade.";
+                throw new Error(erroMsg);
+            }
 
             alert("Unidade salva com sucesso!");
             setModoCadastroUnidade(false);
@@ -248,17 +282,35 @@ export default function UnidadesTab({
     };
 
     const handleIniciarEdicaoUnidade = (unidade) => {
-        const contratanteEncontrado = contratantes.find(c => Number(c.id) === Number(unidade.contratanteId));
+        const cId = unidade.contratanteId || unidade.contratante_id;
+        const bId = unidade.bancoId || unidade.banco_id;
+
+        const contratanteEncontrado = contratantes.find(c => Number(c.id) === Number(cId));
+        const bancoEncontrado = bancos.find(b => Number(b.id) === Number(bId));
         
         setFormUnidade({
             nome: unidade.nome || "",
-            razaoSocial: unidade.razaoSocial || "",
+            razaoSocial: unidade.razaoSocial || unidade.razao_social || "",
             cnpj: unidade.cnpj || "",
-            contratanteId: unidade.contratanteId || "",
+            contratanteId: cId || "",
+            bancoId: bId || "",
+            agencia: unidade.agencia || "",
+            conta: unidade.conta || "",
             tipo: unidade.tipo || 1
         });
         
-        setContratanteTexto(contratanteEncontrado ? (contratanteEncontrado.nome || contratanteEncontrado.razaoSocial) : "");
+        setContratanteTexto(
+            contratanteEncontrado 
+                ? (contratanteEncontrado.nome || contratanteEncontrado.razaoSocial || contratanteEncontrado.razao_social) 
+                : obterNomeContratante(unidade)
+        );
+        
+        setBancoTexto(
+            bancoEncontrado 
+                ? bancoEncontrado.nome 
+                : obterNomeBanco(unidade)
+        );
+
         setEditandoUnidadeId(unidade.id);
         setModoCadastroUnidade(true);
     };
@@ -288,16 +340,13 @@ export default function UnidadesTab({
         {
             label: "Contratante",
             key: "contratanteId",
-            width: "18%",
-            Cell: ({ row }) => {
-                const contratante = contratantes.find(c => Number(c.id) === Number(row.contratanteId));
-                return contratante ? (contratante.nome || contratante.razaoSocial) : "-";
-            }
+            width: "150px",
+            Cell: ({ row }) => obterNomeContratante(row) || "-"
         },
         {
             label: "Nome Fantasia",
             key: "nome",
-            width: "25%",
+            width: "200px",
             Cell: ({ row }) => (
                 <div style={{ display: "flex", alignItems: "center" }}>
                     <span style={{ fontWeight: "500" }}>{row.nome}</span>
@@ -320,30 +369,55 @@ export default function UnidadesTab({
         {
             label: "Razão Social",
             key: "razaoSocial",
-            width: "25%",
-            Cell: ({ row }) => row.razaoSocial || "-"
+            width: "200px",
+            Cell: ({ row }) => row.razaoSocial || row.razao_social || "-"
         },
         {
             label: "CNPJ",
             key: "cnpj",
-            width: "18%",
+            width: "140px",
             Cell: ({ row }) => row.cnpj || "-"
+        },
+        {
+            label: "Banco",
+            key: "banco",
+            width: "160px",
+            Cell: ({ row }) => obterNomeBanco(row) || "-"
+        },
+        {
+            label: "Agência",
+            key: "agencia",
+            width: "100px",
+            Cell: ({ row }) => row.agencia || "-"
+        },
+        {
+            label: "Conta",
+            key: "conta",
+            width: "120px",
+            Cell: ({ row }) => row.conta || "-"
         },
         {
             label: "Tipo",
             key: "tipo",
-            width: "12%",
+            width: "100px",
             Cell: ({ row }) => TIPOS_UNIDADE[row.tipo] || "Não Informado"
         },
         {
             label: "Ações",
             key: "acoes",
-            width: "20%",
-            style: { textAlign: "center" },
+            width: "180px",
+            style: { 
+                position: "sticky", 
+                right: 0, 
+                backgroundColor: "#fff", 
+                zIndex: 2, 
+                boxShadow: "-2px 0 5px rgba(0,0,0,0.05)",
+                textAlign: "center" 
+            },
             Cell: ({ row }) => {
                 const isAtivo = Number(row.status) === 1;
                 return (
-                    <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                    <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
                         <Button onClick={() => handleIniciarEdicaoUnidade(row)}>
                             Editar
                         </Button>
@@ -381,8 +455,18 @@ export default function UnidadesTab({
                         <Button
                             onClick={() => {
                                 setEditandoUnidadeId(null);
-                                setFormUnidade({ nome: "", razaoSocial: "", cnpj: "", contratanteId: "", tipo: 1 });
+                                setFormUnidade({ 
+                                    nome: "", 
+                                    razaoSocial: "", 
+                                    cnpj: "", 
+                                    contratanteId: "", 
+                                    bancoId: "", 
+                                    agencia: "", 
+                                    conta: "", 
+                                    tipo: 1 
+                                });
                                 setContratanteTexto("");
+                                setBancoTexto("");
                                 setModoCadastroUnidade(true);
                             }}
                         >
@@ -401,16 +485,29 @@ export default function UnidadesTab({
                         </div>
                     </div>
 
-                    <Table
-                        columns={colunasUnidades}
-                        data={unidadesFiltradas}
-                        getRowClassName={(row) => Number(row.status) === 2 ? "usuario-inativo" : ""}
-                    />
+                    <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+                        <Table
+                            columns={colunasUnidades}
+                            data={unidadesFiltradas}
+                            getRowClassName={(row) => Number(row.status) === 2 ? "usuario-inativo" : ""}
+                        />
+                    </div>
                 </Card>
             ) : (
                 <Card title={editandoUnidadeId ? "Editar Unidade" : "Cadastrar Nova Unidade"}>
                     <form onSubmit={handleSalvarUnidade} style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "12px" }}>
                         
+                        <div className="form-group">
+                            <label className="form-label">Contratante *</label>
+                            <Inputlist
+                                id="contratante"
+                                placeholder="Pesquisar contratante para adicionar..."
+                                options={opcoesContratantes}
+                                value={contratanteTexto}
+                                onChange={handleContratanteChange}
+                            />
+                        </div>
+
                         <div className="form-group">
                             <label className="form-label">Nome Fantasia *</label>
                             <input
@@ -446,14 +543,38 @@ export default function UnidadesTab({
                         </div>
 
                         <div className="form-group">
-                            <label className="form-label">Contratante *</label>
+                            <label className="form-label">Banco</label>
                             <Inputlist
-                                id="contratante"
-                                placeholder="Pesquisar contratante para adicionar..."
-                                options={opcoesContratantes}
-                                value={contratanteTexto}
-                                onChange={handleContratanteChange}
+                                id="banco"
+                                placeholder="Pesquisar banco..."
+                                options={opcoesBancosCadastro}
+                                value={bancoTexto}
+                                onChange={handleBancoChange}
                             />
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                            <div className="form-group">
+                                <label className="form-label">Agência</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={formUnidade.agencia}
+                                    onChange={(e) => setFormUnidade({ ...formUnidade, agencia: e.target.value })}
+                                    placeholder="Ex: 0001"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">Conta</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={formUnidade.conta}
+                                    onChange={(e) => setFormUnidade({ ...formUnidade, conta: e.target.value })}
+                                    placeholder="Ex: 12345-6"
+                                />
+                            </div>
                         </div>
 
                         <div className="form-group">

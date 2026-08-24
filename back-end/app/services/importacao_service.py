@@ -82,8 +82,8 @@ def importacao_plano_contas(
 
         # 5. Insere a nova estrutura
         query_insert = """
-            INSERT INTO dbo.PlanoContas (planoConta, grupoConta, edre, dfc, efolha, criadoEm)
-            VALUES (?, ?, ?, ?, ?, GETDATE())
+            INSERT INTO dbo.PlanoContas (planoConta, grupoConta, edre, dfc, efolha, importacaoLoteId, criadoEm)
+            VALUES (?, ?, ?, ?, ?, ?, GETDATE())
         """
         
         total_linhas = 0
@@ -95,7 +95,7 @@ def importacao_plano_contas(
             dfc = limpar_e_normalizar(row["DFC"])
             efolha = limpar_e_normalizar(row["EFOLHA"])
             
-            cursor.execute(query_insert, (plano, grupo, edre, dfc, efolha))
+            cursor.execute(query_insert, (plano, grupo, edre, dfc, efolha, lote_id))
             total_linhas += 1
 
         # 6. Reativa as constraints
@@ -280,8 +280,7 @@ def importacao_unidade(
 ):
     """
     Processa o upload do Excel com as Unidades vinculando ao ImportacaoLote.
-    Aba esperada: 'MAPA_UNIDADES'
-    Colunas esperadas: CONTRATANTE, NOME, RAZAO SOCIAL, CNPJ, TIPO
+    Cria a conta bancária automaticamente na dbo.BancoConta caso ela não exista.
     """
     conexao = None
     try:
@@ -308,7 +307,7 @@ def importacao_unidade(
         conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()
 
-        # 2. Mapeamento de Contratantes (Busca todos do BD para validação rápida)
+        # 2. Mapeamento de Contratantes
         cursor.execute("SELECT id, UPPER(nome), UPPER(razaoSocial) FROM dbo.Contratante")
         mapa_contratantes = {}
         for row in cursor.fetchall():
@@ -318,7 +317,18 @@ def importacao_unidade(
             if c_razao:
                 mapa_contratantes[c_razao.strip()] = c_id
 
-        # 3. Gestão do Lote de Importação
+        # 3. Mapeamento de Bancos (Busca por CÓDIGO e NOME -> ID e Status)
+        cursor.execute("SELECT id, UPPER(TRIM(codigo)), UPPER(TRIM(nome)), ISNULL(status, 1) FROM dbo.Banco")
+        mapa_bancos = {}
+        for row in cursor.fetchall():
+            b_id, b_cod, b_nome, b_stat = row[0], str(row[1] or ""), str(row[2] or ""), int(row[3])
+            dados = {"id": b_id, "status": b_stat}
+            if b_cod:
+                mapa_bancos[b_cod] = dados
+            if b_nome:
+                mapa_bancos[b_nome] = dados
+
+        # 4. Gestão do Lote de Importação
         cursor.execute("""
             SELECT id FROM dbo.ImportacaoLote 
             WHERE nomeArquivo = ?
@@ -341,7 +351,7 @@ def importacao_unidade(
             
             lote_id = int(row_lote[0])
 
-        # 4. Limpa as unidades anteriores atreladas a este lote
+        # 5. Limpa as unidades anteriores atreladas a este lote
         cursor.execute("DELETE FROM dbo.Unidade WHERE importacaoLoteId = ?", (lote_id,))
 
         def limpar_campo(val):
@@ -356,7 +366,7 @@ def importacao_unidade(
 
         def mapear_tipo(tipo_str):
             if not tipo_str:
-                return 1  # Valor default (1 - Registro)
+                return 1  # Default (1 - Registro)
             t = tipo_str.strip().lower()
             if t in ["1", "registro"]:
                 return 1
@@ -369,26 +379,27 @@ def importacao_unidade(
         total_linhas = 0
         erros_validacao = []
 
-        # Query MERGE baseada no campo NOME (único)
-        query_upsert = """
+        # Query MERGE para a Unidade
+        query_upsert_unidade = """
             MERGE dbo.Unidade AS target
-            USING (SELECT ? AS nome, ? AS razaoSocial, ? AS cnpj, ? AS contratanteId, ? AS tipo, ? AS importacaoLoteId) AS source
+            USING (SELECT ? AS nome, ? AS razaoSocial, ? AS cnpj, ? AS contratanteId, ? AS bancoContaId, ? AS tipo, ? AS importacaoLoteId) AS source
             ON (UPPER(target.nome) = UPPER(source.nome))
             WHEN MATCHED THEN
                 UPDATE SET target.razaoSocial = source.razaoSocial, 
                            target.cnpj = source.cnpj, 
                            target.contratanteId = source.contratanteId, 
+                           target.bancoContaId = source.bancoContaId,
                            target.tipo = source.tipo, 
                            target.status = 1, 
                            target.importacaoLoteId = source.importacaoLoteId
             WHEN NOT MATCHED THEN
-                INSERT (nome, razaoSocial, cnpj, contratanteId, tipo, status, importacaoLoteId)
-                VALUES (source.nome, source.razaoSocial, source.cnpj, source.contratanteId, source.tipo, 1, source.importacaoLoteId);
+                INSERT (nome, razaoSocial, cnpj, contratanteId, bancoContaId, tipo, status, importacaoLoteId)
+                VALUES (source.nome, source.razaoSocial, source.cnpj, source.contratanteId, source.bancoContaId, source.tipo, 1, source.importacaoLoteId);
         """
 
-        # 5. Processamento das Linhas do DataFrame
+        # 6. Processamento das Linhas do DataFrame
         for idx, row in df.iterrows():
-            linha_num = idx + 2  # Cabeçalho na linha 1
+            linha_num = idx + 2
 
             val_contratante = limpar_campo(row["CONTRATANTE"])
             val_nome = limpar_campo(row["NOME"])
@@ -396,7 +407,10 @@ def importacao_unidade(
             val_cnpj = limpar_campo(row["CNPJ"])
             val_tipo_raw = limpar_campo(row["TIPO"])
 
-            # Validações dos campos obrigatórios
+            val_banco = limpar_campo(row.get("BANCO"))
+            val_agencia = limpar_campo(row.get("AGENCIA"))
+            val_conta = limpar_campo(row.get("CONTA"))
+
             if not val_nome:
                 erros_validacao.append(f"Linha {linha_num}: 'NOME' da unidade é obrigatório.")
                 continue
@@ -405,29 +419,68 @@ def importacao_unidade(
                 erros_validacao.append(f"Linha {linha_num}: 'CONTRATANTE' é obrigatório.")
                 continue
 
-            # Valida existência do Contratante no mapa
             contratante_id = mapa_contratantes.get(val_contratante.upper())
             if not contratante_id:
                 erros_validacao.append(f"Linha {linha_num}: Contratante '{val_contratante}' não foi encontrado no sistema.")
                 continue
 
+            # Validação do Banco e Criação/Obtenção da Conta Bancária
+            banco_conta_id = None
+            if val_banco or val_agencia or val_conta:
+                if not val_banco:
+                    erros_validacao.append(f"Linha {linha_num}: O 'BANCO' deve ser informado para vincular uma conta.")
+                    continue
+
+                banco_info = mapa_bancos.get(val_banco.upper())
+                if not banco_info:
+                    erros_validacao.append(f"Linha {linha_num}: Banco '{val_banco}' não está cadastrado no sistema.")
+                    continue
+
+                if banco_info["status"] != 1:
+                    erros_validacao.append(f"Linha {linha_num}: Banco '{val_banco}' está INATIVO no sistema.")
+                    continue
+
+                banco_id = banco_info["id"]
+
+                # Verifica se a conta bancária já existe
+                cursor.execute("""
+                    SELECT id FROM dbo.BancoConta 
+                    WHERE bancoId = ? 
+                      AND ISNULL(agencia, '') = ISNULL(?, '') 
+                      AND ISNULL(conta, '') = ISNULL(?, '')
+                """, (banco_id, val_agencia, val_conta))
+                
+                conta_existente = cursor.fetchone()
+
+                if conta_existente:
+                    banco_conta_id = conta_existente[0]
+                else:
+                    # Cadastra a Conta Bancária automaticamente
+                    cursor.execute("""
+                        INSERT INTO dbo.BancoConta (bancoId, agencia, conta)
+                        OUTPUT INSERTED.id
+                        VALUES (?, ?, ?)
+                    """, (banco_id, val_agencia, val_conta))
+                    
+                    row_conta = cursor.fetchone()
+                    if row_conta:
+                        banco_conta_id = row_conta[0]
+
             val_tipo = mapear_tipo(val_tipo_raw)
 
-            # Executa Inserção ou Atualização
-            cursor.execute(query_upsert, (val_nome, val_razao, val_cnpj, contratante_id, val_tipo, lote_id))
+            # Executa Inserção ou Atualização da Unidade
+            cursor.execute(query_upsert_unidade, (val_nome, val_razao, val_cnpj, contratante_id, banco_conta_id, val_tipo, lote_id))
             total_linhas += 1
 
-        # Interrompe o processo e desfaz as alterações caso existam erros de validação
         if erros_validacao:
             conexao.rollback()
-            # Unifica os erros em uma mensagem legível com quebras de linha
             mensagem_erro = "Erros de validação encontrados:\n" + "\n".join(erros_validacao)
             raise HTTPException(
                 status_code=400,
                 detail=mensagem_erro
             )
 
-        # 6. Log de Auditoria
+        # 7. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
             acao="IMPORTAR_MAPA_UNIDADES",
@@ -458,7 +511,6 @@ def importacao_unidade(
     finally:
         if conexao:
             conexao.close()
-
 
 def importacao_regra_plano(
     conteudo_arquivo: bytes, 
