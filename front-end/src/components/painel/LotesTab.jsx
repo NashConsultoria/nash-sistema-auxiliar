@@ -174,7 +174,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
             });
         } else if (ehFolhaPagamento) {
             ExportarExcel({
-                tabela: "movimentacaofolhapagamento",
+                tabela: "BaseFolhaPagamento",
                 colunaFiltro: "importacaoLoteId",
                 valorFiltro: row.id,
                 colunas: [
@@ -187,7 +187,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
             });
         } else {
             ExportarExcel({
-                tabela: "movimentacao",
+                tabela: "BaseFinanceiro",
                 colunaFiltro: "importacaoLoteId",
                 valorFiltro: row.id,
                 colunas: [

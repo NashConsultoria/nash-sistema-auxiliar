@@ -51,7 +51,7 @@ def obter_base_consolidada(
             m.id AS id, 
             c.nome AS contratante, 
             u.nome AS unidade, 
-            bc.banco AS banco, 
+            b.nome AS banco, 
             bc.agencia AS agencia, 
             bc.conta AS conta,
             ISNULL(CONVERT(VARCHAR(10), m.data, 120), '') AS data, 
@@ -65,11 +65,13 @@ def obter_base_consolidada(
             pc.grupoConta AS grupoConta, 
             pc.edre AS edre,
             pc.dfc AS dfc
-        FROM dbo.Movimentacao m
-        LEFT JOIN dbo.PlanoContas pc ON m.planoContaId = pc.id
+        FROM dbo.BaseFinanceiro m
+        LEFT JOIN dbo.ImportacaoLote l ON m.importacaoLoteId = l.id
+        LEFT JOIN dbo.Contratante c ON l.contratanteId = c.id
         LEFT JOIN dbo.Unidade u ON m.unidadeId = u.id
-        LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
         LEFT JOIN dbo.BancoConta bc ON m.bancoContaId = bc.id
+        LEFT JOIN dbo.Banco b ON bc.bancoId = b.id
+        LEFT JOIN dbo.PlanoContas pc ON m.planoContaId = pc.id
         LEFT JOIN dbo.Fornecedor f ON m.fornecedorId = f.id
         WHERE 1=1
     """
@@ -121,7 +123,7 @@ def obter_folha_pagamento_tabular(
             ISNULL(CONVERT(VARCHAR(10), m.dataCaixa, 120), '') AS dataCaixa,
             m.tipo AS tipo,
             m.valor AS valor
-        FROM dbo.MovimentacaoFolhaPagamento m
+        FROM dbo.BaseFolhaPagamento m
         LEFT JOIN dbo.PlanoContas pc ON m.planoContaId = pc.id
         LEFT JOIN dbo.Unidade ua ON m.unidadeAtuacaoId = ua.id
         LEFT JOIN dbo.Unidade ur ON m.unidadeRegistroId = ur.id

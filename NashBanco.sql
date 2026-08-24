@@ -99,7 +99,7 @@ CREATE TABLE PlanoDePara (
     -- Chaves Estrangeiras
     CONSTRAINT FK_PlanoDePara_Contratante       FOREIGN KEY (contratanteId)		references Contratante(id) ON DELETE CASCADE,
     CONSTRAINT FK_PlanoDePara_Unidade           FOREIGN KEY (unidadeId)			references Unidade(id) ON DELETE CASCADE,
-    CONSTRAINT FK_PlanoDePara_BancoConta        FOREIGN KEY (bancoId)			references BancoConta(id) ON DELETE CASCADE,
+    CONSTRAINT FK_PlanoDePara			        FOREIGN KEY (bancoId)			references Banco(id) ON DELETE CASCADE,
     CONSTRAINT FK_PlanoDePara_PlanoContas       FOREIGN KEY (planoContaId)		references PlanoContas(id) ON DELETE CASCADE,
                                                 FOREIGN KEY (importacaoLoteId)	references ImportacaoLote(id) ON DELETE CASCADE,
 
@@ -111,7 +111,7 @@ CREATE TABLE PlanoDePara (
     )
 );
 
-create table Movimentacao
+create table BaseFinanceiro
 (
 	id					int					not null		primary key		identity,
 	unidadeId			int,
@@ -132,7 +132,7 @@ create table Movimentacao
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
-create table MovimentacaoFolhaPagamento
+create table BaseFolhaPagamento
 (
     id                      int				not null		primary key		identity,
     unidadeRegistroId       int				not null,
@@ -228,8 +228,8 @@ select * from Fornecedor
 select * from ImportacaoLote
 select * from PlanoContas
 select * from PlanoDePara
-select * from Movimentacao
-select * from MovimentacaoFolhaPagamento
+select * from BaseFinanceiro
+select * from BaseFolhaPagamento
 select * from Usuario
 select * from UsuarioContratante
 select * from Permissao

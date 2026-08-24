@@ -4,12 +4,12 @@ from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN
 from app.schemas.usuarios_schema import UsuarioToken
 from app.security import exigir_perfil
 from app.services.importacao_service import (
-    processar_importacao_movimentacoes,
-    processar_importacao_movimentacoes_folha,
-    processar_importacao_plano_contas,
-    processar_importacao_banco,
-    processar_importacao_unidade,
-    processar_importacao_regra_plano,
+    importacao_base_financeira,
+    importacao_folha_pagamento,
+    importacao_plano_contas,
+    importacao_banco,
+    importacao_unidade,
+    importacao_regra_plano,
 )
 
 router = APIRouter(prefix="/api", tags=["Importação"])
@@ -27,7 +27,7 @@ async def importar_arquivo_generico(
     if (
         "plano_contas" in nome_arquivo_lower
     ):
-        return processar_importacao_plano_contas(
+        return importacao_plano_contas(
             conteudo_arquivo=conteudo,
             nome_arquivo=file.filename,
             usuario_id=admin.id,
@@ -37,7 +37,7 @@ async def importar_arquivo_generico(
     if (
             "mapa_bancos" in nome_arquivo_lower
         ):
-            return processar_importacao_banco(
+            return importacao_banco(
                 conteudo_arquivo=conteudo,
                 nome_arquivo=file.filename,
                 usuario_id=admin.id,
@@ -47,7 +47,7 @@ async def importar_arquivo_generico(
     if (
             "mapa_unidades" in nome_arquivo_lower
         ):
-            return processar_importacao_unidade(
+            return importacao_unidade(
                 conteudo_arquivo=conteudo,
                 nome_arquivo=file.filename,
                 usuario_id=admin.id,
@@ -57,7 +57,7 @@ async def importar_arquivo_generico(
     if (
             "regras_plano" in nome_arquivo_lower
         ):
-            return processar_importacao_regra_plano(
+            return importacao_regra_plano(
                 conteudo_arquivo=conteudo,
                 nome_arquivo=file.filename,
                 usuario_id=admin.id,
@@ -67,7 +67,7 @@ async def importar_arquivo_generico(
     if (
         "folha_pagamento" in nome_arquivo_lower
     ):
-        return await processar_importacao_movimentacoes_folha(
+        return await importacao_folha_pagamento(
             conteudo=conteudo,
             nome_arquivo=file.filename,
             banco=BANCO_AUTENTICACAO,
@@ -78,7 +78,7 @@ async def importar_arquivo_generico(
     if (
         "base_financeira" in nome_arquivo_lower
     ):
-        return await processar_importacao_movimentacoes(
+        return await importacao_base_financeira(
             conteudo=conteudo,
             nome_arquivo=file.filename,
             banco=BANCO_AUTENTICACAO,

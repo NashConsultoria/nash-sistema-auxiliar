@@ -10,7 +10,7 @@ from app.database import obter_conexao
 from app.security import registrar_log
 from app.utils import normalizar_texto, limpar_e_normalizar
 
-def processar_importacao_plano_contas(
+def importacao_plano_contas(
     conteudo_arquivo: bytes, 
     nome_arquivo: str, 
     usuario_id: int, 
@@ -73,8 +73,8 @@ def processar_importacao_plano_contas(
             lote_id = int(row_lote[0])
 
         # 3. Desativa temporariamente a verificação de FKs nas tabelas dependentes
-        cursor.execute("ALTER TABLE dbo.Movimentacao NOCHECK CONSTRAINT ALL")
-        cursor.execute("ALTER TABLE dbo.MovimentacaoFolhaPagamento NOCHECK CONSTRAINT ALL")
+        cursor.execute("ALTER TABLE dbo.BaseFinanceiro NOCHECK CONSTRAINT ALL")
+        cursor.execute("ALTER TABLE dbo.BaseFolhaPagamento NOCHECK CONSTRAINT ALL")
 
         # 4. Limpa a estrutura anterior e reseta ID
         cursor.execute("DELETE FROM dbo.PlanoContas")
@@ -99,8 +99,8 @@ def processar_importacao_plano_contas(
             total_linhas += 1
 
         # 6. Reativa as constraints
-        cursor.execute("ALTER TABLE dbo.Movimentacao CHECK CONSTRAINT ALL")
-        cursor.execute("ALTER TABLE dbo.MovimentacaoFolhaPagamento CHECK CONSTRAINT ALL")
+        cursor.execute("ALTER TABLE dbo.BaseFinanceiro CHECK CONSTRAINT ALL")
+        cursor.execute("ALTER TABLE dbo.BaseFolhaPagamento CHECK CONSTRAINT ALL")
 
         # 7. Log de Auditoria
         registrar_log(
@@ -134,7 +134,7 @@ def processar_importacao_plano_contas(
         if conexao:
             conexao.close()
 
-def processar_importacao_banco(
+def importacao_banco(
     conteudo_arquivo: bytes, 
     nome_arquivo: str, 
     usuario_id: int, 
@@ -272,7 +272,7 @@ def processar_importacao_banco(
         if conexao:
             conexao.close()
 
-def processar_importacao_unidade(
+def importacao_unidade(
     conteudo_arquivo: bytes, 
     nome_arquivo: str, 
     usuario_id: int, 
@@ -460,7 +460,7 @@ def processar_importacao_unidade(
             conexao.close()
 
 
-def processar_importacao_regra_plano(
+def importacao_regra_plano(
     conteudo_arquivo: bytes, 
     nome_arquivo: str, 
     usuario_id: int, 
@@ -650,7 +650,7 @@ def processar_importacao_regra_plano(
         if conexao:
             conexao.close()
 
-async def processar_importacao_movimentacoes(
+async def importacao_base_financeira(
     conteudo: bytes, 
     nome_arquivo: str, 
     banco: str, 
@@ -679,7 +679,7 @@ async def processar_importacao_movimentacoes(
             "grupoConta": "GRUPO DE CONTA"
         }
 
-        # 1. Validação da coluna Contratante
+        # 1. Validação inicial de presença da coluna Contratante
         if mapeamento_colunas["contratante"] not in df.columns:
             return {
                 "sucesso": False,
@@ -695,7 +695,6 @@ async def processar_importacao_movimentacoes(
                 "mensagem": "Erro: O nome do contratante na primeira linha do Excel está vazio ou inválido."
             }
 
-        # Conecta ao banco de dados
         conexao = obter_conexao(banco)
         cursor = conexao.cursor()
 
@@ -726,7 +725,7 @@ async def processar_importacao_movimentacoes(
                 "mensagem": f"Importação Bloqueada! O contratante '{nome_contratante_bd}' está INATIVO no sistema."
             }
 
-        # 3. Lógica de Lote (Substituição ou Novo Lote)
+        # 3. Lógica de Lote na dbo.BaseFinanceiro
         cursor.execute("""
             SELECT id FROM dbo.ImportacaoLote 
             WHERE nomeArquivo = ? AND contratanteId = ?
@@ -735,7 +734,7 @@ async def processar_importacao_movimentacoes(
 
         if lote_existente:
             lote_id = lote_existente[0]
-            cursor.execute("DELETE FROM dbo.Movimentacao WHERE importacaoLoteId = ?", (lote_id,))
+            cursor.execute("DELETE FROM dbo.BaseFinanceiro WHERE importacaoLoteId = ?", (lote_id,))
         else:
             cursor.execute("""
                 INSERT INTO dbo.ImportacaoLote (nomeArquivo, contratanteId) 
@@ -744,77 +743,83 @@ async def processar_importacao_movimentacoes(
             cursor.execute("SELECT @@IDENTITY")
             lote_id = int(cursor.fetchone()[0])
 
-        # 4. Validação de Colunas Obrigatórias e Células Vazias
-        chaves_obrigatorias = ["contratante", "planoConta"]
-        colunas_faltantes = [
-            mapeamento_colunas[ch] for ch in chaves_obrigatorias
-            if mapeamento_colunas[ch] not in df.columns
-        ]
-
-        if colunas_faltantes:
-            conexao.close()
-            return {
-                "sucesso": False,
-                "mensagem": f"Erro: O Excel não possui as colunas obrigatórias: {', '.join(colunas_faltantes)}."
-            }
-
-        erros_celulas_vazias = []
-        for index, row in df.iterrows():
-            linha_excel = index + 2
-            for chave in chaves_obrigatorias:
-                col_nome = mapeamento_colunas[chave]
-                valor = row.get(col_nome)
-                if pd.isna(valor) or str(valor).strip() == "" or str(valor).strip().upper() in ["NAN", "NONE"]:
-                    erros_celulas_vazias.append(f"Linha {linha_excel}: A coluna '{col_nome}' não pode ficar em branco.")
-            if len(erros_celulas_vazias) >= 5:
-                break
-
-        if erros_celulas_vazias:
-            conexao.close()
-            return {
-                "sucesso": False,
-                "mensagem": "Importação Bloqueada! Existem campos obrigatórios em branco:\n" + "\n".join(erros_celulas_vazias)
-            }
-
-        # 5. Validação de Datas
-        col_data_excel = mapeamento_colunas["data"]
-        erros_data = []
-        for index, row in df.iterrows():
-            valor_data = row[col_data_excel]
-            linha_excel = index + 2
-            if pd.isna(valor_data):
-                erros_data.append(f"Linha {linha_excel}: Data está em branco.")
-                continue
-            try:
-                if not isinstance(valor_data, pd.Timestamp):
-                    pd.to_datetime(str(valor_data).strip(), dayfirst=True, errors='raise')
-            except Exception:
-                erros_data.append(f"Linha {linha_excel}: O valor '{valor_data}' não é uma data válida.")
-            if len(erros_data) >= 5:
-                break
-
-        if erros_data:
-            conexao.close()
-            return {"sucesso": False, "mensagem": "Erro de validação nas datas:\n" + "\n".join(erros_data)}
-
-        # 6. Validação do Plano de Contas Específico para DRE
+        # 4. Validação do Plano de Contas
         cursor.execute("SELECT UPPER(TRIM(planoConta)) FROM dbo.PlanoContas")
         planos_no_banco = {normalizar_texto(row[0]) for row in cursor.fetchall()}
 
-        erros_encontrados = []
+        erros_plano = []
         for index, row_data in df.iterrows():
             conta_excel = normalizar_texto(str(row_data.get(mapeamento_colunas["planoConta"], "")))
             if conta_excel and conta_excel not in ["NAN", "NONE"]:
                 if conta_excel not in planos_no_banco:
-                    erros_encontrados.append(f"Linha {index + 2}: O plano de contas '{row_data.get(mapeamento_colunas['planoConta'])}' não está cadastrado no sistema.")
-            if len(erros_encontrados) >= 5:
+                    erros_plano.append(f"Linha {index + 2}: O plano de contas '{row_data.get(mapeamento_colunas['planoConta'])}' não está cadastrado.")
+            if len(erros_plano) >= 5:
                 break
 
-        if erros_encontrados:
+        if erros_plano:
             conexao.close()
-            return {"sucesso": False, "mensagem": f"Importação bloqueada! Erros no Plano de Contas:\n" + "\n".join(erros_encontrados)}
+            return {"sucesso": False, "mensagem": "Importação bloqueada! Erros no Plano de Contas:\n" + "\n".join(erros_plano)}
 
-        # Conversão de Valores
+        # 5. Pré-validação de Existência e Status de BANCOS e UNIDADES
+        # Busca Bancos (ID, Nome, Código, Status)
+        cursor.execute("SELECT id, UPPER(TRIM(nome)), codigo, ISNULL(status, 1) FROM dbo.Banco")
+        bancos_db = cursor.fetchall()
+        
+        mapa_bancos = {}       # Mapeia identificadores (nome norm / cod) -> ID
+        status_bancos = {}     # Mapeia ID -> status int
+        
+        for b_id, b_nome, b_cod, b_stat in bancos_db:
+            status_bancos[b_id] = int(b_stat)
+            if b_nome:
+                mapa_bancos[normalizar_texto(b_nome)] = b_id
+            if b_cod:
+                mapa_bancos[str(b_cod).strip().lstrip("0")] = b_id
+
+        # Busca Unidades do Contratante (ID, Nome, Status)
+        cursor.execute("SELECT id, UPPER(TRIM(nome)), ISNULL(status, 1) FROM dbo.Unidade WHERE contratanteId = ?", (contratante_id,))
+        unidades_db = cursor.fetchall()
+        
+        mapa_unidades = {}     # Mapeia nome norm -> ID
+        status_unidades = {}   # Mapeia ID -> status int
+        
+        for u_id, u_nome, u_stat in unidades_db:
+            u_norm = normalizar_texto(u_nome)
+            mapa_unidades[u_norm] = u_id
+            status_unidades[u_id] = int(u_stat)
+
+        erros_cadastros = []
+        for index, row_data in df.iterrows():
+            linha_num = index + 2
+            
+            # Validação de Unidade (Existência e Status)
+            u_val = str(row_data.get(mapeamento_colunas["unidade"], "")).strip()
+            if u_val and u_val.upper() not in ["NAN", "NONE"]:
+                u_norm = normalizar_texto(u_val)
+                u_id = mapa_unidades.get(u_norm)
+                if not u_id:
+                    erros_cadastros.append(f"Linha {linha_num}: A Unidade '{u_val}' não está cadastrada para o contratante '{nome_contratante_bd}'.")
+                elif status_unidades.get(u_id) != 1:
+                    erros_cadastros.append(f"Linha {linha_num}: A Unidade '{u_val}' está INATIVA no sistema.")
+
+            # Validação de Banco (Existência e Status)
+            b_val = str(row_data.get(mapeamento_colunas["banco"], "")).strip()
+            if b_val and b_val.upper() not in ["NAN", "NONE"]:
+                b_val_norm = normalizar_texto(b_val)
+                b_val_cod = b_val.lstrip("0")
+                b_id = mapa_bancos.get(b_val_norm) or mapa_bancos.get(b_val_cod)
+                if not b_id:
+                    erros_cadastros.append(f"Linha {linha_num}: O Banco '{b_val}' não está cadastrado no sistema.")
+                elif status_bancos.get(b_id) != 1:
+                    erros_cadastros.append(f"Linha {linha_num}: O Banco '{b_val}' está INATIVO no sistema.")
+
+            if len(erros_cadastros) >= 5:
+                break
+
+        if erros_cadastros:
+            conexao.close()
+            return {"sucesso": False, "mensagem": "Importação bloqueada! Verifique os erros abaixo:\n" + "\n".join(erros_cadastros)}
+
+        # Conversão de auxiliares
         def obtener_valor(row_data, coluna_excel, tipo_dado="string"):
             col_real = mapeamento_colunas.get(coluna_excel)
             if col_real and col_real in df.columns and pd.notna(row_data[col_real]):
@@ -839,7 +844,7 @@ async def processar_importacao_movimentacoes(
                 
             return pd.Timestamp("2026-01-01").to_pydatetime() if coluna_excel == "data" else (Decimal("0.00") if tipo_dado == "float" else None)
 
-        # 7. Laço de Inserção nas Tabelas Relacionadas
+        # 6. Inserção dos Registros
         linhas_importadas = 0
         for _, row in df.iterrows():
             nome_unidade = obtener_valor(row, "unidade")
@@ -848,44 +853,43 @@ async def processar_importacao_movimentacoes(
             conta_num = obtener_valor(row, "conta")
             fornecedor_nome = obtener_valor(row, "fornecedor")
             cpf_cnpj = obtener_valor(row, "cpf")
-            p_conta = obtener_valor(row, "planoConta")
-            g_conta = obtener_valor(row, "grupoConta")
 
-            # Unidade
-            if nome_unidade:
-                cursor.execute("SELECT id FROM dbo.Unidade WHERE UPPER(TRIM(nome)) = UPPER(TRIM(?)) AND contratanteId = ?", (nome_unidade, contratante_id))
-                u_row = cursor.fetchone()
-                unidade_id = u_row[0] if u_row else None
-                if not unidade_id:
-                    cursor.execute("INSERT INTO dbo.Unidade (nome, contratanteId) VALUES (?, ?)", (nome_unidade, contratante_id))
-                    cursor.execute("SELECT @@IDENTITY")
-                    unidade_id = int(cursor.fetchone()[0])
-            else:
-                unidade_id = None
+            # Resolução de ID da Unidade
+            unidade_id = mapa_unidades.get(normalizar_texto(nome_unidade)) if nome_unidade else None
 
-            # BancoConta
+            # Resolução do BancoConta com FK bancoId
+            banco_conta_id = None
             if banco_nome:
+                banco_id = mapa_bancos.get(normalizar_texto(banco_nome)) or mapa_bancos.get(str(banco_nome).strip().lstrip("0"))
                 agencia_val = agencia if agencia else None
                 conta_val = conta_num if conta_num else None
+
                 cursor.execute("""
                     SELECT id FROM dbo.BancoConta 
-                    WHERE UPPER(TRIM(banco)) = UPPER(TRIM(?)) 
+                    WHERE bancoId = ? 
                     AND (UPPER(TRIM(agencia)) = UPPER(TRIM(?)) OR (agencia IS NULL AND ? IS NULL))
                     AND (UPPER(TRIM(conta)) = UPPER(TRIM(?)) OR (conta IS NULL AND ? IS NULL))
-                """, (banco_nome, agencia_val, agencia_val, conta_val, conta_val))
+                """, (banco_id, agencia_val, agencia_val, conta_val, conta_val))
                 b_row = cursor.fetchone()
-                banco_conta_id = b_row[0] if b_row else None
-
-                if not banco_conta_id:
-                    cursor.execute("INSERT INTO dbo.BancoConta (banco, agencia, conta) VALUES (?, ?, ?)", (banco_nome, agencia_val, conta_val))
+                
+                if b_row:
+                    banco_conta_id = b_row[0]
+                else:
+                    # Cria a conta bancária vinculando a FK bancoId
+                    cursor.execute("""
+                        INSERT INTO dbo.BancoConta (bancoId, agencia, conta) 
+                        VALUES (?, ?, ?)
+                    """, (banco_id, agencia_val, conta_val))
                     cursor.execute("SELECT @@IDENTITY")
                     banco_conta_id = int(cursor.fetchone()[0])
-            else:
-                banco_conta_id = None
 
             # Fornecedor
             if fornecedor_nome:
-                cursor.execute("SELECT id FROM dbo.Fornecedor WHERE UPPER(TRIM(nome)) = UPPER(TRIM(?)) AND (cpf_cnpj = ? OR (cpf_cnpj IS NULL AND ? IS NULL))", (fornecedor_nome, cpf_cnpj, cpf_cnpj))
+                cursor.execute("""
+                    SELECT id FROM dbo.Fornecedor 
+                    WHERE UPPER(TRIM(nome)) = UPPER(TRIM(?)) 
+                    AND (cpf_cnpj = ? OR (cpf_cnpj IS NULL AND ? IS NULL))
+                """, (fornecedor_nome, cpf_cnpj, cpf_cnpj))
                 f_row = cursor.fetchone()
                 fornecedor_id = f_row[0] if f_row else None
                 if not fornecedor_id:
@@ -895,18 +899,13 @@ async def processar_importacao_movimentacoes(
             else:
                 fornecedor_id = None
 
-            # PlanoContas: Busca garantindo que o vínculo seja da modalidade DRE
+            # PlanoContas
             p_conta_raw = str(row[mapeamento_colunas["planoConta"]]).strip() if pd.notna(row.get(mapeamento_colunas["planoConta"])) else None
             p_conta_norm = normalizar_texto(p_conta_raw) if p_conta_raw else None
-            
-            has_grupo = "grupoConta" in mapeamento_colunas and mapeamento_colunas["grupoConta"] in df.columns
-            g_conta_raw = str(row[mapeamento_colunas["grupoConta"]]).strip() if has_grupo and pd.notna(row.get(mapeamento_colunas["grupoConta"])) else None
-            g_conta_norm = normalizar_texto(g_conta_raw) if g_conta_raw else None
+            g_conta_raw = str(row[mapeamento_colunas["grupoConta"]]).strip() if "grupoConta" in mapeamento_colunas and pd.notna(row.get(mapeamento_colunas["grupoConta"])) else None
 
             plano_conta_id = None
-
             if p_conta_raw and p_conta_raw.upper() not in ["NAN", "NONE"]:
-                # 1ª Tentativa: Busca exata combinando Plano + Grupo
                 if g_conta_raw and g_conta_raw.upper() not in ["NAN", "NONE"]:
                     cursor.execute("""
                         SELECT id FROM dbo.PlanoContas 
@@ -917,7 +916,6 @@ async def processar_importacao_movimentacoes(
                     if plano_row:
                         plano_conta_id = plano_row[0]
 
-                # 2ª Tentativa: Busca exata apenas pelo Plano (priorizando DRE)
                 if not plano_conta_id:
                     cursor.execute("""
                         SELECT id FROM dbo.PlanoContas 
@@ -928,7 +926,6 @@ async def processar_importacao_movimentacoes(
                     if plano_row:
                         plano_conta_id = plano_row[0]
 
-                # 3ª Tentativa (Fallback de Acentuação): Se ainda não encontrou, compara insensível a acentos (usando Collation do SQL)
                 if not plano_conta_id:
                     cursor.execute("""
                         SELECT id FROM dbo.PlanoContas 
@@ -939,9 +936,9 @@ async def processar_importacao_movimentacoes(
                     if plano_row:
                         plano_conta_id = plano_row[0]
 
-            # Movimentacao
+            # Inserção na dbo.BaseFinanceiro
             cursor.execute("""
-                INSERT INTO dbo.Movimentacao (
+                INSERT INTO dbo.BaseFinanceiro (
                     unidadeId, bancoContaId, fornecedorId, planoContaId, data, descricao, obs, valor, tipo, importacaoLoteId
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -952,11 +949,10 @@ async def processar_importacao_movimentacoes(
             ))
             linhas_importadas += 1
 
-        # Registro do Log com 'request=request' para capturar IP
         registrar_log(
             usuario_id=usuario.id,
             acao="Importacao",
-            tabela="Movimentacao",
+            tabela="BaseFinanceiro",
             detalhes={"arquivo": nome_arquivo, "contratante": nome_contratante_bd, "linhas": linhas_importadas},
             request=request
         )
@@ -966,7 +962,7 @@ async def processar_importacao_movimentacoes(
 
         return {
             "sucesso": True,
-            "tipo": "base_movimentacao",
+            "tipo": "Base_Financeiro",
             "mensagem": f"Sucesso! Arquivo mapeado para o Contratante '{nome_contratante_bd}'. {linhas_importadas} registros importados."
         }
 
@@ -976,7 +972,7 @@ async def processar_importacao_movimentacoes(
             conexao.close()
         return {"sucesso": False, "mensagem": f"Erro interno ao importar base: {str(e)}"}
 
-async def processar_importacao_movimentacoes_folha(
+async def importacao_folha_pagamento(
     conteudo: bytes,
     nome_arquivo: str,
     banco: str,
@@ -1022,26 +1018,23 @@ async def processar_importacao_movimentacoes_folha(
             else ""
         )
 
-        if not nome_contratante_excel or nome_contratante_excel.upper() in [
-            "NAN",
-            "NONE",
-        ]:
+        if not nome_contratante_excel or nome_contratante_excel.upper() in ["NAN", "NONE"]:
             return {
                 "sucesso": False,
                 "mensagem": "Erro: O nome do contratante na primeira linha do Excel está vazio ou inválido.",
             }
 
-        # Conecta ao banco de dados
         conexao = obter_conexao(banco)
         cursor = conexao.cursor()
 
         # 2. Validação e Status do Contratante
+        nome_contratante_norm = normalizar_texto(nome_contratante_excel)
         cursor.execute(
             """
             SELECT id, nome, status FROM dbo.Contratante 
             WHERE UPPER(TRIM(nome)) = UPPER(TRIM(?))
         """,
-            (nome_contratante_excel,),
+            (nome_contratante_norm,),
         )
 
         contratante_validado = cursor.fetchone()
@@ -1064,7 +1057,7 @@ async def processar_importacao_movimentacoes_folha(
                 "mensagem": f"Importação Bloqueada! O contratante '{nome_contratante_bd}' está INATIVO no sistema.",
             }
 
-        # 3. Lógica de Lote (Substituição ou Novo Lote em MovimentacaoFolhaPagamento)
+        # 3. Lógica de Lote na dbo.BaseFolhaPagamento
         cursor.execute(
             """
             SELECT id FROM dbo.ImportacaoLote 
@@ -1077,7 +1070,7 @@ async def processar_importacao_movimentacoes_folha(
         if lote_existente:
             lote_id = lote_existente[0]
             cursor.execute(
-                "DELETE FROM dbo.MovimentacaoFolhaPagamento WHERE importacaoLoteId = ?",
+                "DELETE FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = ?",
                 (lote_id,),
             )
         else:
@@ -1168,28 +1161,78 @@ async def processar_importacao_movimentacoes_folha(
             normalizar_texto(row[0]) for row in cursor.fetchall()
         }
 
-        erros_encontrados = []
+        erros_plano = []
         for index, row_data in df.iterrows():
             conta_excel = normalizar_texto(
                 str(row_data.get(mapeamento_colunas["planoConta"], ""))
             )
             if conta_excel and conta_excel not in ["NAN", "NONE"]:
                 if conta_excel not in planos_no_banco:
-                    erros_encontrados.append(
+                    erros_plano.append(
                         f"Linha {index + 2}: O plano de contas '{row_data.get(mapeamento_colunas['planoConta'])}' não está cadastrado no sistema."
                     )
-            if len(erros_encontrados) >= 5:
+            if len(erros_plano) >= 5:
                 break
 
-        if erros_encontrados:
+        if erros_plano:
             conexao.close()
             return {
                 "sucesso": False,
                 "mensagem": f"Importação bloqueada! Erros no Plano de Contas:\n"
-                + "\n".join(erros_encontrados),
+                + "\n".join(erros_plano),
             }
 
-        # Função interna de conversão e extração de dados
+        # 7. Pré-validação de Existência e Status das UNIDADES (Registro e Atuação)
+        cursor.execute(
+            "SELECT id, UPPER(TRIM(nome)), ISNULL(status, 1) FROM dbo.Unidade WHERE contratanteId = ?",
+            (contratante_id,),
+        )
+        unidades_db = cursor.fetchall()
+
+        mapa_unidades = {}     # Mapeia nome norm -> ID
+        status_unidades = {}   # Mapeia ID -> status int
+
+        for u_id, u_nome, u_stat in unidades_db:
+            u_norm = normalizar_texto(u_nome)
+            mapa_unidades[u_norm] = u_id
+            status_unidades[u_id] = int(u_stat)
+
+        erros_cadastros = []
+        for index, row_data in df.iterrows():
+            linha_num = index + 2
+
+            # Valida Unidade Registro
+            u_reg_val = str(row_data.get(mapeamento_colunas["unidadeRegistro"], "")).strip()
+            if u_reg_val and u_reg_val.upper() not in ["NAN", "NONE"]:
+                u_norm = normalizar_texto(u_reg_val)
+                u_id = mapa_unidades.get(u_norm)
+                if not u_id:
+                    erros_cadastros.append(f"Linha {linha_num}: A Unidade de Registro '{u_reg_val}' não está cadastrada para o contratante '{nome_contratante_bd}'.")
+                elif status_unidades.get(u_id) != 1:
+                    erros_cadastros.append(f"Linha {linha_num}: A Unidade de Registro '{u_reg_val}' está INATIVA no sistema.")
+
+            # Valida Unidade Atuação
+            u_atu_val = str(row_data.get(mapeamento_colunas["unidadeAtuacao"], "")).strip()
+            if u_atu_val and u_atu_val.upper() not in ["NAN", "NONE"]:
+                u_norm = normalizar_texto(u_atu_val)
+                u_id = mapa_unidades.get(u_norm)
+                if not u_id:
+                    erros_cadastros.append(f"Linha {linha_num}: A Unidade de Atuação '{u_atu_val}' não está cadastrada para o contratante '{nome_contratante_bd}'.")
+                elif status_unidades.get(u_id) != 1:
+                    erros_cadastros.append(f"Linha {linha_num}: A Unidade de Atuação '{u_atu_val}' está INATIVA no sistema.")
+
+            if len(erros_cadastros) >= 5:
+                break
+
+        if erros_cadastros:
+            conexao.close()
+            return {
+                "sucesso": False,
+                "mensagem": "Importação bloqueada! Verifique os erros de unidade abaixo:\n"
+                + "\n".join(erros_cadastros),
+            }
+
+        # Função auxiliar de conversão
         def obtener_valor(row_data, coluna_excel, tipo_dado="string"):
             col_real = mapeamento_colunas.get(coluna_excel)
             if col_real and col_real in df.columns and pd.notna(row_data[col_real]):
@@ -1208,9 +1251,7 @@ async def processar_importacao_movimentacoes_folha(
 
                 if tipo_dado == "float":
                     try:
-                        return Decimal(
-                            "{:.2f}".format(float(row_data[col_real]))
-                        )
+                        return Decimal("{:.2f}".format(float(row_data[col_real])))
                     except:
                         return Decimal("0.00")
 
@@ -1219,45 +1260,18 @@ async def processar_importacao_movimentacoes_folha(
 
             return Decimal("0.00") if tipo_dado == "float" else None
 
-        # 7. Laço de Inserção na Tabela MovimentacaoFolhaPagamento
+        # 8. Inserção na Tabela BaseFolhaPagamento
         linhas_importadas = 0
         for _, row in df.iterrows():
             unidade_reg_nome = obtener_valor(row, "unidadeRegistro")
             unidade_atu_nome = obtener_valor(row, "unidadeAtuacao")
 
-            # Unidade Registro
-            if unidade_reg_nome:
-                cursor.execute(
-                    "SELECT id FROM dbo.Unidade WHERE UPPER(TRIM(nome)) = UPPER(TRIM(?)) AND contratanteId = ?",
-                    (unidade_reg_nome, contratante_id),
-                )
-                u_row = cursor.fetchone()
-                unidade_reg_id = u_row[0] if u_row else None
-                if not unidade_reg_id:
-                    cursor.execute(
-                        "INSERT INTO dbo.Unidade (nome, contratanteId) VALUES (?, ?)",
-                        (unidade_reg_nome, contratante_id),
-                    )
-                    cursor.execute("SELECT @@IDENTITY")
-                    unidade_reg_id = int(cursor.fetchone()[0])
-            else:
-                unidade_reg_id = None
+            # Mapeamento do ID da Unidade de Registro
+            unidade_reg_id = mapa_unidades.get(normalizar_texto(unidade_reg_nome)) if unidade_reg_nome else None
 
-            # Unidade Atuação
+            # Mapeamento do ID da Unidade de Atuação (fallback para unidade_reg_id se não informada)
             if unidade_atu_nome:
-                cursor.execute(
-                    "SELECT id FROM dbo.Unidade WHERE UPPER(TRIM(nome)) = UPPER(TRIM(?)) AND contratanteId = ?",
-                    (unidade_atu_nome, contratante_id),
-                )
-                u_row = cursor.fetchone()
-                unidade_atu_id = u_row[0] if u_row else None
-                if not unidade_atu_id:
-                    cursor.execute(
-                        "INSERT INTO dbo.Unidade (nome, contratanteId) VALUES (?, ?)",
-                        (unidade_atu_nome, contratante_id),
-                    )
-                    cursor.execute("SELECT @@IDENTITY")
-                    unidade_atu_id = int(cursor.fetchone()[0])
+                unidade_atu_id = mapa_unidades.get(normalizar_texto(unidade_atu_nome))
             else:
                 unidade_atu_id = unidade_reg_id
 
@@ -1267,12 +1281,10 @@ async def processar_importacao_movimentacoes_folha(
 
             has_grupo = "grupoConta" in mapeamento_colunas and mapeamento_colunas["grupoConta"] in df.columns
             g_conta_raw = str(row[mapeamento_colunas["grupoConta"]]).strip() if has_grupo and pd.notna(row.get(mapeamento_colunas["grupoConta"])) else None
-            g_conta_norm = normalizar_texto(g_conta_raw) if g_conta_raw else None
 
             plano_conta_id = None
 
             if p_conta_raw and p_conta_raw.upper() not in ["NAN", "NONE"]:
-                # 1ª Tentativa: Busca combinando Plano + Grupo (priorizando efolha ativo)
                 if g_conta_raw and g_conta_raw.upper() not in ["NAN", "NONE"]:
                     cursor.execute("""
                         SELECT id FROM dbo.PlanoContas 
@@ -1284,7 +1296,6 @@ async def processar_importacao_movimentacoes_folha(
                     if plano_row:
                         plano_conta_id = plano_row[0]
 
-                # 2ª Tentativa: Busca apenas pelo Plano (priorizando efolha ativo)
                 if not plano_conta_id:
                     cursor.execute("""
                         SELECT id FROM dbo.PlanoContas 
@@ -1295,7 +1306,6 @@ async def processar_importacao_movimentacoes_folha(
                     if plano_row:
                         plano_conta_id = plano_row[0]
 
-                # 3ª Tentativa (Fallback por Collation/Sem acentos, priorizando efolha ativo):
                 if not plano_conta_id:
                     cursor.execute("""
                         SELECT id FROM dbo.PlanoContas 
@@ -1306,10 +1316,10 @@ async def processar_importacao_movimentacoes_folha(
                     if plano_row:
                         plano_conta_id = plano_row[0]
 
-            # Inserção na MovimentacaoFolhaPagamento
+            # Inserção na BaseFolhaPagamento
             cursor.execute(
                 """
-                INSERT INTO dbo.MovimentacaoFolhaPagamento (
+                INSERT INTO dbo.BaseFolhaPagamento (
                     unidadeRegistroId, unidadeAtuacaoId, nome, cpf, dataNascimento, 
                     cboCargo, cargo, departamento, dataAdmissao, descricao, 
                     planoContaId, dataCompetencia, dataCaixa, tipo, valor, importacaoLoteId
@@ -1336,11 +1346,10 @@ async def processar_importacao_movimentacoes_folha(
             )
             linhas_importadas += 1
 
-        # Registro do Log
         registrar_log(
             usuario_id=usuario.id,
             acao="Importacao",
-            tabela="MovimentacaoFolhaPagamento",
+            tabela="BaseFolhaPagamento",
             detalhes={
                 "arquivo": nome_arquivo,
                 "contratante": nome_contratante_bd,

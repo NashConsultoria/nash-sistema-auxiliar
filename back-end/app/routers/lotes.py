@@ -46,13 +46,13 @@ def listar_lotes_importacao(
                         ISNULL((SELECT COUNT(*) FROM dbo.PlanoContas WHERE importacaoLoteId = l.id), 0)
                     )
                     ELSE (
-                        ISNULL((SELECT COUNT(*) FROM dbo.Movimentacao WHERE importacaoLoteId = l.id), 0) +
-                        ISNULL((SELECT COUNT(*) FROM dbo.MovimentacaoFolhaPagamento WHERE importacaoLoteId = l.id), 0)
+                        ISNULL((SELECT COUNT(*) FROM dbo.BaseFinanceiro WHERE importacaoLoteId = l.id), 0) +
+                        ISNULL((SELECT COUNT(*) FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = l.id), 0)
                     )
                 END AS totalMovimentacoes,
                 (
-                    ISNULL((SELECT SUM(ISNULL(valor, 0)) FROM dbo.Movimentacao WHERE importacaoLoteId = l.id), 0) +
-                    ISNULL((SELECT SUM(ISNULL(valor, 0)) FROM dbo.MovimentacaoFolhaPagamento WHERE importacaoLoteId = l.id), 0)
+                    ISNULL((SELECT SUM(ISNULL(valor, 0)) FROM dbo.BaseFinanceiro WHERE importacaoLoteId = l.id), 0) +
+                    ISNULL((SELECT SUM(ISNULL(valor, 0)) FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = l.id), 0)
                 ) AS valorTotal
             FROM dbo.ImportacaoLote l
             LEFT JOIN dbo.Contratante c ON l.contratanteId = c.id
@@ -141,12 +141,12 @@ def deletar_lote_importacao(
         linhas_plano_contas = cursor.rowcount
 
         cursor.execute(
-            "DELETE FROM dbo.Movimentacao WHERE importacaoLoteId = ?", (lote_id,)
+            "DELETE FROM dbo.BaseFinanceiro WHERE importacaoLoteId = ?", (lote_id,)
         )
         linhas_movimentacao = cursor.rowcount
 
         cursor.execute(
-            "DELETE FROM dbo.MovimentacaoFolhaPagamento WHERE importacaoLoteId = ?",
+            "DELETE FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = ?",
             (lote_id,),
         )
         linhas_folha = cursor.rowcount
@@ -158,7 +158,7 @@ def deletar_lote_importacao(
             """
             DELETE FROM dbo.Fornecedor 
             WHERE id NOT IN (
-                SELECT DISTINCT fornecedorId FROM dbo.Movimentacao WHERE fornecedorId IS NOT NULL
+                SELECT DISTINCT fornecedorId FROM dbo.BaseFinanceiro WHERE fornecedorId IS NOT NULL
             )
         """
         )
@@ -169,7 +169,7 @@ def deletar_lote_importacao(
             """
             DELETE FROM dbo.BancoConta 
             WHERE id NOT IN (
-                SELECT DISTINCT bancoContaId FROM dbo.Movimentacao WHERE bancoContaId IS NOT NULL
+                SELECT DISTINCT bancoContaId FROM dbo.BaseFinanceiro WHERE bancoContaId IS NOT NULL
                 UNION
                 SELECT DISTINCT bancoId FROM dbo.PlanoDePara WHERE bancoId IS NOT NULL
             )
@@ -182,11 +182,11 @@ def deletar_lote_importacao(
             """
             DELETE FROM dbo.Unidade 
             WHERE importacaoLoteId IS NULL AND id NOT IN (
-                SELECT DISTINCT unidadeId FROM dbo.Movimentacao WHERE unidadeId IS NOT NULL
+                SELECT DISTINCT unidadeId FROM dbo.BaseFinanceiro WHERE unidadeId IS NOT NULL
                 UNION
-                SELECT DISTINCT unidadeRegistroId FROM dbo.MovimentacaoFolhaPagamento WHERE unidadeRegistroId IS NOT NULL
+                SELECT DISTINCT unidadeRegistroId FROM dbo.BaseFolhaPagamento WHERE unidadeRegistroId IS NOT NULL
                 UNION
-                SELECT DISTINCT unidadeAtuacaoId FROM dbo.MovimentacaoFolhaPagamento WHERE unidadeAtuacaoId IS NOT NULL
+                SELECT DISTINCT unidadeAtuacaoId FROM dbo.BaseFolhaPagamento WHERE unidadeAtuacaoId IS NOT NULL
                 UNION
                 SELECT DISTINCT unidadeId FROM dbo.PlanoDePara WHERE unidadeId IS NOT NULL
             )

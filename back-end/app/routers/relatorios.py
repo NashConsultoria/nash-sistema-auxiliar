@@ -83,7 +83,7 @@ def obter_dre(
                 YEAR(m.data) AS ano,
                 MONTH(m.data) AS mes,
                 SUM(ISNULL(m.valor, 0)) AS total
-            FROM dbo.Movimentacao m
+            FROM dbo.BaseFinanceiro m
             INNER JOIN dbo.PlanoContas pc ON m.planoContaId = pc.id
             LEFT JOIN dbo.Unidade u ON m.unidadeId = u.id
             LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
@@ -287,7 +287,7 @@ def obter_folha_pagamento(
         cursor = conexao.cursor()
 
         cursor.execute(
-            "SELECT DISTINCT YEAR(dataCompetencia) FROM dbo.MovimentacaoFolhaPagamento"
+            "SELECT DISTINCT YEAR(dataCompetencia) FROM dbo.BaseFolhaPagamento"
         )
         anos_disponiveis = [r[0] for r in cursor.fetchall() if r[0] is not None]
 
@@ -335,7 +335,7 @@ def obter_folha_pagamento(
                 ISNULL(m.nome, 'DIVERSOS') AS nome_funcionario,
                 MONTH(m.dataCompetencia) AS mes,
                 SUM(ISNULL(m.valor, 0)) AS total
-            FROM dbo.MovimentacaoFolhaPagamento m
+            FROM dbo.BaseFolhaPagamento m
             LEFT JOIN dbo.PlanoContas pc ON m.planoContaId = pc.id
             LEFT JOIN dbo.Unidade u ON m.unidadeAtuacaoId = u.id
             LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id

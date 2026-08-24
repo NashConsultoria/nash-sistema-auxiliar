@@ -97,7 +97,7 @@ TABELAS_PERMITIDAS = {
         "nome_aba": "Regras_Plano",
         "coluna_padrao_id": "importacaoLoteId"
     },
-    "movimentacao": {
+    "BaseFinanceiro": {
         "query_customizada": """
             SELECT 
                 m.id,
@@ -117,7 +117,7 @@ TABELAS_PERMITIDAS = {
                 p.grupoConta AS [GRUPO DE CONTA],
                 p.edre AS [E-DRE],
                 m.importacaoLoteId
-            FROM dbo.Movimentacao m
+            FROM dbo.BaseFinanceiro m
             LEFT JOIN dbo.Unidade u ON m.unidadeId = u.id
             LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
             LEFT JOIN dbo.BancoConta bc ON m.bancoContaId = bc.id
@@ -127,7 +127,7 @@ TABELAS_PERMITIDAS = {
         "nome_aba": "BASE_FINANCEIRA",
         "coluna_padrao_id": "importacaoLoteId"
     },
-    "movimentacaofolhapagamento": {
+    "BaseFolhaPagamento": {
         "query_customizada": """
             SELECT 
                 m.id,
@@ -151,7 +151,7 @@ TABELAS_PERMITIDAS = {
                 m.tipo AS [TIPO],
                 m.valor AS [VALOR],
                 m.importacaoLoteId
-            FROM dbo.MovimentacaoFolhaPagamento m
+            FROM dbo.BaseFolhaPagamento m
             LEFT JOIN dbo.Unidade u_reg ON m.unidadeRegistroId = u_reg.id
             LEFT JOIN dbo.Unidade u_atu ON m.unidadeAtuacaoId = u_atu.id
             LEFT JOIN dbo.Contratante c ON u_reg.contratanteId = c.id
