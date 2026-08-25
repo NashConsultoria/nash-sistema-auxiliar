@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import Card from "../card/Card";
 import Button from "../button/Button";
 import Table from "../table/Table";
 import FiltroBar from "../filtro/FiltroBar";
 import Inputlist from "../Inputlist/Inputlist";
+import { useFetch } from "../../utils/useFetch";
 import { API_BASE } from "../../context/AuthContext";
 
 const TIPOS_UNIDADE = {
@@ -12,11 +13,7 @@ const TIPOS_UNIDADE = {
     3: "Ambos"
 };
 
-export default function UnidadesTab({ 
-    token, 
-    unidades = [], 
-    carregarUnidades,
-}) {
+export default function UnidadesTab({ token }) {
     const [modoCadastroUnidade, setModoCadastroUnidade] = useState(false);
     const [editandoUnidadeId, setEditandoUnidadeId] = useState(null);
     const [mostrarInativos, setMostrarInativos] = useState(false);
@@ -34,41 +31,19 @@ export default function UnidadesTab({
         tipo: 1 
     });
 
-    // ESTADOS AUXILIARES
-    const [contratantes, setContratantes] = useState([]);
-    const [bancos, setBancos] = useState([]);
+    // BUSCA DE DADOS COM HOOK REUTILIZÁVEL
+    const { data: contratantes = [], refetch: carregarContratantes } = useFetch('/api/contratantes', token);
+    const { data: bancos = [], refetch: carregarBancos } = useFetch('/api/bancos', token);
+    const { data: unidades = [], refetch: carregarUnidades } = useFetch('/api/unidades', token);
+
     const [contratanteTexto, setContratanteTexto] = useState("");
     const [bancoTexto, setBancoTexto] = useState("");
 
-    useEffect(() => {
+    // Recarrega todos os dados após alterações
+    const recarregarTodosDados = () => {
         carregarContratantes();
         carregarBancos();
-    }, []);
-    
-    const carregarContratantes = async () => {
-        try {
-            const res = await fetch(`${API_BASE}/api/contratantes`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error("Erro ao buscar contratantes");
-            const dados = await res.json();
-            setContratantes(dados);
-        } catch (err) {
-            console.error("Erro contratantes:", err);
-        }
-    };
-
-    const carregarBancos = async () => {
-        try {
-            const res = await fetch(`${API_BASE}/api/bancos`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error("Erro ao buscar bancos");
-            const dados = await res.json();
-            setBancos(dados);
-        } catch (err) {
-            console.error("Erro bancos:", err);
-        }
+        carregarUnidades();
     };
 
     // FUNÇÕES AUXILIARES PARA RESOLVER NOMES DE BANCO E CONTRATANTE
@@ -236,16 +211,12 @@ export default function UnidadesTab({
             
         const metodo = editandoUnidadeId ? "PUT" : "POST";
 
-        const cId = formUnidade.contratanteId ? Number(formUnidade.contratanteId) : null;
-        const bId = formUnidade.bancoId ? Number(formUnidade.bancoId) : null;
-
-        // Payload contendo apenas os campos conhecidos pelo schema da API
         const payload = {
             nome: formUnidade.nome.trim(),
             razaoSocial: formUnidade.razaoSocial.trim() || null,
             cnpj: formUnidade.cnpj.trim() || null,
-            contratanteId: cId,
-            bancoId: bId,
+            contratanteId: formUnidade.contratanteId ? Number(formUnidade.contratanteId) : null,
+            bancoId: formUnidade.bancoId ? Number(formUnidade.bancoId) : null,
             agencia: formUnidade.agencia.trim() || null,
             conta: formUnidade.conta.trim() || null,
             tipo: Number(formUnidade.tipo) || 1
@@ -273,7 +244,7 @@ export default function UnidadesTab({
 
             alert("Unidade salva com sucesso!");
             setModoCadastroUnidade(false);
-            if (carregarUnidades) carregarUnidades();
+            recarregarTodosDados();
         } catch (err) {
             alert(err.message);
         } finally {
@@ -330,7 +301,7 @@ export default function UnidadesTab({
             if (!res.ok) throw new Error(resposta.detail || "Erro ao alterar status da unidade.");
 
             alert(resposta.mensagem || "Status atualizado com sucesso!");
-            if (carregarUnidades) carregarUnidades();
+            carregarUnidades();
         } catch (err) {
             alert(err.message);
         }

@@ -132,11 +132,17 @@ export default function Conversor() {
       const contratanteSel = contratantes.find(c => String(c.id) === String(contratanteId));
       const nomeContratante = contratanteSel ? (contratanteSel.nome || contratanteSel.razaoSocial) : "CONTRATANTE";
 
+      // 1. Extrai o nome do arquivo original sem a extensão (ex: "extrato_outubro.ofx" -> "extrato_outubro")
+      const nomeArquivoSemExtensao = fileSelected.name.substring(0, fileSelected.name.lastIndexOf('.')) || fileSelected.name;
+
+      // 2. Formata para o novo padrão desejado
+      const nomeDownload = `BASE_FINANCEIRA_${nomeContratante.toUpperCase()}_${nomeArquivoSemExtensao.toUpperCase()}.xlsx`;
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `BASE_FINANCEIRA_${nomeContratante.toUpperCase()}.xlsx`;
+      a.download = nomeDownload; // Aplica o novo nome formatado
       document.body.appendChild(a);
       a.click();
       a.remove();
