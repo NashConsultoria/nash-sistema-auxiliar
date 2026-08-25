@@ -120,16 +120,18 @@ def deletar_lote_importacao(
         nome_arquivo = lote[0]
 
         # 2. Deleta os registros das tabelas associadas ao lote
+        # A) Deleta movimentações e folhas que usam regras/unidades
         cursor.execute(
-            "DELETE FROM dbo.Banco WHERE importacaoLoteId = ?", (lote_id,)
+            "DELETE FROM dbo.BaseFinanceiro WHERE importacaoLoteId = ?", (lote_id,)
         )
-        linhas_bancos = cursor.rowcount
+        linhas_movimentacao = cursor.rowcount
 
         cursor.execute(
-            "DELETE FROM dbo.Unidade WHERE importacaoLoteId = ?", (lote_id,)
+            "DELETE FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = ?", (lote_id,)
         )
-        linhas_unidades = cursor.rowcount
+        linhas_folha = cursor.rowcount
 
+        # B) Deleta as REGRAS (PlanoDePara) ANTES de Unidades e Bancos
         cursor.execute(
             "DELETE FROM dbo.PlanoDePara WHERE importacaoLoteId = ?", (lote_id,)
         )
@@ -140,19 +142,18 @@ def deletar_lote_importacao(
         )
         linhas_plano_contas = cursor.rowcount
 
+        # C) Agora que as Regras e Finanças foram removidas, é seguro deletar Unidades e Bancos
         cursor.execute(
-            "DELETE FROM dbo.BaseFinanceiro WHERE importacaoLoteId = ?", (lote_id,)
+            "DELETE FROM dbo.Unidade WHERE importacaoLoteId = ?", (lote_id,)
         )
-        linhas_movimentacao = cursor.rowcount
+        linhas_unidades = cursor.rowcount
 
         cursor.execute(
-            "DELETE FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = ?",
-            (lote_id,),
+            "DELETE FROM dbo.Banco WHERE importacaoLoteId = ?", (lote_id,)
         )
-        linhas_folha = cursor.rowcount
+        linhas_bancos = cursor.rowcount
 
         # 3. LIMPEZA DE CADASTROS ÓRFÃOS
-
         # A) Limpa Fornecedores sem referência
         cursor.execute(
             """
@@ -160,7 +161,7 @@ def deletar_lote_importacao(
             WHERE id NOT IN (
                 SELECT DISTINCT fornecedorId FROM dbo.BaseFinanceiro WHERE fornecedorId IS NOT NULL
             )
-        """
+            """
         )
         fornecedores_removidos = cursor.rowcount
 
@@ -173,7 +174,7 @@ def deletar_lote_importacao(
                 UNION
                 SELECT DISTINCT bancoId FROM dbo.PlanoDePara WHERE bancoId IS NOT NULL
             )
-        """
+            """
         )
         bancos_contas_removidos = cursor.rowcount
 
@@ -190,7 +191,7 @@ def deletar_lote_importacao(
                 UNION
                 SELECT DISTINCT unidadeId FROM dbo.PlanoDePara WHERE unidadeId IS NOT NULL
             )
-        """
+            """
         )
         unidades_orfas_removidas = cursor.rowcount
 

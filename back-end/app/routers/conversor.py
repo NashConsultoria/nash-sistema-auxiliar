@@ -1,14 +1,27 @@
 import io
 import re
+import pdfplumber
 from typing import Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from app.config import BANCO_AUTENTICACAO, REGRAS_FORNECEDORES, PALAVRAS_REMOVIDAS
+from app.config import REGRAS_FORNECEDORES, PALAVRAS_REMOVIDAS
 from app.database import obter_conexao
 from app.utils import corrigir_encoding
+from .pdf_bancos import (
+    pdf_banco_do_brasil,
+    pdf_bradesco,
+    pdf_caixa,
+    pdf_sicoob,
+    pdf_safra,
+    pdf_sicredi,
+    pdf_c6,
+    pdf_inter,
+    pdf_cora,
+    pdf_stone,
+)
 
 router = APIRouter(prefix="/NashBancoConsultoria/conversor", tags=["Conversor de Extratos"])
 
@@ -16,18 +29,89 @@ router = APIRouter(prefix="/NashBancoConsultoria/conversor", tags=["Conversor de
 # ENRIQUECIMENTO E APLICAÇÃO DE REGRAS
 # ==============================================================================
 
+def corrigir_tags_ofx_abertas(conteudo_bytes: bytes) -> str:
+    """
+    Lê o conteúdo em bytes de um arquivo OFX, detecta tags que foram abertas 
+    e adiciona a tag de fechamento correspondente de forma segura.
+    """
+    try:
+        try:
+            texto = conteudo_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            texto = conteudo_bytes.decode('latin-1')
+ 
+        linhas = texto.splitlines()
+        linhas_corrigidas = []
+ 
+        # Regex para encontrar tags no formato <TAG>valor (sem fechamento na mesma linha)
+        padrao_tag = re.compile(r'^\s*<([A-Za-z0-9_]+)>([^<\r\n]+)$')
+ 
+        for linha in linhas:
+            match = padrao_tag.match(linha)
+            if match:
+                nome_tag = match.group(1)
+                
+                # Evita mexer em tags que já possuem fechamento ou tags de cabeçalho
+                if not f"</{nome_tag}>" in linha and not nome_tag.startswith("OFX"):
+                    linha_formatada = f"<{nome_tag}>{match.group(2).strip()}</{nome_tag}>"
+                    linhas_corrigidas.append(linha_formatada)
+                    continue
+            
+            linhas_corrigidas.append(linha)
+ 
+        return "\n".join(linhas_corrigidas)
+ 
+    except Exception as e:
+        print(f"Aviso: Erro ao tentar corrigir tags do OFX: {e}")
+        return conteudo_bytes.decode('utf-8', errors='ignore')
+
+def identificar_banco_no_pdf(conteudo_bytes: bytes) -> str:
+    with pdfplumber.open(io.BytesIO(conteudo_bytes)) as pdf:
+        if not pdf.pages:
+            return ""
+        texto_pagina1 = (pdf.pages[0].extract_text() or "").upper()
+
+        if "BANCO DO BRASIL" in texto_pagina1:
+            return "BANCO DO BRASIL"
+        if "LOTE" in texto_pagina1 and "DOCUMENTO" in texto_pagina1 and "HISTÓRICO" in texto_pagina1:
+            return "BANCO DO BRASIL"
+        if "BRADESCO" in texto_pagina1:
+            return "BRADESCO"
+        if "NET EMPRESA" in texto_pagina1 or "TOTAL DISPONÍVEL (R$)" in texto_pagina1:
+            return "BRADESCO"
+        if ("LANÇAMENTO" in texto_pagina1 and "DCTO." in texto_pagina1 and "CRÉDITO (R$)" in texto_pagina1):
+            return "BRADESCO"
+        if "CAIXA" in texto_pagina1:
+            return "CAIXA"
+        if "SICOOB" in texto_pagina1:
+            return "SICOOB"
+        if "SAFRA" in texto_pagina1:
+            return "BANCO SAFRA"
+        if "SICREDI" in texto_pagina1:
+            return "SICREDI"
+        if "C6 BANK" in texto_pagina1 or "C6BANK" in texto_pagina1:
+            return "BANCO C6"
+        if "BANCO INTER" in texto_pagina1:
+            return "BANCO INTER"
+        if "BANCO CORA" in texto_pagina1:
+            return "BANCO CORA"
+        if "STONE" in texto_pagina1:
+            return "BANCO STONE"
+            
+    return ""
+    
 def gerar_fornecedor_com_filtro(descricao_texto: str) -> str:
     if not descricao_texto:
         return ""
-
+ 
     texto_limpo = descricao_texto
-
+ 
     # 1. Remove Datas nos formatos DD/MM ou DD/MM/AAAA (ex: 03/06, 16/06/2026)
     texto_limpo = re.sub(r"\b\d{2}/\d{2}(?:/\d{2,4})?\b", "", texto_limpo)
-
+ 
     # 2. Remove Horários nos formatos HH:MM ou HH:MM:SS (ex: 13:03, 16:17:30)
     texto_limpo = re.sub(r"\b\d{2}:\d{2}(?::\d{2})?\b", "", texto_limpo)
-
+ 
     # 3. Remove palavras banidas da lista PALAVRAS_REMOVIDAS
     if PALAVRAS_REMOVIDAS:
         palavras_escapadas = [re.escape(palavra) for palavra in PALAVRAS_REMOVIDAS]
@@ -35,7 +119,7 @@ def gerar_fornecedor_com_filtro(descricao_texto: str) -> str:
             r"\b(" + "|".join(palavras_escapadas) + r")\b", flags=re.IGNORECASE
         )
         texto_limpo = pattern.sub("", texto_limpo)
-
+ 
     # 4. Trata hífens sobrantes e espaços duplicados
     texto_limpo = re.sub(r"\s*-\s*-\s*", " - ", texto_limpo)
     texto_limpo = re.sub(r"^\s*-\s*", "", texto_limpo)
@@ -43,17 +127,31 @@ def gerar_fornecedor_com_filtro(descricao_texto: str) -> str:
     
     return re.sub(r"\s+", " ", texto_limpo).strip()
 
-def identificar_fornecedor(descricao: str, banco_val: str) -> str:
+def identificar_fornecedor(descricao: str, banco_val: str, tipo: str = "") -> str:
     desc_lower = descricao.lower()
-    
+    tipo_norm = (tipo or "").strip().upper()
+ 
     for termo, fornecedor in REGRAS_FORNECEDORES:
         if termo.lower() in desc_lower:
-            # Lista ou verificação de marcas que indicam que o fornecedor deve ser o próprio banco
+ 
+            # Regra condicional por tipo de transação (PAGAMENTO / RECEBIMENTO)
+            if isinstance(fornecedor, dict):
+                fornecedor_tipo = (
+                    fornecedor.get(tipo_norm)
+                    or fornecedor.get("DEFAULT")
+                    or banco_val
+                )
+                fornecedor_tipo_upper = str(fornecedor_tipo).strip().upper()
+                if fornecedor_tipo_upper in ["BANCO", "(NOME DO BANCO)", "[NOME DO BANCO]"]:
+                    return banco_val
+                return fornecedor_tipo
+ 
+            # Regra simples de sempre (comportamento original)
             fornecedor_upper = str(fornecedor).strip().upper()
             if fornecedor_upper in ["BANCO", "(NOME DO BANCO)", "[NOME DO BANCO]"]:
                 return banco_val
             return fornecedor
-
+ 
     return gerar_fornecedor_com_filtro(descricao)
 
 def aplicar_plano_conta(linhas_extrato: list, banco: str, contratante_id: Optional[int] = None) -> list:
@@ -223,18 +321,31 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
         else:
             descricao_original = payee or memo
 
-        fornecedor_val = identificar_fornecedor(descricao_original, banco_val)
-
-        # Determinação do Tipo
+        # 1. Determina o TIPO PRIMEIRO (para enviar para a regra do fornecedor)
         desc_lower = descricao_original.lower()
-        forn_lower = (fornecedor_val or "").lower()
-
-        if "saldo" in desc_lower or "saldo" in forn_lower:
+        if "saldo" in desc_lower:
             tipo = "SALDO"
         elif valor < 0:
             tipo = "PAGAMENTO"
         else:
             tipo = "RECEBIMENTO"
+
+        # 2. Identifica o fornecedor passando o TIPO já calculado
+        fornecedor_raw = identificar_fornecedor(descricao_original, banco_val, tipo=tipo)
+
+        # 3. Garante que fornecedor_val seja SEMPRE string
+        if isinstance(fornecedor_raw, dict):
+            fornecedor_val = (
+                fornecedor_raw.get("fornecedor") 
+                or fornecedor_raw.get("nome") 
+                or ""
+            )
+        else:
+            fornecedor_val = str(fornecedor_raw) if fornecedor_raw is not None else ""
+
+        # 4. Ajuste secundário de TIPO (caso a palavra SALDO estivesse oculta no fornecedor)
+        if "saldo" in fornecedor_val.lower():
+            tipo = "SALDO"
 
         transacoes_dados.append({
             "contratante": contratante_val,
@@ -256,6 +367,82 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
 
     return transacoes_dados
 
+def processar_pdf(conteudo_bytes: bytes, conexao, identificar_fornecedor_fn) -> list:
+    """
+    Roteador principal de PDFs: Identifica o banco, executa o parser 
+    correspondente e vincula as informações com o banco de dados SQL.
+    """
+    banco_detectado = identificar_banco_no_pdf(conteudo_bytes).strip()
+
+    if not banco_detectado:
+        raise HTTPException(
+            status_code=400, 
+            detail="Não foi possível identificar o banco emissor deste PDF."
+        )
+
+    if banco_detectado == "BANCO DO BRASIL":
+        dados_extraidos = pdf_banco_do_brasil(conteudo_bytes, identificar_fornecedor_fn)
+    elif banco_detectado == "BRADESCO":
+        dados_extraidos = pdf_bradesco(conteudo_bytes, identificar_fornecedor_fn)
+    elif banco_detectado in ["CAIXA ECONOMICA FEDERAL", "CAIXA"]:
+        dados_extraidos = pdf_caixa(conteudo_bytes, identificar_fornecedor_fn)
+    elif banco_detectado == "SICOOB":
+        dados_extraidos = pdf_sicoob(conteudo_bytes, identificar_fornecedor_fn)
+    elif banco_detectado == "BANCO SAFRA":
+        dados_extraidos = pdf_safra(conteudo_bytes, identificar_fornecedor_fn)
+    elif banco_detectado == "SICREDI":
+        dados_extraidos = pdf_sicredi(conteudo_bytes, identificar_fornecedor_fn)
+    elif banco_detectado == "BANCO C6":
+        dados_extraidos = pdf_c6(conteudo_bytes, identificar_fornecedor_fn)
+    elif banco_detectado == "BANCO INTER":
+        dados_extraidos = pdf_inter(conteudo_bytes, identificar_fornecedor_fn)
+    elif banco_detectado == "BANCO CORA":
+        dados_extraidos = pdf_cora(conteudo_bytes, identificar_fornecedor_fn)
+    elif banco_detectado == "BANCO STONE":
+        dados_extraidos = pdf_stone(conteudo_bytes, identificar_fornecedor_fn)
+    else:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"O processamento do PDF para o banco '{banco_detectado}' ainda não foi implementado."
+        )
+
+    transacoes = dados_extraidos.get("transacoes", [])
+    agencia_val = dados_extraidos.get("agencia", "")
+    conta_val = dados_extraidos.get("conta", "")
+
+    # Busca no Banco de Dados (Igual ao OFX)
+    unidade_val = ""
+    contratante_val = ""
+
+    if conexao and agencia_val and conta_val:
+        cursor = conexao.cursor()
+        agencia_limpa = re.sub(r"\D", "", agencia_val).lstrip("0")
+        conta_limpa = re.sub(r"\D", "", conta_val).lstrip("0")
+
+        cursor.execute(
+            """
+            SELECT u.nome AS unidade_nome, c.nome AS contratante_nome
+            FROM dbo.BancoConta bc
+            INNER JOIN dbo.Banco b ON bc.bancoId = b.id
+            INNER JOIN dbo.Unidade u ON u.bancoContaId = bc.id
+            LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
+            WHERE LTRIM(RTRIM(REPLACE(bc.agencia, '-', ''))) LIKE ?
+              AND LTRIM(RTRIM(REPLACE(bc.conta, '-', ''))) LIKE ?
+            """,
+            (f"%{agencia_limpa}%", f"%{conta_limpa}%")
+        )
+        row_unidade = cursor.fetchone()
+        if row_unidade:
+            unidade_val = row_unidade[0] or ""
+            contratante_val = row_unidade[1] or ""
+
+    # Aplica Unidade e Contratante nas transações
+    for t in transacoes:
+        t["contratante"] = contratante_val
+        t["unidade"] = unidade_val or t.get("unidade", "")
+
+    return transacoes
+
 def processar_arquivo(file: UploadFile, conteudo_bytes: bytes, banco: str) -> list:
     filename_lower = file.filename.lower()
 
@@ -270,18 +457,24 @@ def processar_arquivo(file: UploadFile, conteudo_bytes: bytes, banco: str) -> li
         if not conteudo_texto:
             raise HTTPException(status_code=400, detail="Não foi possível decodificar o arquivo OFX.")
         
-        # Abre a conexão e passa para o processador do OFX
         conexao = obter_conexao(banco)
         try:
             return processar_ofx(conteudo_texto, conexao)
         finally:
-            conexao.close() # Garante que a conexão seja fechada
+            conexao.close()
 
     elif filename_lower.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="O processamento de arquivos PDF estará disponível em breve.")
+        conexao = obter_conexao(banco)
+        try:
+            return processar_pdf(conteudo_bytes, conexao, identificar_fornecedor)
+        finally:
+            conexao.close()
 
     else:
-        raise HTTPException(status_code=400, detail="Formato de arquivo não suportado. Envie um arquivo .ofx")
+        raise HTTPException(
+            status_code=400, 
+            detail="Formato de arquivo não suportado. Envie um arquivo .ofx ou .pdf"
+        )
 
 # ==============================================================================
 # EXCEL FORMULATION
