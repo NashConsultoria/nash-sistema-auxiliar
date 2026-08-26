@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import Table from "../components/table/Table"
 import Card from "../components/card/Card"
 import "../components/ImportPage.css"
-import { useAuth } from "../context/AuthContext"
+import { useAuth, API_URL } from "../context/AuthContext"
 
 export default function Importacao() {
 
@@ -21,8 +21,6 @@ export default function Importacao() {
     const [loadingTabelas, setLoadingTabelas] = useState(true);
     const [loadingDados, setLoadingDados] = useState(false);
     const [uploading, setUploading] = useState(false);
-
-    const API_URL = "http://127.0.0.1:8000/api";
 
     // PRIMEIRO: Busca as bases de dados disponíveis no servidor
     useEffect(() => {

@@ -9,7 +9,9 @@ import FolhaPagamento from "../pages/FolhaPagamento";
 import Receita from "../pages/Receita";
 import Custos from "../pages/Custos";
 import Balanco from "../pages/Balanco";
-import Base from "../pages/Base"
+import BaseFinanceira from "../pages/BaseFinanceira"
+import BaseFolha from "../pages/BaseFolha"
+import BaseFluxoCaixa from "../pages/BaseFluxoCaixa"
 import Importacao from "../pages/Importacao"
 import Conversor from "../pages/Conversor";
 import RotaProtegida from "../components/RotaProtegida";
@@ -59,8 +61,14 @@ export default function AppRoutes() {
                 } />
 
                 {/* Importação: só Admin (1) e Funcionário (2) — Cliente não pode acessar */}
-                <Route path="base" element={
-                    <RotaProtegida perfisPermitidos={[1, 2]}><Base /></RotaProtegida>
+                <Route path="base-financeira" element={
+                    <RotaProtegida perfisPermitidos={[1, 2]}><BaseFinanceira /></RotaProtegida>
+                } />
+                <Route path="base-folha" element={
+                    <RotaProtegida perfisPermitidos={[1, 2]}><BaseFolha /></RotaProtegida>
+                } />
+                <Route path="base-fluxo-caixa" element={
+                    <RotaProtegida perfisPermitidos={[1, 2]}><BaseFluxoCaixa /></RotaProtegida>
                 } />
                 <Route path="conversor" element={
                     <RotaProtegida perfisPermitidos={[1, 2]}><Conversor /></RotaProtegida>

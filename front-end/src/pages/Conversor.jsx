@@ -4,7 +4,7 @@ import Card from "../components/card/Card";
 import Button from "../components/button/Button";
 import Inputlist from "../components/Inputlist/Inputlist";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE } from "../context/AuthContext";
+import { API_BASE, API_URL } from "../context/AuthContext";
 
 export default function Conversor() {
   const { token } = useAuth();
@@ -17,8 +17,6 @@ export default function Conversor() {
   const [contratantes, setContratantes] = useState([]);
   const [contratanteTexto, setContratanteTexto] = useState("");
   const [contratanteId, setContratanteId] = useState("");
-
-  const API_URL = "http://127.0.0.1:8000/api";
 
   const columns = [
     { key: "contratante", label: "Contratante" },

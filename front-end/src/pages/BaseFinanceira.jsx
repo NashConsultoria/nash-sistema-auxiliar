@@ -1,15 +1,12 @@
 import { useEffect, useState, useMemo } from "react";
 import Table from "../components/table/Table";
 import Card from "../components/card/Card";
-import Button from "../components/button/Button";
 import FiltroBar from "../components/filtro/FiltroBar";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, API_URL } from "../context/AuthContext";
 
-export default function Base() {
+export default function BaseFinanceira() {
     const { usuario, token } = useAuth();
     
-    const [tipoVisao, setTipoVisao] = useState("dre");
-
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [erro, setErro] = useState(null);
@@ -25,63 +22,30 @@ export default function Base() {
     const [valorMin, setValorMin] = useState("");
     const [valorMax, setValorMax] = useState("");
 
-    const API_URL = "http://127.0.0.1:8000/api";
-
     // ==================================================================
-    // SCHEMAS DE COLUNAS POR TIPO DE VISÃO
+    // CONFIGURAÇÃO FIXA DA VISÃO FINANCEIRA (DRE)
     // ==================================================================
-    const CONFIG_VISOES = {
-        dre: {
-            titulo: "Movimentações Financ. (DRE)",
-            endpoint: "consolidado",
-            colunasSemSelect: ["descricao", "obs", "valor", "data", "cpf"],
-            columns: [
-                { key: "contratante", label: "Contratante" },
-                { key: "unidade", label: "Unidade" },
-                { key: "banco", label: "Banco" },
-                { key: "agencia", label: "Agência" },
-                { key: "conta", label: "Conta" },
-                { key: "data", label: "Data" },
-                { key: "descricao", label: "Descrição" },
-                { key: "obs", label: "Obs" },
-                { key: "valor", label: "Valor" },
-                { key: "tipo", label: "Tipo" },
-                { key: "fornecedor", label: "Fornecedor" },
-                { key: "cpf", label: "CPF" },
-                { key: "planoConta", label: "Plano de Conta" },
-                { key: "grupoConta", label: "Grupo de Conta" },
-                { key: "edre", label: "E-DRE" },
-            ]
-        },
-        folha: {
-            titulo: "Folha de Pagamento",
-            endpoint: "folha-pagamento-tabular",
-            colunasSemSelect: ["nome", "cpf", "dataNascimento", "dataAdmissao", "descricao", "valor", "dataCompetencia", "dataCaixa"],
-            columns: [
-                { key: "contratante", label: "Contratante" },
-                { key: "unidadeRegistro", label: "Unidade Registro" },
-                { key: "unidadeAtuacao", label: "Unidade Atuação" },
-                { key: "cnpj", label: "CNPJ" },
-                { key: "nome", label: "Nome" },
-                { key: "cpf", label: "CPF" },
-                { key: "dataNascimento", label: "Data Nasc." },
-                { key: "cboCargo", label: "CBO Cargo" },
-                { key: "cargo", label: "Cargo" },
-                { key: "departamento", label: "Departamento" },
-                { key: "dataAdmissao", label: "Data Admissão" },
-                { key: "descricao", label: "Descrição" },
-                { key: "planoConta", label: "Plano de Conta" },
-                { key: "grupoConta", label: "Grupo de Conta" },
-                { key: "efolha", label: "E-Folha" },
-                { key: "dataCompetencia", label: "Data Competência" },
-                { key: "dataCaixa", label: "Data Caixa" },
-                { key: "tipo", label: "Tipo" },
-                { key: "valor", label: "Valor" }
-            ]
-        }
-    };
-
-    const configAtual = CONFIG_VISOES[tipoVisao];
+    const TITULO_PAGINA = "Movimentações Financ. (DRE)";
+    const ENDPOINT_DRE = "consolidado";
+    const COLUNAS_SEM_SELECT = ["descricao", "obs", "valor", "data", "cpf"];
+    
+    const COLUMNAS_DRE = [
+        { key: "contratante", label: "Contratante" },
+        { key: "unidade", label: "Unidade" },
+        { key: "banco", label: "Banco" },
+        { key: "agencia", label: "Agência" },
+        { key: "conta", label: "Conta" },
+        { key: "data", label: "Data" },
+        { key: "descricao", label: "Descrição" },
+        { key: "obs", label: "Obs" },
+        { key: "valor", label: "Valor" },
+        { key: "tipo", label: "Tipo" },
+        { key: "fornecedor", label: "Fornecedor" },
+        { key: "cpf", label: "CPF" },
+        { key: "planoConta", label: "Plano de Conta" },
+        { key: "grupoConta", label: "Grupo de Conta" },
+        { key: "edre", label: "E-DRE" },
+    ];
 
     // ==================================================================
     // 1. CARREGA PERMISSÕES
@@ -123,14 +87,13 @@ export default function Base() {
     }, [token, usuario]);
 
     // ==================================================================
-    // 2. SOLICITA OS DADOS QUANDO A PERMISSÃO OU A VISÃO MUDAR
+    // 2. SOLICITA OS DADOS QUANDO A PERMISSÃO FOR CONCLUÍDA
     // ==================================================================
     useEffect(() => {
         if (!requisicaoPermissaoConcluida) return;
 
         setLoading(true);
         setErro(null);
-        // Limpa filtros ao trocar de aba
         limparFiltros();
 
         const bancoSalvo = localStorage.getItem("nash_selected_db");
@@ -153,7 +116,7 @@ export default function Base() {
                     setLoading(false);
                 });
         }
-    }, [requisicaoPermissaoConcluida, tipoVisao]);
+    }, [requisicaoPermissaoConcluida]);
 
     const fazerFetchConsolidado = (banco) => {
         setBancoAtivo(banco);
@@ -166,7 +129,7 @@ export default function Base() {
             return;
         }
 
-        let url = `${API_URL}/${banco}/${configAtual.endpoint}`;
+        let url = `${API_URL}/${banco}/${ENDPOINT_DRE}`;
 
         if (!ehAdminOuSupremo && contratantesPermitidos.length > 0) {
             const nomesVinculados = contratantesPermitidos.map(c => c.nome);
@@ -175,23 +138,23 @@ export default function Base() {
 
         fetch(url, { headers: { Authorization: `Bearer ${token}` } })
             .then((res) => {
-                if (!res.ok) throw new Error(`Erro ao conectar na base [${banco}] para ${configAtual.titulo}.`);
+                if (!res.ok) throw new Error(`Erro ao conectar na base [${banco}] para ${TITULO_PAGINA}.`);
                 return res.json();
             })
             .then((dadosDoBanco) => {
                 const listaDados = Array.isArray(dadosDoBanco) 
-                ? dadosDoBanco 
-                : (dadosDoBanco.folha || dadosDoBanco.dados || []);
+                    ? dadosDoBanco 
+                    : (dadosDoBanco.dados || []);
 
-            if (Array.isArray(listaDados) && listaDados.length > 0) {
-                setData(listaDados);
-            } else {
-                setData([]);
-                if (!Array.isArray(listaDados)) {
-                    setErro(`Resposta inválida do servidor ao buscar ${configAtual.titulo}.`);
+                if (Array.isArray(listaDados) && listaDados.length > 0) {
+                    setData(listaDados);
+                } else {
+                    setData([]);
+                    if (!Array.isArray(listaDados)) {
+                        setErro(`Resposta inválida do servidor ao buscar ${TITULO_PAGINA}.`);
+                    }
                 }
-            }
-            setLoading(false);
+                setLoading(false);
             })
             .catch((err) => {
                 console.error(err);
@@ -202,7 +165,7 @@ export default function Base() {
     };
 
     // ==================================================================
-    // LÓGICA DO FILTROBAR E OPÇÕES EXCEL
+    // LÓGICA DO FILTROBAR E OPÇÕES CRUZADAS
     // ==================================================================
     const obterOpcoesUnicasCruzadas = (chaveAtual) => {
         if (!Array.isArray(data)) return [];
@@ -243,10 +206,10 @@ export default function Base() {
         setValorMax("");
     };
 
-    // Monta o Schema dinâmico para o FiltroBar com base nas colunas da visão ativa
+    // Schema dinâmico para os filtros em cascata
     const schemaFiltrosDinamico = useMemo(() => {
-        return configAtual.columns
-            .filter(col => !configAtual.colunasSemSelect.includes(col.key))
+        return COLUMNAS_DRE
+            .filter(col => !COLUNAS_SEM_SELECT.includes(col.key))
             .map(col => ({
                 key: col.key,
                 label: col.label,
@@ -254,9 +217,9 @@ export default function Base() {
                 placeholder: `Filtrar ${col.label.toLowerCase()}...`,
                 options: obterOpcoesUnicasCruzadas(col.key)
             }));
-    }, [configAtual, data, filtrosColuna, buscaGlobal, valorMin, valorMax]);
+    }, [data, filtrosColuna, buscaGlobal, valorMin, valorMax]);
 
-    // LÓGICA DE FILTRAGEM FINAL
+    // Filtragem final dos dados
     const dadosFiltrados = useMemo(() => {
         if (!Array.isArray(data)) return [];
 
@@ -282,30 +245,8 @@ export default function Base() {
 
     return (
         <div className="page-container">
-
-            {/* SELETOR DE VISÃO (DRE x FOLHA DE PAGAMENTO) */}
-            <div style={{ display: "flex", gap: "10px"}}>
-                <Button
-                    variant="toggle"
-                    active={tipoVisao === "dre"}
-                    onClick={() => setTipoVisao("dre")}
-                >
-                    📈 Base E-DRE
-                </Button>
-
-                <Button
-                    variant="toggle"
-                    active={tipoVisao === "folha"}
-                    onClick={() => setTipoVisao("folha")}
-                >
-                    👥 Folha de Pagamento
-                </Button>
-            </div>
-            
             {!loading && !erro && data.length > 0 && (
-                <Card title={`🔍 Filtrar - ${configAtual.titulo}`}>
-                    
-                    {/* BUSCA GERAL E MÍNIMO/MÁXIMO */}
+                <Card title={`🔍 Filtrar - ${TITULO_PAGINA}`}>
                     <div style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "16px" }}>
                         <div style={{ flex: "1", minWidth: "250px", display: "flex", flexDirection: "column", gap: "5px" }}>
                             <label className="form-label">Pesquisa Geral:</label>
@@ -342,7 +283,6 @@ export default function Base() {
                         </div>
                     </div>
 
-                    {/* BARRA DE FILTROS DAS COLUNAS (FiltroBar) */}
                     <div className="card-filtros">
                         <div className="form-row">
                             <FiltroBar
@@ -356,7 +296,7 @@ export default function Base() {
                 </Card>
             )}
 
-            <Card title={`📊 ${configAtual.titulo}`}> 
+            <Card title={`📊 ${TITULO_PAGINA}`}> 
                 {loading ? (
                     <div className="state-container">
                         <span className="state-subtitle">🔄 Carregando registros do SQL Server...</span>
@@ -365,19 +305,19 @@ export default function Base() {
                     <div className="state-error">
                         <div className="state-error-icon">⚠️</div>
                         <strong className="state-error-title">Nenhum registro encontrado!</strong><br/>
-                        Não foi possível carregar a tabela de <b>{configAtual.titulo}</b> no banco <b>{bancoAtivo}</b>.<br/>
+                        Não foi possível carregar a tabela de <b>{TITULO_PAGINA}</b> no banco <b>{bancoAtivo}</b>.<br/>
                     </div>
                 ) : data.length > 0 ? (
                     <div className="table-container">
                         <div className="table-info">
                             Exibindo <b>{dadosFiltrados.length}</b> de <b>{data.length}</b> registros.
                         </div>
-                        <Table columns={configAtual.columns} data={dadosFiltrados} />
+                        <Table columns={COLUMNAS_DRE} data={dadosFiltrados} />
                     </div>
                 ) : (
                     <div className="state-container">
                         <p className="state-subtitle">
-                            Nenhum dado cadastrado para {configAtual.titulo}.
+                            Nenhum dado cadastrado para {TITULO_PAGINA}.
                         </p>
                     </div>
                 )}
