@@ -17,7 +17,8 @@ def importacao_plano_contas(
     request: Request
 ):
     """
-    Processa o upload do Excel do Plano de Contas.
+    Processa o upload do Excel do Plano de Contas sem apagar os existentes.
+    Impede a importação se qualquer linha do Excel já existir no banco.
     """
     conexao = None
     try:
@@ -29,10 +30,10 @@ def importacao_plano_contas(
             buffer.seek(0)
             df = pd.read_excel(buffer)
 
-        # Padroniza nomes das colunas (Remove espaços, hífen e converte para maiúsculo)
+        # Padroniza nomes das colunas
         df.columns = [str(col).strip().upper().replace("-", "") for col in df.columns]
 
-        # 1. Validação de Colunas Obrigatórias (Agora com EFOLHA / EFOLHA/E-FOLHA)
+        # 1. Validação de Colunas Obrigatórias
         colunas_necessarias = ["PLANO DE CONTAS", "GRUPO DE CONTAS", "EDRE", "DFC", "EFOLHA"]
         for col in colunas_necessarias:
             if col not in df.columns:
@@ -41,14 +42,63 @@ def importacao_plano_contas(
                     detail=f"Coluna obrigatória '{col}' não foi encontrada na planilha de Plano de Contas."
                 )
 
-        # Trata os valores da tabela
+        # Trata e limpa os valores da tabela
         for col in df.columns:
             df[col] = df[col].astype(str).str.strip()
 
         conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()
 
-        # 2. Gestão do Lote de Importação
+        # =========================================================================
+        # 2. PRÉ-VALIDAÇÃO DE DUPLICIDADE (NÃO APAGA MAIS NADA DO BANCO)
+        # =========================================================================
+        linhas_duplicadas_banco = []
+        combinacoes_excel = set()
+
+        for idx, row in df.iterrows():
+            linha_num = idx + 2  # Considera o cabeçalho do Excel
+            
+            plano = limpar_e_normalizar(row["PLANO DE CONTAS"])
+            grupo = limpar_e_normalizar(row["GRUPO DE CONTAS"])
+            edre = limpar_e_normalizar(row["EDRE"])
+            dfc = limpar_e_normalizar(row["DFC"])
+            efolha = limpar_e_normalizar(row["EFOLHA"])
+
+            chave_unica = (plano.upper(), grupo.upper(), edre.upper(), dfc.upper(), efolha.upper())
+
+            # Check 1: Duplicidade dentro do próprio arquivo Excel
+            if chave_unica in combinacoes_excel:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Importação bloqueada: A linha {linha_num} do arquivo contém uma combinação duplicada dentro da própria planilha."
+                )
+            combinacoes_excel.add(chave_unica)
+
+            # Check 2: Duplicidade contra os registros já salvos no Banco de Dados
+            sql_checar = """
+                SELECT TOP 1 id FROM dbo.PlanoContas
+                WHERE UPPER(TRIM(planoConta)) = UPPER(?)
+                  AND UPPER(TRIM(grupoConta)) = UPPER(?)
+                  AND UPPER(TRIM(edre))       = UPPER(?)
+                  AND UPPER(TRIM(dfc))        = UPPER(?)
+                  AND UPPER(TRIM(efolha))     = UPPER(?)
+            """
+            cursor.execute(sql_checar, (plano, grupo, edre, dfc, efolha))
+            if cursor.fetchone():
+                linhas_duplicadas_banco.append(f"Linha {linha_num}: [{plano} > {grupo}]")
+
+        # Se encontrou registros já cadastrados, bloqueia a importação do lote inteiro
+        if linhas_duplicadas_banco:
+            detalhes_erros = ", ".join(linhas_duplicadas_banco[:5]) # Mostra até as 5 primeiras para não estourar o texto
+            total_erros = len(linhas_duplicadas_banco)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Importação cancelada! {total_erros} registro(s) da planilha já existem no banco de dados. Exemplo: {detalhes_erros}..."
+            )
+
+        # =========================================================================
+        # 3. GESTÃO DO LOTE DE IMPORTAÇÃO
+        # =========================================================================
         cursor.execute("""
             SELECT id FROM dbo.ImportacaoLote 
             WHERE nomeArquivo = ? AND contratanteId IS NULL
@@ -59,7 +109,6 @@ def importacao_plano_contas(
             lote_id = lote_existente[0]
             cursor.execute("UPDATE dbo.ImportacaoLote SET criadoEm = GETDATE() WHERE id = ?", (lote_id,))
         else:
-            # Usa OUTPUT INSERTED.id para capturar o ID gerado de forma garantida no T-SQL
             cursor.execute("""
                 INSERT INTO dbo.ImportacaoLote (nomeArquivo, contratanteId, criadoEm) 
                 OUTPUT INSERTED.id
@@ -72,23 +121,16 @@ def importacao_plano_contas(
             
             lote_id = int(row_lote[0])
 
-        # 3. Desativa temporariamente a verificação de FKs nas tabelas dependentes
-        cursor.execute("ALTER TABLE dbo.BaseFinanceiro NOCHECK CONSTRAINT ALL")
-        cursor.execute("ALTER TABLE dbo.BaseFolhaPagamento NOCHECK CONSTRAINT ALL")
-
-        # 4. Limpa a estrutura anterior e reseta ID
-        cursor.execute("DELETE FROM dbo.PlanoContas")
-        cursor.execute("DBCC CHECKIDENT ('dbo.PlanoContas', RESEED, 0)")
-
-        # 5. Insere a nova estrutura
+        # =========================================================================
+        # 4. INSERÇÃO DAS NOVAS LINHAS NO BANCO
+        # =========================================================================
         query_insert = """
-            INSERT INTO dbo.PlanoContas (planoConta, grupoConta, edre, dfc, efolha, importacaoLoteId, criadoEm)
-            VALUES (?, ?, ?, ?, ?, ?, GETDATE())
+            INSERT INTO dbo.PlanoContas (planoConta, grupoConta, edre, dfc, efolha, importacaoLoteId, criadoEm, status)
+            VALUES (?, ?, ?, ?, ?, ?, GETDATE(), 1)
         """
         
         total_linhas = 0
         for _, row in df.iterrows():
-
             plano = limpar_e_normalizar(row["PLANO DE CONTAS"])
             grupo = limpar_e_normalizar(row["GRUPO DE CONTAS"])
             edre = limpar_e_normalizar(row["EDRE"])
@@ -98,16 +140,12 @@ def importacao_plano_contas(
             cursor.execute(query_insert, (plano, grupo, edre, dfc, efolha, lote_id))
             total_linhas += 1
 
-        # 6. Reativa as constraints
-        cursor.execute("ALTER TABLE dbo.BaseFinanceiro CHECK CONSTRAINT ALL")
-        cursor.execute("ALTER TABLE dbo.BaseFolhaPagamento CHECK CONSTRAINT ALL")
-
-        # 7. Log de Auditoria
+        # 5. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
             acao="IMPORTAR_PLANO_CONTAS",
             tabela="planocontas",
-            detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
+            detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_novos_registros": total_linhas},
             request=request
         )
 
@@ -117,7 +155,7 @@ def importacao_plano_contas(
             "sucesso": True,
             "tipo": "plano_contas",
             "lote_id": lote_id,
-            "mensagem": f"Plano de Contas importado com sucesso no Lote #{lote_id}! ({total_linhas} registros)",
+            "mensagem": f"Plano de Contas atualizado com sucesso no Lote #{lote_id}! ({total_linhas} novos registros inseridos)",
             "total_registros": total_linhas
         }
 

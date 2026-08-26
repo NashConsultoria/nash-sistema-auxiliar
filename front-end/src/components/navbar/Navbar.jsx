@@ -22,7 +22,7 @@ const menu = [
     // --- Módulo: Valuation ---
     { label: "Simulator", path: "/simulator", icon: <FaCalculator />, modulo: "valuation", perfisPermitidos: [1, 2, 3] },
     { label: "Valuation", path: "/valuation", icon: <FaChartLine />, modulo: "valuation", perfisPermitidos: [1, 2, 3] },
-    { label: "DRE", path: "/valuation-dre", icon: <FaChartLine />, modulo: "valuation", perfisPermitidos: [1, 2, 3] },
+    { label: "DRE Projetado", path: "/valuation-dre", icon: <FaChartLine />, modulo: "valuation", perfisPermitidos: [1, 2, 3] },
 
     // --- Módulo: Financeiro ---
     { label: "DRE", path: "/dre", icon: <FaFileAlt />, modulo: "financeiro", perfisPermitidos: [1, 2, 3] },
@@ -34,8 +34,8 @@ const menu = [
 
     // --- Módulo: Configurações / Ferramentas ---
     { label: "Base Financeira", path: "/base-financeira", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
-    { label: "Base Folha", path: "/base-folha", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
     { label: "Base Fluxo Caixa", path: "/base-fluxo-caixa", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
+    { label: "Base Folha", path: "/base-folha", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
     { label: "Importação", path: "/importacao", icon: <FaFileImport />, modulo: "config", perfisPermitidos: [1] },
     { label: "Conversor", path: "/conversor", icon: <FaArrowRotateRight />, modulo: "config", perfisPermitidos: [1, 2] },
 ];

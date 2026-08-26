@@ -82,6 +82,7 @@ create table PlanoContas
 	dfc					varchar(100)		not null,						-- Nivel 3
 	efolha				varchar(100)		not null,						-- Nivel 3
 	criadoEm			datetime							default			getdate(),
+	status				int					not null		default 1,		-- 1.Ativo, 2.Inativo
 	importacaoLoteId	int,
 
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
