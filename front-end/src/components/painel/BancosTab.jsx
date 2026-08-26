@@ -4,6 +4,7 @@ import Button from "../button/Button";
 import Table from "../table/Table";
 import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
+import { ExportarExcel } from "../../utils/ExportarExcel";
 
 export default function BancosTab({ token, bancos = [], carregarBancos }) {
     const [modoCadastroBanco, setModoCadastroBanco] = useState(false);
@@ -229,6 +230,14 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
         }
     ];
 
+    const handleExportarBanco = () => {
+        ExportarExcel({
+            tabela: "banco",
+            colunas: ["CODIGO", "BANCO"],
+            nomeArquivoCustomizado: "Mapa_Bancos.xlsx"
+        });
+    };
+
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {!modoCadastroBanco ? (
@@ -265,6 +274,10 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
                                 onLimpar={limparFiltros}
                             />
                         </div>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", margin: "8px" }}>
+                        <Button onClick={() => handleExportarBanco()}>Baixar Tudo</Button>
                     </div>
 
                     <Table

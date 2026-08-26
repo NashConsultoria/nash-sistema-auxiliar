@@ -5,6 +5,7 @@ import Button from "../button/Button";
 import Inputlist from "../Inputlist/Inputlist";
 import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
+import { ExportarExcel } from "../../utils/ExportarExcel";
 
 const estiloCarregando = { textAlign: "center", padding: "20px", color: "#94a3b8" };
 
@@ -194,6 +195,14 @@ export default function PlanoContasTab({ token, banco }) {
         });
     }, [regras, filtrosRegra]);
 
+    const handleExportarRegrasPlano = () => {
+        ExportarExcel({
+            tabela: "planodepara",
+            colunas: ["CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "TIPO", "FORNECEDOR", "PLANO DE CONTA"],
+            nomeArquivoCustomizado: "Regras_Plano.xlsx"
+        });
+    };
+
     // ==========================================================
     // LÓGICA DE FILTRAGEM - PLANO DE CONTAS
     // ==========================================================
@@ -247,6 +256,14 @@ export default function PlanoContasTab({ token, banco }) {
             );
         });
     }, [planoContas, filtrosPlano, mostrarInativosPlano]);
+
+    const handleExportarPlanoContas = () => {
+        ExportarExcel({
+            tabela: "planocontas",
+            colunas: ["PLANO DE CONTAS", "GRUPO DE CONTAS", "EDRE", "DFC", "EFOLHA"],
+            nomeArquivoCustomizado: "Plano_Contas.xlsx"
+        });
+    };
 
     // ==========================================================
     // AÇÕES - REGRAS
@@ -525,6 +542,10 @@ export default function PlanoContasTab({ token, banco }) {
                             onLimpar={limparFiltrosRegra} />
                     </div>
 
+                    <div style={{ display: "flex", justifyContent: "flex-end", margin: "8px" }}>
+                        <Button onClick={() => handleExportarRegrasPlano()}>Baixar Tudo</Button>
+                    </div>
+
                     {carregandoRegras ? <div style={estiloCarregando}>Carregando regras...</div> : <Table columns={colunasRegras} data={regrasFiltradas} />}
                 </Card>
             ) : (
@@ -631,6 +652,10 @@ export default function PlanoContasTab({ token, banco }) {
                             filtros={filtrosPlano} 
                             onChange={handleFilterPlanoChange} 
                             onLimpar={limparFiltrosPlano} />
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", margin: "8px" }}>
+                        <Button onClick={() => handleExportarPlanoContas()}>Baixar Tudo</Button>
                     </div>
 
                     {carregandoPlano ? <div style={estiloCarregando}>Carregando plano...</div> : <Table columns={colunasPlanoContas} data={planoContasFiltrados} getRowClassName={(row) => Number(row.status) === 2 ? "usuario-inativo" : ""} />}

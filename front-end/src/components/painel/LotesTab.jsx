@@ -145,7 +145,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
                 tabela: "unidade",
                 colunaFiltro: "importacaoLoteId",
                 valorFiltro: row.id,
-                colunas: ["CONTRATANTE", "NOME", "RAZAO SOCIAL", "CNPJ", "TIPO"],
+                colunas: ["CONTRATANTE", "NOME", "RAZAO SOCIAL", "BANCO", "AGENCIA", "CONTA", "CNPJ", "TIPO"],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });
         } else if (ehBanco) {
@@ -161,9 +161,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
                 tabela: "planodepara",
                 colunaFiltro: "importacaoLoteId",
                 valorFiltro: row.id,
-                colunas: [
-                    "CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "TIPO", "FORNECEDOR", "PLANO DE CONTA"
-                ],
+                colunas: ["CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "TIPO", "FORNECEDOR", "PLANO DE CONTA"],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });
         } else if (ehPlanoContas) {
@@ -255,17 +253,7 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
             style: { textAlign: "center" },
             Cell: ({ row }) => (
                 <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-                    <Button
-                        onClick={() => handleExportarLote(row)}
-                        style={{
-                            backgroundColor: "#3b82f622",
-                            color: "#60a5fa",
-                            border: "1px solid #3b82f644",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            cursor: "pointer"
-                        }}
-                    >
+                    <Button onClick={() => handleExportarLote(row)}>
                         Baixar
                     </Button>
                     <Button

@@ -42,11 +42,11 @@ TABELAS_PERMITIDAS = {
         "query_customizada": """
             SELECT 
                 id, 
-                planoConta AS [PLANO DE CONTAS], 
-                grupoConta AS [GRUPO DE CONTAS], 
-                edre, 
-                dfc, 
-                efolha, 
+                planoConta AS [PLANO DE CONTAS],
+                grupoConta AS [GRUPO DE CONTAS],
+                edre AS EDRE,
+                dfc AS DFC,
+                efolha AS EFOLHA,
                 criadoEm 
             FROM dbo.PlanoContas
         """,
@@ -91,7 +91,7 @@ TABELAS_PERMITIDAS = {
                 pc.planoConta AS [PLANO DE CONTA] 
             FROM dbo.PlanoDePara p LEFT JOIN dbo.Contratante c ON p.contratanteId = c.id 
             LEFT JOIN dbo.Unidade u ON p.unidadeId = u.id 
-            LEFT JOIN dbo.BancoConta b ON p.bancoId = b.id 
+            LEFT JOIN dbo.Banco b ON p.bancoId = b.id 
             LEFT JOIN dbo.PlanoContas pc ON p.planoContaId = pc.id
         """,
         "nome_aba": "Regras_Plano",

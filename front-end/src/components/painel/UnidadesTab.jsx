@@ -6,6 +6,7 @@ import FiltroBar from "../filtro/FiltroBar";
 import Inputlist from "../Inputlist/Inputlist";
 import { useFetch } from "../../utils/useFetch";
 import { API_BASE } from "../../context/AuthContext";
+import { ExportarExcel } from "../../utils/ExportarExcel";
 
 const TIPOS_UNIDADE = {
     1: "Registro",
@@ -407,6 +408,14 @@ export default function UnidadesTab({ token }) {
         }
     ];
 
+    const handleExportarUnidade = () => {
+        ExportarExcel({
+            tabela: "unidade",
+            colunas: ["CONTRATANTE", "NOME", "RAZAO SOCIAL", "BANCO", "AGENCIA", "CONTA", "CNPJ", "TIPO"],
+            nomeArquivoCustomizado: "Mapa_Unidades.xlsx"
+        });
+    };
+
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {!modoCadastroUnidade ? (
@@ -457,6 +466,9 @@ export default function UnidadesTab({ token }) {
                     </div>
 
                     <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+                        <div style={{ display: "flex", justifyContent: "flex-end", margin: "8px" }}>
+                            <Button onClick={() => handleExportarUnidade()}>Baixar Tudo</Button>
+                        </div>
                         <Table
                             columns={colunasUnidades}
                             data={unidadesFiltradas}
