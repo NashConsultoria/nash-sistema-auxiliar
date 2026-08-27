@@ -690,6 +690,160 @@ def importacao_fornecedor(
         if conexao:
             conexao.close()
 
+def importacao_regra_fornecedor(
+    conteudo_arquivo: bytes, 
+    nome_arquivo: str, 
+    usuario_id: int, 
+    request: Request
+):
+    """
+    Processa o upload do Excel com as Regras de Fornecedor (FornecedorRegras) vinculando ao ImportacaoLote.
+    Aba esperada: 'Regras_Fornecedor'
+    Colunas esperadas: DESCRICAO, TIPO, FORNECEDOR
+    """
+    conexao = None
+    try:
+        buffer = io.BytesIO(conteudo_arquivo)
+        
+        try:
+            df = pd.read_excel(buffer, sheet_name='Regras_Fornecedor')
+        except Exception:
+            buffer.seek(0)
+            df = pd.read_excel(buffer)
+
+        # Padroniza nomes das colunas (Remove espaços, hífen e converte para maiúsculo)
+        df.columns = [str(col).strip().upper().replace("-", "") for col in df.columns]
+
+        # 1. Validação de Colunas Obrigatórias
+        colunas_necessarias = ["DESCRICAO", "TIPO", "FORNECEDOR"]
+        for col in colunas_necessarias:
+            if col not in df.columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Coluna obrigatória '{col}' não foi encontrada na planilha de Regras."
+                )
+
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
+        cursor = conexao.cursor()
+
+        # 2. CORRIGIDO: Nome da variável alinhado para map_fornecedores
+        cursor.execute("SELECT id, LOWER(nome) FROM dbo.Fornecedor WHERE nome IS NOT NULL")
+        map_fornecedores = {row[1].strip(): row[0] for row in cursor.fetchall()}
+
+        # 3. Gestão do Lote de Importação
+        cursor.execute("""
+            SELECT id FROM dbo.ImportacaoLote 
+            WHERE nomeArquivo = ? AND contratanteId IS NULL
+        """, (nome_arquivo,))
+        lote_existente = cursor.fetchone()
+
+        if lote_existente:
+            lote_id = lote_existente[0]
+            cursor.execute("UPDATE dbo.ImportacaoLote SET criadoEm = GETDATE() WHERE id = ?", (lote_id,))
+        else:
+            cursor.execute("""
+                INSERT INTO dbo.ImportacaoLote (nomeArquivo, contratanteId, criadoEm) 
+                OUTPUT INSERTED.id
+                VALUES (?, NULL, GETDATE())
+            """, (nome_arquivo,))
+            
+            row_lote = cursor.fetchone()
+            if not row_lote or row_lote[0] is None:
+                raise HTTPException(status_code=500, detail="Não foi possível gerar o ID do Lote de Importação.")
+            
+            lote_id = int(row_lote[0])
+
+        # 4. Limpa as regras anteriores deste mesmo lote
+        cursor.execute("DELETE FROM dbo.FornecedorRegras WHERE importacaoLoteId = ?", (lote_id,))
+
+        # 5. Processamento e Inserção
+        query_insert = """
+            INSERT INTO dbo.FornecedorRegras 
+            (termoDescricao, termoTipo, fornecedorId, importacaoLoteId)
+            VALUES (?, ?, ?, ?)
+        """
+
+        total_linhas = 0
+        erros_validacao = []
+
+        for idx, row in df.iterrows():
+            linha_num = idx + 2  # Considera o cabeçalho como linha 1
+
+            termo_descricao = limpar_e_normalizar(row["DESCRICAO"])
+            termo_tipo = limpar_e_normalizar(row["TIPO"])
+            val_fornecedor = limpar_e_normalizar(row["FORNECEDOR"])
+
+            # Validação 1: Pelo menos Descrição ou Tipo deve ser preenchido
+            if not termo_descricao and not termo_tipo:
+                erros_validacao.append(
+                    f"Linha {linha_num}: Preencha ao menos 'DESCRICAO' ou 'TIPO'."
+                )
+                continue
+
+            # Validação 2: CORRIGIDO - Fornecedor é estritamente OBRIGATÓRIO
+            if not val_fornecedor:
+                erros_validacao.append(
+                    f"Linha {linha_num}: O campo 'FORNECEDOR' é obrigatório."
+                )
+                continue
+
+            # Resolução do ID do Fornecedor
+            fornecedor_id = map_fornecedores.get(val_fornecedor.lower())
+            if fornecedor_id is None:
+                erros_validacao.append(
+                    f"Linha {linha_num}: Fornecedor '{val_fornecedor}' não está cadastrado no sistema."
+                )
+                continue
+
+            cursor.execute(query_insert, (
+                termo_descricao or None,
+                termo_tipo or None,
+                fornecedor_id,
+                lote_id
+            ))
+            total_linhas += 1
+
+        # Cancela tudo se houver erros de consistência nos dados
+        if erros_validacao:
+            primeiros_erros = "<br>".join(erros_validacao[:5])
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Erros na validação da planilha:<br>{primeiros_erros}"
+            )
+
+        # CORRIGIDO: Persiste as regras antes do log
+        conexao.commit()
+
+        # 6. Log de Auditoria
+        registrar_log(
+            usuario_id=usuario_id,
+            acao="IMPORTAR_REGRAS_FORNECEDOR",
+            tabela="planodepara",
+            detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
+            request=request
+        )
+
+        return {
+            "sucesso": True,
+            "tipo": "regras_fornecedor",
+            "lote_id": lote_id,
+            "mensagem": f"Regras de Fornecedor importadas com sucesso no Lote #{lote_id}! ({total_linhas} registros)",
+            "total_registros": total_linhas
+        }
+
+    except HTTPException as http_err:
+        if conexao:
+            conexao.rollback()
+        raise http_err
+    except Exception as e:
+        if conexao:
+            conexao.rollback()
+        print(f"[ERRO AO IMPORTAR REGRAS FORNECEDORES]: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo de Regras de Fornecedores: {str(e)}")
+    finally:
+        if conexao:
+            conexao.close()
+
 def importacao_regra_plano(
     conteudo_arquivo: bytes, 
     nome_arquivo: str, 
@@ -736,6 +890,10 @@ def importacao_regra_plano(
         cursor.execute("SELECT id, LOWER(nome) FROM dbo.Banco WHERE nome IS NOT NULL")
         map_bancos = {row[1].strip(): row[0] for row in cursor.fetchall()}
 
+        # Carrega fornecedores para resolução do fornecedorId
+        cursor.execute("SELECT id, LOWER(nome) FROM dbo.Fornecedor WHERE nome IS NOT NULL")
+        map_fornecedores = {row[1].strip(): row[0] for row in cursor.fetchall()}
+
         # Normaliza a chave da tabela do banco exatamente como é feito na planilha
         cursor.execute("SELECT id, planoConta FROM dbo.PlanoContas WHERE planoConta IS NOT NULL")
         map_planos = {normalizar_texto(row[1]): row[0] for row in cursor.fetchall()}
@@ -769,7 +927,7 @@ def importacao_regra_plano(
         # 5. Processamento e Inserção
         query_insert = """
             INSERT INTO dbo.PlanoDePara 
-            (contratanteId, unidadeId, bancoId, termoDescricao, termoTipo, termoFornecedor, planoContaId, importacaoLoteId)
+            (contratanteId, unidadeId, bancoId, termoDescricao, termoTipo, fornecedorId, planoContaId, importacaoLoteId)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
 
@@ -784,11 +942,11 @@ def importacao_regra_plano(
             val_banco = limpar_e_normalizar(row["BANCO"])
             termo_descricao = limpar_e_normalizar(row["DESCRICAO"])
             termo_tipo = limpar_e_normalizar(row["TIPO"])
-            termo_fornecedor = limpar_e_normalizar(row["FORNECEDOR"])
+            val_fornecedor = limpar_e_normalizar(row["FORNECEDOR"])
             val_plano = limpar_e_normalizar(row["PLANO DE CONTA"])
 
             # Validação: É necessário ao menos Descrição, Tipo ou Fornecedor
-            if not termo_descricao and not termo_tipo and not termo_fornecedor:
+            if not termo_descricao and not termo_tipo and not val_fornecedor:
                 erros_validacao.append(
                     f"Linha {linha_num}: Preencha ao menos 'DESCRICAO', 'TIPO' ou 'FORNECEDOR'."
                 )
@@ -804,6 +962,14 @@ def importacao_regra_plano(
                 erros_validacao.append(f"Linha {linha_num}: Plano de Contas '{val_plano}' não está cadastrado no sistema.")
                 continue
 
+            # Validação e Resolução do Fornecedor (OBRIGATÓRIO caso informado na planilha)
+            fornecedor_id = None
+            if val_fornecedor:
+                fornecedor_id = map_fornecedores.get(val_fornecedor.lower())
+                if fornecedor_id is None:
+                    erros_validacao.append(f"Linha {linha_num}: Fornecedor '{val_fornecedor}' não está cadastrado no sistema.")
+                    continue
+
             # Validação e Resolução de IDs opcionais (Reseta para None a cada linha)
             contratante_id = None
             if val_contratante:
@@ -812,7 +978,7 @@ def importacao_regra_plano(
                     erros_validacao.append(f"Linha {linha_num}: Contratante '{val_contratante}' não encontrado.")
                     continue
 
-            # Validação da existencia da Unidade
+            # Validação da existência da Unidade
             unidade_id = None
             if val_unidade:
                 unidade_id = map_unidades.get(val_unidade.lower())
@@ -820,7 +986,7 @@ def importacao_regra_plano(
                     erros_validacao.append(f"Linha {linha_num}: Unidade '{val_unidade}' não encontrada.")
                     continue
 
-            # Validação da existencia do Banco
+            # Validação da existência do Banco
             banco_id = None
             if val_banco:
                 banco_id = map_bancos.get(val_banco.lower())
@@ -834,7 +1000,7 @@ def importacao_regra_plano(
                 banco_id,
                 termo_descricao,
                 termo_tipo,
-                termo_fornecedor,
+                fornecedor_id,
                 plano_id,
                 lote_id
             ))

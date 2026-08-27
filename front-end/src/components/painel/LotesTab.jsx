@@ -121,6 +121,9 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
             contratanteLower.includes("fornecedores") ||
             row.tipoLote?.toLowerCase().includes("fornecedor");
 
+        const ehRegraFornecedor = 
+            nomeArqLower.includes("regras_fornecedor")
+
         const ehPlanoContas = 
             (nomeArqLower.includes("plano") && !nomeArqLower.includes("regra")) || 
             row.contratante === "PLANO DE CONTAS (SISTEMA)";
@@ -156,6 +159,14 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
                 colunaFiltro: "importacaoLoteId",
                 valorFiltro: row.id,
                 colunas: ["FORNECEDOR", "CPF-CNPJ"],
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else if (ehRegraFornecedor) {
+            ExportarExcel({
+                tabela: "fornecedorregras",
+                colunaFiltro: "importacaoLoteId",
+                valorFiltro: row.id,
+                colunas: ["DESCRICAO", "TIPO", "FORNECEDOR"],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });
         } else if (ehRegraPlano) {

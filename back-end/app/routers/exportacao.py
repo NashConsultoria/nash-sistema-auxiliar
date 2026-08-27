@@ -46,7 +46,10 @@ def exportar_excel(
         # 1. Definição Dinâmica do Nome da Aba
         nome_aba = config_tabela.get("nome_aba")
         if not nome_aba:
-            if "banco" in tabela_alias_lower:
+            # reordenado: checagens mais específicas primeiro
+            if "regras_fornecedor" in tabela_alias_lower or "fornecedorregras" in tabela_alias_lower:
+                nome_aba = "Regras_Fornecedor"
+            elif "banco" in tabela_alias_lower:
                 nome_aba = "MAPA_BANCOS"
             elif "unidade" in tabela_alias_lower:
                 nome_aba = "MAPA_UNIDADES"

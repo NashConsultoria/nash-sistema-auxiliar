@@ -90,6 +90,18 @@ TABELAS_PERMITIDAS = {
         "nome_aba": "MAPA_FORNECEDOR",
         "coluna_padrao_id": "id"
     },
+    "fornecedorregras": {
+        "query": """
+            SELECT 
+                fr.termoDescricao AS [DESCRICAO],
+                fr.termoTipo AS [TIPO],
+                f.nome AS [FORNECEDOR],
+                fr.importacaoLoteId
+            FROM dbo.FornecedorRegras fr
+            LEFT JOIN dbo.Fornecedor f ON fr.fornecedorId = f.id
+        """,
+        "nome_aba": "Regras_Fornecedor"
+    },
     "planodepara": {
         "query_customizada": """
             SELECT 
@@ -100,11 +112,12 @@ TABELAS_PERMITIDAS = {
                 b.nome AS [BANCO],
                 p.termoDescricao AS [DESCRICAO], 
                 p.termoTipo AS [TIPO],
-                p.termoFornecedor AS [FORNECEDOR], 
+                f.nome AS [FORNECEDOR], 
                 pc.planoConta AS [PLANO DE CONTA] 
             FROM dbo.PlanoDePara p LEFT JOIN dbo.Contratante c ON p.contratanteId = c.id 
             LEFT JOIN dbo.Unidade u ON p.unidadeId = u.id 
             LEFT JOIN dbo.Banco b ON p.bancoId = b.id 
+            LEFT JOIN dbo.Fornecedor f on p.fornecedorId = f.id
             LEFT JOIN dbo.PlanoContas pc ON p.planoContaId = pc.id
         """,
         "nome_aba": "Regras_Plano",

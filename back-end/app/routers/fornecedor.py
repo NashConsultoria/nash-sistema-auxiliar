@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from typing import List
+from typing import List, Optional
 
 from app.database import obter_conexao
 from app.security import exigir_perfil, registrar_log
 from app.schemas.usuarios_schema import UsuarioToken
 from app.schemas.fornecedor_schema import FornecedorCreate, FornecedorUpdate, FornecedorResponse
+from app.schemas.regrasfornecedor_schema import RegraFornecedorCreate, RegraFornecedorUpdate, RegraFornecedorResponse
 from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN, PERFIL_FUNCIONARIO
 
 router = APIRouter(prefix="/api/fornecedor", tags=["Fornecedor"])
@@ -194,3 +195,265 @@ async def alterar_status_fornecedor(
         raise HTTPException(status_code=500, detail=f"Erro ao alterar status do fornecedor: {str(e)}")
     finally:
         conexao.close()
+
+@router.get("/regras", response_model=List[RegraFornecedorResponse])
+def listar_regras_fornecedor(
+    fornecedor_id: Optional[int] = None,
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
+):
+    conexao = None
+    try:
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
+        cursor = conexao.cursor()
+
+        query = """
+            SELECT 
+                rf.id,
+                rf.termoDescricao,
+                rf.termoTipo,
+                rf.fornecedorId,
+                f.nome AS nomeFornecedor,
+                rf.importacaoLoteId
+            FROM dbo.FornecedorRegras rf
+            INNER JOIN dbo.Fornecedor f ON rf.fornecedorId = f.id
+            WHERE 1=1
+        """
+        params = []
+
+        if fornecedor_id:
+            query += " AND rf.fornecedorId = ?"
+            params.append(fornecedor_id)
+
+        query += " ORDER BY rf.id DESC"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        resultado = [
+            RegraFornecedorResponse(
+                id=row[0],
+                termoDescricao=row[1],
+                termoTipo=row[2],
+                fornecedorId=row[3],
+                nomeFornecedor=row[4],
+                importacaoLoteId=row[5]
+            )
+            for row in rows
+        ]
+
+        return resultado
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar regras de fornecedor: {str(e)}"
+        )
+    finally:
+        if conexao:
+            conexao.close()
+
+@router.post("/regras", response_model=RegraFornecedorResponse, status_code=status.HTTP_201_CREATED)
+def criar_regra_fornecedor(
+    dados: RegraFornecedorCreate,
+    request: Request,
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
+):
+    conexao = None
+    try:
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
+        cursor = conexao.cursor()
+
+        # Valida existência do fornecedor
+        cursor.execute("SELECT id, nome FROM dbo.Fornecedor WHERE id = ?", (dados.fornecedorId,))
+        fornecedor = cursor.fetchone()
+        if not fornecedor:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Fornecedor com ID {dados.fornecedorId} não encontrado."
+            )
+
+        # Inserção na tabela
+        query_insert = """
+            INSERT INTO dbo.FornecedorRegras (termoDescricao, termoTipo, fornecedorId, importacaoLoteId)
+            OUTPUT INSERTED.id
+            VALUES (?, ?, ?, ?)
+        """
+        cursor.execute(query_insert, (
+            dados.termoDescricao,
+            dados.termoTipo,
+            dados.fornecedorId,
+            dados.importacaoLoteId
+        ))
+        novo_id = cursor.fetchone()[0]
+
+        conexao.commit()
+
+        # Log de Auditoria
+        registrar_log(
+            usuario_id=usuario.id,
+            acao="CRIAR_REGRA_FORNECEDOR",
+            tabela="FornecedorRegras",
+            detalhes={"id": novo_id, "fornecedorId": dados.fornecedorId},
+            request=request
+        )
+
+        return RegraFornecedorResponse(
+            id=novo_id,
+            termoDescricao=dados.termoDescricao,
+            termoTipo=dados.termoTipo,
+            fornecedorId=dados.fornecedorId,
+            nomeFornecedor=fornecedor[1],
+            importacaoLoteId=dados.importacaoLoteId
+        )
+
+    except HTTPException as http_err:
+        if conexao:
+            conexao.rollback()
+        raise http_err
+    except Exception as e:
+        if conexao:
+            conexao.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao criar regra de fornecedor: {str(e)}"
+        )
+    finally:
+        if conexao:
+            conexao.close()
+
+@router.put("/regras/{regra_id}", response_model=RegraFornecedorResponse)
+def atualizar_regra_fornecedor(
+    regra_id: int,
+    dados: RegraFornecedorUpdate,
+    request: Request,
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
+):
+    conexao = None
+    try:
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
+        cursor = conexao.cursor()
+
+        # Busca registro atual
+        cursor.execute("""
+            SELECT id, termoDescricao, termoTipo, fornecedorId, importacaoLoteId 
+            FROM dbo.FornecedorRegras WHERE id = ?
+        """, (regra_id,))
+        regra_atual = cursor.fetchone()
+
+        if not regra_atual:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Regra de fornecedor ID {regra_id} não encontrada."
+            )
+
+        # Prepara valores atualizados mantendo os anteriores se não forem passados
+        nova_descricao = dados.termoDescricao if dados.termoDescricao is not None else regra_atual[1]
+        novo_tipo = dados.termoTipo if dados.termoTipo is not None else regra_atual[2]
+        novo_fornecedor_id = dados.fornecedorId if dados.fornecedorId is not None else regra_atual[3]
+
+        # Validação de regra de negócio: pelo menos um termo preenchido
+        if not nova_descricao and not novo_tipo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A regra precisa ter pelo menos 'termoDescricao' ou 'termoTipo' preenchido."
+            )
+
+        # Valida existência do novo fornecedor (caso alterado)
+        cursor.execute("SELECT nome FROM dbo.Fornecedor WHERE id = ?", (novo_fornecedor_id,))
+        row_fornecedor = cursor.fetchone()
+        if not row_fornecedor:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Fornecedor com ID {novo_fornecedor_id} não encontrado."
+            )
+
+        # Atualiza o registro
+        query_update = """
+            UPDATE dbo.FornecedorRegras
+            SET termoDescricao = ?, termoTipo = ?, fornecedorId = ?
+            WHERE id = ?
+        """
+        cursor.execute(query_update, (nova_descricao, novo_tipo, novo_fornecedor_id, regra_id))
+        conexao.commit()
+
+        # Log de Auditoria
+        registrar_log(
+            usuario_id=usuario.id,
+            acao="ATUALIZAR_REGRA_FORNECEDOR",
+            tabela="FornecedorRegras",
+            detalhes={"id": regra_id, "fornecedorId": novo_fornecedor_id},
+            request=request
+        )
+
+        return RegraFornecedorResponse(
+            id=regra_id,
+            termoDescricao=nova_descricao,
+            termoTipo=novo_tipo,
+            fornecedorId=novo_fornecedor_id,
+            nomeFornecedor=row_fornecedor[0],
+            importacaoLoteId=regra_atual[4]
+        )
+
+    except HTTPException as http_err:
+        if conexao:
+            conexao.rollback()
+        raise http_err
+    except Exception as e:
+        if conexao:
+            conexao.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao atualizar regra de fornecedor: {str(e)}"
+        )
+    finally:
+        if conexao:
+            conexao.close()
+
+
+@router.delete("/regras/{regra_id}", status_code=status.HTTP_200_OK)
+def deletar_regra_fornecedor(
+    regra_id: int,
+    request: Request,
+    usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
+):
+    conexao = None
+    try:
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
+        cursor = conexao.cursor()
+
+        # Verifica existência
+        cursor.execute("SELECT id FROM dbo.FornecedorRegras WHERE id = ?", (regra_id,))
+        if not cursor.fetchone():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Regra de fornecedor ID {regra_id} não encontrada."
+            )
+
+        cursor.execute("DELETE FROM dbo.FornecedorRegras WHERE id = ?", (regra_id,))
+        conexao.commit()
+
+        # Log de Auditoria
+        registrar_log(
+            usuario_id=usuario.id,
+            acao="DELETAR_REGRA_FORNECEDOR",
+            tabela="FornecedorRegras",
+            detalhes={"id": regra_id},
+            request=request
+        )
+
+        return {"sucesso": True, "mensagem": f"Regra #{regra_id} excluída com sucesso."}
+
+    except HTTPException as http_err:
+        if conexao:
+            conexao.rollback()
+        raise http_err
+    except Exception as e:
+        if conexao:
+            conexao.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao excluir regra de fornecedor: {str(e)}"
+        )
+    finally:
+        if conexao:
+            conexao.close()

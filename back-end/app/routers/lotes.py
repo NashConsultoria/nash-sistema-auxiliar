@@ -8,7 +8,6 @@ from app.security import exigir_perfil, obter_usuario_atual, registrar_log
 
 router = APIRouter(prefix="/api", tags=["Lotes de Importação"])
 
-
 @router.get("/{banco}/lotes")
 def listar_lotes_importacao(
     banco: str,
@@ -26,6 +25,7 @@ def listar_lotes_importacao(
                 l.nomeArquivo,
                 CASE 
                     WHEN l.contratanteId IS NOT NULL THEN c.nome
+                    WHEN LOWER(l.nomeArquivo) LIKE '%regras_fornecedor%' OR LOWER(l.nomeArquivo) LIKE '%regra_fornecedor%' THEN 'REGRAS FORNECEDOR (SISTEMA)'
                     WHEN LOWER(l.nomeArquivo) LIKE '%regra%' THEN 'REGRAS (SISTEMA)'
                     WHEN LOWER(l.nomeArquivo) LIKE '%mapa_bancos%' OR LOWER(l.nomeArquivo) LIKE '%mapa_banco%' THEN 'SISTEMA (MAPA BANCOS)'
                     WHEN LOWER(l.nomeArquivo) LIKE '%mapa_unidades%' OR LOWER(l.nomeArquivo) LIKE '%mapa_unidade%' THEN 'SISTEMA (MAPA UNIDADES)'
@@ -34,6 +34,11 @@ def listar_lotes_importacao(
                 END AS contratante,
                 l.criadoEm,
                 CASE 
+                    /* REGRAS DE FORNECEDOR: Checa na tabela dbo.FornecedorRegras */
+                    WHEN LOWER(l.nomeArquivo) LIKE '%regras_fornecedor%' OR LOWER(l.nomeArquivo) LIKE '%regra_fornecedor%' THEN (
+                        ISNULL((SELECT COUNT(*) FROM dbo.FornecedorRegras WHERE importacaoLoteId = l.id), 0)
+                    )
+                    /* REGRAS DO PLANO: Checa na tabela dbo.PlanoDePara */
                     WHEN LOWER(l.nomeArquivo) LIKE '%regra%' THEN (
                         ISNULL((SELECT COUNT(*) FROM dbo.PlanoDePara WHERE importacaoLoteId = l.id), 0)
                     )
@@ -136,6 +141,10 @@ def deletar_lote_importacao(
 
         cursor.execute("DELETE FROM dbo.PlanoContas WHERE importacaoLoteId = ?", (lote_id,))
         linhas_plano_contas = cursor.rowcount
+
+        # Exclui Regras de Fornecedores vinculadas ao lote
+        cursor.execute("DELETE FROM dbo.FornecedorRegras WHERE importacaoLoteId = ?", (lote_id,))
+        linhas_regras_fornecedor = cursor.rowcount
 
         # C) Exclui Fornecedores e Unidades vinculados ao Lote
         cursor.execute("DELETE FROM dbo.Fornecedor WHERE importacaoLoteId = ?", (lote_id,))

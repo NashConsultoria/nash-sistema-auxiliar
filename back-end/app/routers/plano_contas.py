@@ -268,7 +268,8 @@ async def obter_regras_planocontas(
                 pdp.id,
                 pdp.termoDescricao,
                 pdp.termoTipo,
-                pdp.termoFornecedor,
+                pdp.fornecedorId,
+                f.nome AS fornecedorNome,
                 pdp.planoContaId,
                 pdp.contratanteId,
                 c.nome AS contratanteNome,
@@ -283,6 +284,7 @@ async def obter_regras_planocontas(
             LEFT JOIN Contratante c ON pdp.contratanteId = c.id
             LEFT JOIN Unidade u ON pdp.unidadeId = u.id
             LEFT JOIN Banco b ON pdp.bancoId = b.id
+            LEFT JOIN Fornecedor f ON pdp.fornecedorId = f.id
             ORDER BY pdp.id DESC
         """
         dados = executar_query(sql, banco=banco)
@@ -300,7 +302,7 @@ async def criar_regra_planocontas(
     usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
 ):
     try:
-        if not (regra.termoDescricao or regra.termoTipo or regra.termoFornecedor):
+        if not (regra.termoDescricao or regra.termoTipo or regra.fornecedorId):
             raise HTTPException(
                 status_code=400,
                 detail="Preencha ao menos um dos campos: Descrição, Tipo ou Fornecedor."
@@ -310,7 +312,7 @@ async def criar_regra_planocontas(
             SELECT id FROM PlanoDePara 
             WHERE ISNULL(termoDescricao, '') = ISNULL(?, '')
               AND ISNULL(termoTipo, '') = ISNULL(?, '')
-              AND ISNULL(termoFornecedor, '') = ISNULL(?, '')
+              AND ISNULL(fornecedorId, 0) = ISNULL(?, 0)
               AND ISNULL(contratanteId, 0) = ISNULL(?, 0)
               AND ISNULL(unidadeId, 0) = ISNULL(?, 0)
               AND ISNULL(bancoId, 0) = ISNULL(?, 0)
@@ -318,7 +320,7 @@ async def criar_regra_planocontas(
         params_check = (
             regra.termoDescricao,
             regra.termoTipo,
-            regra.termoFornecedor,
+            regra.fornecedorId,
             regra.contratanteId,
             regra.unidadeId,
             regra.bancoId
@@ -338,7 +340,7 @@ async def criar_regra_planocontas(
                 bancoId, 
                 termoDescricao, 
                 termoTipo,
-                termoFornecedor, 
+                fornecedorId, 
                 planoContaId
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -349,7 +351,7 @@ async def criar_regra_planocontas(
             regra.bancoId,
             regra.termoDescricao,
             regra.termoTipo,
-            regra.termoFornecedor,
+            regra.fornecedorId,
             regra.planoContaId
         )
         
@@ -384,7 +386,7 @@ async def atualizar_regra_planocontas(
     usuario: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN, PERFIL_FUNCIONARIO))
 ):
     try:
-        if not (regra.termoDescricao or regra.termoTipo or regra.termoFornecedor):
+        if not (regra.termoDescricao or regra.termoTipo or regra.fornecedorId):
             raise HTTPException(
                 status_code=400,
                 detail="Preencha ao menos um dos campos: Descrição, Tipo ou Fornecedor."
@@ -397,7 +399,7 @@ async def atualizar_regra_planocontas(
                 bancoId = ?, 
                 termoDescricao = ?, 
                 termoTipo = ?,
-                termoFornecedor = ?, 
+                fornecedorId = ?, 
                 planoContaId = ?,
                 importacaoLoteId = NULL
             WHERE id = ?
@@ -408,7 +410,7 @@ async def atualizar_regra_planocontas(
             regra.bancoId,
             regra.termoDescricao,
             regra.termoTipo,
-            regra.termoFornecedor,
+            regra.fornecedorId,
             regra.planoContaId,
             regra_id,
         )

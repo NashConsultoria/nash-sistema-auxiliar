@@ -22,7 +22,7 @@ export default function PlanoContasTab({ token, banco }) {
     const [formRegra, setFormRegra] = useState({
         termoDescricao: "",
         termoTipo: "",
-        termoFornecedor: "",
+        fornecedorTexto: "",
         planoContaTexto: "",
         contratanteTexto: "",
         unidadeTexto: "",
@@ -64,6 +64,7 @@ export default function PlanoContasTab({ token, banco }) {
     const [contratantes, setContratantes] = useState([]);
     const [unidades, setUnidades] = useState([]);
     const [bancos, setBancos] = useState([]);
+    const [fornecedores, setFornecedores] = useState([]);
 
     // ==========================================================
     // CARREGAMENTO DE DADOS (API)
@@ -106,10 +107,11 @@ export default function PlanoContasTab({ token, banco }) {
         if (!token) return;
         try {
             const headers = { Authorization: `Bearer ${token}` };
-            const [resCont, resUni, resBanc] = await Promise.all([
+            const [resCont, resUni, resBanc, resForn] = await Promise.all([
                 fetch(`${API_BASE}/api/contratantes`, { headers }),
                 fetch(`${API_BASE}/api/unidades`, { headers }),
-                fetch(`${API_BASE}/api/bancos`, { headers })
+                fetch(`${API_BASE}/api/bancos`, { headers }),
+                fetch(`${API_BASE}/api/fornecedor`, { headers })
             ]);
 
             if (resCont.ok) {
@@ -123,6 +125,11 @@ export default function PlanoContasTab({ token, banco }) {
             if (resBanc.ok) {
                 const d = await resBanc.json();
                 setBancos(Array.isArray(d) ? d : d.dados || []);
+            }
+            // CORRIGIDO: Consumir a resposta real de resForn
+            if (resForn.ok) {
+                const d = await resForn.json();
+                setFornecedores(Array.isArray(d) ? d : d.fornecedores || d.dados || []);
             }
         } catch (err) {
             console.error("Erro ao carregar listas auxiliares:", err);
@@ -148,7 +155,8 @@ export default function PlanoContasTab({ token, banco }) {
             const bancoNome = (item.bancoNome || '- Todos -').toLowerCase();
             const descricao = (item.termoDescricao || '- Qualquer -').toLowerCase();
             const tipo = (item.termoTipo || '- Qualquer -').toLowerCase();
-            const fornecedor = (item.termoFornecedor || '- Qualquer -').toLowerCase();
+            // CORRIGIDO: Leitura de fornecedorNome
+            const fornecedor = (item.fornecedorNome || '- Qualquer -').toLowerCase();
             const plano = (item.destino || item.planoConta || '').toLowerCase();
 
             return (
@@ -169,7 +177,7 @@ export default function PlanoContasTab({ token, banco }) {
         { key: "banco", label: "Banco", tipo: "inputlist", placeholder: "Buscar banco...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao('banco').map(r => r.bancoNome || '- Todos -').filter(Boolean))), [regras, filtrosRegra]) },
         { key: "descricao", label: "Descrição", tipo: "inputlist", placeholder: "Buscar descrição...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao('descricao').map(r => r.termoDescricao || '- Qualquer -').filter(Boolean))), [regras, filtrosRegra]) },
         { key: "tipo", label: "Tipo", tipo: "inputlist", placeholder: "Buscar tipo...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao('tipo').map(r => r.termoTipo || '- Qualquer -').filter(Boolean))), [regras, filtrosRegra]) },
-        { key: "fornecedor", label: "Fornecedor", tipo: "inputlist", placeholder: "Buscar fornecedor...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao('fornecedor').map(r => r.termoFornecedor || '- Qualquer -').filter(Boolean))), [regras, filtrosRegra]) },
+        { key: "fornecedor", label: "Fornecedor", tipo: "inputlist", placeholder: "Buscar fornecedor...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao('fornecedor').map(r => r.fornecedorNome || '- Qualquer -').filter(Boolean))), [regras, filtrosRegra]) },
         { key: "plano", label: "Plano de Conta", tipo: "inputlist", placeholder: "Buscar plano...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao('plano').map(r => r.destino || r.planoConta).filter(Boolean))), [regras, filtrosRegra]) }
     ];
 
@@ -180,7 +188,7 @@ export default function PlanoContasTab({ token, banco }) {
             const bancoNome = (item.bancoNome || '- Todos -').toLowerCase();
             const descricao = (item.termoDescricao || '- Qualquer -').toLowerCase();
             const tipo = (item.termoTipo || '- Qualquer -').toLowerCase();
-            const fornecedor = (item.termoFornecedor || '- Qualquer -').toLowerCase();
+            const fornecedor = (item.fornecedorNome || '- Qualquer -').toLowerCase();
             const plano = (item.destino || item.planoConta || '').toLowerCase();
 
             return (
@@ -271,8 +279,8 @@ export default function PlanoContasTab({ token, banco }) {
     const handleSalvarRegra = async (e) => {
         e.preventDefault();
 
-        if (!formRegra.termoDescricao.trim() && !formRegra.termoTipo.trim() && !formRegra.termoFornecedor.trim()) {
-            alert("Preencha ao menos um dos termos: Descrição, Tipo ou Fornecedor!");
+        if (!formRegra.termoDescricao.trim() && !formRegra.termoTipo.trim() && !formRegra.fornecedorTexto.trim()) {
+            alert("Preencha ao menos um dos termos: Descrição, Tipo ou selecione um Fornecedor!");
             return;
         }
 
@@ -311,15 +319,24 @@ export default function PlanoContasTab({ token, banco }) {
             idBanco = bEncontrado.id;
         }
 
+        // CORRIGIDO: Mapear o id do fornecedor selecionado
+        let idFornecedor = null;
+        if (formRegra.fornecedorTexto.trim()) {
+            const fEncontrado = fornecedores.find(f => String(f.nome || "").trim().toLowerCase() === formRegra.fornecedorTexto.trim().toLowerCase());
+            if (!fEncontrado) return alert("O fornecedor selecionado não foi encontrado!");
+            idFornecedor = fEncontrado.id;
+        }
+
         const isEdicao = Boolean(regraEmEdicaoId);
         const url = isEdicao
             ? `${API_BASE}/api/${banco}/regras-planocontas/${regraEmEdicaoId}`
             : `${API_BASE}/api/${banco}/regras-planocontas`;
 
+        // CORRIGIDO: Payload com fornecedorId em vez de termoFornecedor
         const payload = {
             termoDescricao: formRegra.termoDescricao.trim() || null,
             termoTipo: formRegra.termoTipo.trim() || null,
-            termoFornecedor: formRegra.termoFornecedor.trim() || null,
+            fornecedorId: idFornecedor ? Number(idFornecedor) : null,
             planoContaId: Number(contaEncontrada.id),
             contratanteId: idContratante ? Number(idContratante) : null,
             unidadeId: idUnidade ? Number(idUnidade) : null,
@@ -351,7 +368,7 @@ export default function PlanoContasTab({ token, banco }) {
         setFormRegra({
             termoDescricao: row.termoDescricao || "",
             termoTipo: row.termoTipo || "",
-            termoFornecedor: row.termoFornecedor || "",
+            fornecedorTexto: row.fornecedorNome || "", // CORRIGIDO
             planoContaTexto: row.destino || row.planoConta || "",
             contratanteTexto: row.contratanteNome || "",
             unidadeTexto: row.unidadeNome || "",
@@ -459,7 +476,7 @@ export default function PlanoContasTab({ token, banco }) {
         { label: "Banco", key: "bancoNome", width: "12%", Cell: ({ row }) => row.bancoNome || <span>- Todos -</span> },
         { label: "Descrição", key: "termoDescricao", width: "18%", Cell: ({ row }) => row.termoDescricao || <span>- Qualquer -</span> },
         { label: "Tipo", key: "termoTipo", width: "18%", Cell: ({ row }) => row.termoTipo || <span>- Qualquer -</span> },
-        { label: "Fornecedor", key: "termoFornecedor", width: "18%", Cell: ({ row }) => row.termoFornecedor || <span>- Qualquer -</span> },
+        { label: "Fornecedor", key: "fornecedorNome", width: "18%", Cell: ({ row }) => row.fornecedorNome || <span>- Qualquer -</span> },
         { label: "Plano de Contas", key: "destino", width: "15%", Cell: ({ row }) => <span>{row.destino || row.planoConta || `ID: ${row.planoContaId}`}</span> },
         {
             label: "Ações", key: "acoes", width: "120px", style: { textAlign: "center", position: "sticky", right: 0, zIndex: 2 },
@@ -513,23 +530,25 @@ export default function PlanoContasTab({ token, banco }) {
     // ==========================================================
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-            
             {/* 1. SEÇÃO DE REGRAS DE MAPEAMENTO */}
             {!modoCadastroRegra ? (
                 <Card title="Regras de Mapeamento do Plano de Contas">
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                         <p>Gerencie as regras automáticas de depara para conciliação bancária.</p>
                         <Button 
-                            onClick={() => { setRegraEmEdicaoId(null); 
-                            setFormRegra({ 
-                                termoDescricao: "", 
-                                termoTipo: "", 
-                                termoFornecedor: "", 
-                                planoContaTexto: "", 
-                                contratanteTexto: "", 
-                                unidadeTexto: "", 
-                                bancoTexto: "" }); 
-                            setModoCadastroRegra(true); }}>
+                            onClick={() => { 
+                                setRegraEmEdicaoId(null); 
+                                setFormRegra({ 
+                                    termoDescricao: "", 
+                                    termoTipo: "", 
+                                    fornecedorTexto: "", 
+                                    planoContaTexto: "", 
+                                    contratanteTexto: "", 
+                                    unidadeTexto: "", 
+                                    bancoTexto: "" 
+                                }); 
+                                setModoCadastroRegra(true); 
+                            }}>
                             + Nova Regra
                         </Button>
                     </div>
@@ -595,14 +614,15 @@ export default function PlanoContasTab({ token, banco }) {
                                 value={formRegra.termoTipo} 
                                 onChange={(e) => setFormRegra({ ...formRegra, termoTipo: e.target.value })} />
                         </div>
-                        <div className="form-group">
-                            <label className="form-label">Termo no Fornecedor</label>
-                            <input 
-                                type="text" 
-                                className="form-input" 
-                                placeholder="Ex: BANCO DO BRASIL" 
-                                value={formRegra.termoFornecedor} 
-                                onChange={(e) => setFormRegra({ ...formRegra, termoFornecedor: e.target.value })} />
+                        <div>
+                            <Inputlist 
+                                id="regra-fornecedor" 
+                                label="Fornecedor (Opcional - Vazio para Todos)" 
+                                placeholder="Escolha o fornecedor..." 
+                                value={formRegra.fornecedorTexto} 
+                                onChange={(e) => setFormRegra({ ...formRegra, fornecedorTexto: e.target.value })} 
+                                options={fornecedores} 
+                                valueKey={(f) => f.nome || ""} />
                         </div>
                         <div>
                             <Inputlist 
