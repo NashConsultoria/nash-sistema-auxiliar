@@ -7,7 +7,6 @@ import { API_BASE } from "../../context/AuthContext";
 import { ExportarExcel } from "../../utils/ExportarExcel";
 
 export default function LotesTab({ token, banco, lotes = [], carregandoLotes, carregarLotes }) {
-    // Estados dos Filtros
     const [filtros, setFiltros] = useState({
         nomeArquivo: "",
         contratante: ""
@@ -30,16 +29,13 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         }
     }, [token]);
 
-    // Função auxiliar para conversão e formatação de data sem dar 'Invalid Date'
     const formatarData = (dataValor) => {
         if (!dataValor) return "-";
         
-        // Se já for um objeto Date
         if (dataValor instanceof Date) {
             return isNaN(dataValor.getTime()) ? "-" : dataValor.toLocaleString("pt-BR");
         }
 
-        // Se for string, substitui espaço por 'T' para garantir compatibilidade ISO (Ex: "2026-03-31 14:00" -> "2026-03-31T14:00")
         const strData = String(dataValor).trim().replace(" ", "T");
         const dataParsed = new Date(strData);
 
@@ -50,7 +46,6 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         return dataParsed.toLocaleString("pt-BR");
     };
 
-    // Função auxiliar estilo Excel
     const filtrarLotesExcecao = (chaveIgnorada) => {
         return lotes.filter((item) => {
             const arquivo = (item.nomeArquivo || item.nome_arquivo || "").toLowerCase();
@@ -63,7 +58,6 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         });
     };
 
-    // Opções dinâmicas das listas
     const opcoesArquivos = useMemo(() => {
         const dados = filtrarLotesExcecao("nomeArquivo");
         return Array.from(new Set(dados.map((l) => l.nomeArquivo || l.nome_arquivo).filter(Boolean)));
@@ -74,7 +68,6 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         return Array.from(new Set(dados.map((l) => l.contratante).filter(Boolean)));
     }, [lotes, filtros]);
 
-    // Schema do Filtro
     const schemaFiltroLotes = [
         {
             key: "nomeArquivo",
@@ -92,7 +85,6 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         }
     ];
 
-    // Resultado final filtrado exibido na tabela
     const lotesFiltrados = useMemo(() => {
         return lotes.filter((item) => {
             const arquivo = (item.nomeArquivo || item.nome_arquivo || "").toLowerCase();
@@ -105,7 +97,6 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         });
     }, [lotes, filtros]);
 
-    // Exportação customizada por tipo de lote
     const handleExportarLote = (row) => {
         const nomeOriginal = row.nomeArquivo 
             ? row.nomeArquivo.replace(/\.[^/.]+$/, "") 
@@ -115,16 +106,20 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         const nomeArqLower = (row.nomeArquivo || row.nome_arquivo || "").toLowerCase();
         const contratanteLower = (row.contratante || "").toLowerCase();
 
-        // Identificação dos tipos de lote
+        const ehBanco = 
+            nomeArqLower.includes("banco") || 
+            contratanteLower.includes("bancos") ||
+            row.tipoLote?.toLowerCase().includes("banco");
+
         const ehUnidade = 
             nomeArqLower.includes("unidade") || 
             contratanteLower.includes("unidades") ||
             row.tipoLote?.toLowerCase().includes("unidade");
 
-        const ehBanco = 
-            nomeArqLower.includes("banco") || 
-            contratanteLower.includes("bancos") ||
-            row.tipoLote?.toLowerCase().includes("banco");
+        const ehFornecedor = 
+            nomeArqLower.includes("fornecedor") || 
+            contratanteLower.includes("fornecedores") ||
+            row.tipoLote?.toLowerCase().includes("fornecedor");
 
         const ehPlanoContas = 
             (nomeArqLower.includes("plano") && !nomeArqLower.includes("regra")) || 
@@ -139,7 +134,6 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
             row.tipoLote?.toLowerCase().includes("folha") ||
             contratanteLower.includes("folha");
 
-        // Lógica de Direcionamento por Alias
         if (ehUnidade) {
             ExportarExcel({
                 tabela: "unidade",
@@ -154,6 +148,14 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
                 colunaFiltro: "importacaoLoteId",
                 valorFiltro: row.id,
                 colunas: ["CODIGO", "BANCO"],
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else if (ehFornecedor) {
+            ExportarExcel({
+                tabela: "fornecedor",
+                colunaFiltro: "importacaoLoteId",
+                valorFiltro: row.id,
+                colunas: ["FORNECEDOR", "CPF-CNPJ"],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });
         } else if (ehRegraPlano) {
@@ -198,7 +200,6 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         }
     };
 
-    // Exclusão do Lote
     const handleDeletarLote = async (loteId, nomeArquivo) => {
         const confirmou = window.confirm(
             `Tem certeza que deseja excluir o lote "${nomeArquivo}"?\nTodas as movimentações e cadastros deste lote serão removidos!`
@@ -218,7 +219,9 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
                 alert(dados.mensagem || "Lote excluído com sucesso!");
                 if (carregarLotes) carregarLotes();
             } else {
-                alert(`Erro: ${dados.mensagem || "Não foi possível excluir o lote."}`);
+                // Captura 'detail' retornado do FastAPI caso 'mensagem' venha indefinido
+                const mensagemErro = dados.detail || dados.mensagem || "Não foi possível excluir o lote.";
+                alert(`Erro: ${mensagemErro}`);
             }
         } catch (err) {
             console.error("Erro ao deletar lote:", err);

@@ -69,8 +69,30 @@ create table Fornecedor
 (
     id					int					not null		primary key		identity,
     nome				varchar(255)		not null,
-    cpf_cnpj			varchar(50)				null,
-    CONSTRAINT UC_Fornecedor				unique (cpf_cnpj, nome)			-- Evita cadastrar o mesmo cara duas vezes
+    cpfCnpj				varchar(50)				null,
+	status				int					not null		default 1,		-- 1.Ativo, 2.Inativo
+	importacaoLoteId	int,
+
+	foreign key (importacaoLoteId)			references ImportacaoLote(id)
+);
+
+create table FornecedorRegras 
+(
+    id					int					not null		primary key		identity,
+    termoDescricao      varchar(255)			null,                       -- Busca na Descrição (Ex: "TARIFA")
+    termoTipo           varchar(255)			null,                       -- Busca no Tipo (Ex: "RECEBIMENTO")
+    fornecedorId		int					not null,                       -- Mapeia para Fornecedor
+    importacaoLoteId    int						null,
+
+    -- Chaves Estrangeiras
+	CONSTRAINT FK_FornecedorRegras_Fornecedor FOREIGN KEY (fornecedorId)     REFERENCES Fornecedor(id) ON DELETE CASCADE,
+    CONSTRAINT FK_FornecedorRegras_Lote       FOREIGN KEY (importacaoLoteId) REFERENCES ImportacaoLote(id) ON DELETE CASCADE,
+
+    -- Validação: Pelo menos UM dos critérios de busca DEVE estar preenchido
+    CONSTRAINT CK_FornecedorRegras_PeloMenosUmTermo CHECK (
+        termoDescricao IS NOT NULL OR 
+        termoTipo IS NOT NULL
+    )
 );
 
 create table PlanoContas
@@ -88,14 +110,15 @@ create table PlanoContas
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
-CREATE TABLE PlanoDePara (
+CREATE TABLE PlanoDePara 
+(
     id					int					not null		primary key		identity(1,1),
     contratanteId       int                     null,                       -- NULL = Regra Global
     unidadeId           int                     null,                       -- NULL = Regra Global
     bancoId             int						null,                       -- NULL = Regra Global
     termoDescricao      varchar(255)			null,                       -- Busca na Descrição (Ex: "TARIFA")
     termoTipo           varchar(255)			null,                       -- Busca no Tipo (Ex: "RECEBIMENTO")
-    termoFornecedor     varchar(255)			null,                       -- Busca no Fornecedor (Ex: "ITAU")
+    fornecedorId		int						null,                       -- Busca no Fornecedor (Ex: "ITAU")
     planoContaId        int					not null,                       -- Mapeia para PlanoContas
     importacaoLoteId    int,
 
@@ -103,6 +126,7 @@ CREATE TABLE PlanoDePara (
     CONSTRAINT FK_PlanoDePara_Contratante       FOREIGN KEY (contratanteId)		references Contratante(id) ON DELETE CASCADE,
     CONSTRAINT FK_PlanoDePara_Unidade           FOREIGN KEY (unidadeId)			references Unidade(id) ON DELETE CASCADE,
     CONSTRAINT FK_PlanoDePara			        FOREIGN KEY (bancoId)			references Banco(id) ON DELETE CASCADE,
+	CONSTRAINT FK_PlanoDePara_Fornecedor		FOREIGN KEY (fornecedorId)		references Fornecedor(id) ON DELETE CASCADE,
     CONSTRAINT FK_PlanoDePara_PlanoContas       FOREIGN KEY (planoContaId)		references PlanoContas(id) ON DELETE CASCADE,
                                                 FOREIGN KEY (importacaoLoteId)	references ImportacaoLote(id) ON DELETE CASCADE,
 
@@ -110,7 +134,7 @@ CREATE TABLE PlanoDePara (
     CONSTRAINT CK_PlanoDePara_PeloMenosUmTermo CHECK (
         termoDescricao IS NOT NULL OR 
         termoTipo IS NOT NULL OR 
-        termoFornecedor IS NOT NULL
+        fornecedorId IS NOT NULL
     )
 );
 
@@ -228,6 +252,7 @@ select * from Unidade
 select * from Banco
 select * from BancoConta
 select * from Fornecedor
+select * from FornecedorRegras
 select * from ImportacaoLote
 select * from PlanoContas
 select * from PlanoDePara

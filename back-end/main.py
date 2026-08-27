@@ -9,6 +9,7 @@ from app.routers import (
     contratantes,
     dados,
     exportacao,
+    fornecedor,
     importacao,
     logs,
     lotes,
@@ -45,6 +46,7 @@ app.include_router(bancos.router)
 app.include_router(contratantes.router)
 app.include_router(dados.router, prefix="/api")
 app.include_router(exportacao.router)
+app.include_router(fornecedor.router)
 app.include_router(importacao.router)
 app.include_router(logs.router)
 app.include_router(lotes.router)

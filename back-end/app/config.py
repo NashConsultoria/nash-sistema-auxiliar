@@ -77,6 +77,19 @@ TABELAS_PERMITIDAS = {
             FROM dbo.Banco b
         """
     },
+    "fornecedor": {
+        "query_customizada": """
+            SELECT 
+                id, 
+                nome AS [FORNECEDOR], 
+                cpfCnpj AS [CPF-CNPJ],
+                CASE WHEN status = 1 THEN 'Ativo' ELSE 'Inativo' END AS [STATUS],
+                importacaoLoteId
+            FROM dbo.Fornecedor
+        """,
+        "nome_aba": "MAPA_FORNECEDOR",
+        "coluna_padrao_id": "id"
+    },
     "planodepara": {
         "query_customizada": """
             SELECT 

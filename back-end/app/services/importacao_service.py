@@ -550,6 +550,146 @@ def importacao_unidade(
         if conexao:
             conexao.close()
 
+def importacao_fornecedor(
+    conteudo_arquivo: bytes, 
+    nome_arquivo: str, 
+    usuario_id: int, 
+    request: Request
+):
+    """
+    Processa o upload do Excel com os Fornecedores vinculando ao ImportacaoLote.
+    Aba esperada: 'MAPA_FORNECEDOR'
+    Colunas esperadas: FORNECEDOR, CPF-CNPJ (ou CPF/CNPJ)
+    """
+    conexao = None
+    try:
+        buffer = io.BytesIO(conteudo_arquivo)
+                
+        try:
+            df = pd.read_excel(buffer, sheet_name='MAPA_FORNECEDOR', dtype=str)
+        except Exception:
+            buffer.seek(0)
+            df = pd.read_excel(buffer, dtype=str)
+
+        # Padroniza nomes das colunas (Remove espaços extras e converte para maiúsculas)
+        df.columns = [str(col).strip().upper() for col in df.columns]
+
+        # Aceita 'CPF-CNPJ' ou 'CPF/CNPJ' na planilha
+        coluna_doc = None
+        for col in ["CPF-CNPJ", "CPF/CNPJ", "CPFCNPJ"]:
+            if col in df.columns:
+                coluna_doc = col
+                break
+
+        # 1. Validação de Colunas Obrigatórias
+        if "FORNECEDOR" not in df.columns:
+            raise HTTPException(
+                status_code=400, 
+                detail="Coluna obrigatória 'FORNECEDOR' não foi encontrada na planilha."
+            )
+
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
+        cursor = conexao.cursor()
+
+        # 2. Gestão do Lote de Importação
+        cursor.execute("""
+            SELECT id FROM dbo.ImportacaoLote 
+            WHERE nomeArquivo = ?
+        """, (nome_arquivo,))
+        lote_existente = cursor.fetchone()
+
+        if lote_existente:
+            lote_id = lote_existente[0]
+            cursor.execute("UPDATE dbo.ImportacaoLote SET criadoEm = GETDATE() WHERE id = ?", (lote_id,))
+        else:
+            cursor.execute("""
+                INSERT INTO dbo.ImportacaoLote (nomeArquivo, contratanteId, criadoEm) 
+                OUTPUT INSERTED.id
+                VALUES (?, NULL, GETDATE())
+            """, (nome_arquivo,))
+            
+            row_lote = cursor.fetchone()
+            if not row_lote or row_lote[0] is None:
+                raise HTTPException(status_code=500, detail="Não foi possível gerar o ID do Lote de Importação.")
+            
+            lote_id = int(row_lote[0])
+
+        # 3. Limpa os registros anteriores de fornecedores atrelados a este lote
+        cursor.execute("DELETE FROM dbo.Fornecedor WHERE importacaoLoteId = ?", (lote_id,))
+
+        total_linhas = 0
+        erros_validacao = []
+
+        # Query MERGE ajustada para a estrutura real da tabela Fornecedor
+        query_upsert = """
+            MERGE dbo.Fornecedor AS target
+            USING (SELECT ? AS nome, ? AS cpfCnpj, ? AS importacaoLoteId) AS source
+            ON (UPPER(target.nome) = UPPER(source.nome))
+            WHEN MATCHED THEN
+                UPDATE SET target.cpfCnpj = COALESCE(source.cpfCnpj, target.cpfCnpj), 
+                           target.status = 1, 
+                           target.importacaoLoteId = source.importacaoLoteId
+            WHEN NOT MATCHED THEN
+                INSERT (nome, cpfCnpj, status, importacaoLoteId)
+                VALUES (source.nome, source.cpfCnpj, 1, source.importacaoLoteId);
+        """
+
+        # 4. Processamento das Linhas do DataFrame
+        for idx, row in df.iterrows():
+            linha_num = idx + 2  # Considera o cabeçalho como linha 1
+
+            val_fornecedor = limpar_e_normalizar(row["FORNECEDOR"])
+            val_cpfCnpj = limpar_e_normalizar(row[coluna_doc]) if coluna_doc and row.get(coluna_doc) else None
+
+            # Validação do campo 'FORNECEDOR' (Obrigatório)
+            if not val_fornecedor:
+                erros_validacao.append(f"Linha {linha_num}: 'FORNECEDOR' é obrigatório.")
+                continue
+
+            # Executa a inserção / atualização repassando os 3 parâmetros da subquery
+            cursor.execute(query_upsert, (val_fornecedor, val_cpfCnpj, lote_id))
+            total_linhas += 1
+
+        # Interrompe o processo e desfaz as alterações caso existam erros de validação
+        if erros_validacao:
+            conexao.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail={"mensagem": "Erros de validação encontrados no arquivo.", "erros": erros_validacao}
+            )
+
+        # 5. Log de Auditoria
+        registrar_log(
+            usuario_id=usuario_id,
+            acao="IMPORTAR_MAPA_FORNECEDOR",
+            tabela="Fornecedor",
+            detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
+            request=request
+        )
+
+        conexao.commit()
+
+        return {
+            "sucesso": True,
+            "tipo": "mapa_fornecedor",
+            "lote_id": lote_id,
+            "mensagem": f"Mapa de Fornecedores importado com sucesso no Lote #{lote_id}! ({total_linhas} registros)",
+            "total_registros": total_linhas
+        }
+
+    except HTTPException as http_err:
+        if conexao:
+            conexao.rollback()
+        raise http_err
+    except Exception as e:
+        if conexao:
+            conexao.rollback()
+        print(f"[ERRO AO IMPORTAR MAPA FORNECEDOR]: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo do Mapa de Fornecedores: {str(e)}")
+    finally:
+        if conexao:
+            conexao.close()
+
 def importacao_regra_plano(
     conteudo_arquivo: bytes, 
     nome_arquivo: str, 

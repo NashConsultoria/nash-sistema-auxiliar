@@ -9,6 +9,7 @@ from app.services.importacao_service import (
     importacao_plano_contas,
     importacao_banco,
     importacao_unidade,
+    importacao_fornecedor,
     importacao_regra_plano,
 )
 
@@ -53,6 +54,16 @@ async def importar_arquivo_generico(
                 usuario_id=admin.id,
                 request=request,
             )
+
+    if (
+        "mapa_fornecedor" in nome_arquivo_lower
+    ):
+        return importacao_fornecedor(
+            conteudo_arquivo=conteudo,
+            nome_arquivo=file.filename,
+            usuario_id=admin.id,
+            request=request,
+        )
 
     if (
             "regras_plano" in nome_arquivo_lower

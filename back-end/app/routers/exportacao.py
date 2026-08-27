@@ -50,6 +50,8 @@ def exportar_excel(
                 nome_aba = "MAPA_BANCOS"
             elif "unidade" in tabela_alias_lower:
                 nome_aba = "MAPA_UNIDADES"
+            elif "fornecedor" in tabela_alias_lower:
+                nome_aba = "MAPA_FORNECEDOR"
             elif "regra" in tabela_alias_lower or "depara" in tabela_alias_lower:
                 nome_aba = "Regras_Plano"
             elif "folha" in tabela_alias_lower:
@@ -78,9 +80,12 @@ def exportar_excel(
                 detail="Nenhum registro encontrado para exportar.",
             )
 
-        # 3. Tratamento de Enums / Tipos Específicos
+        # 3. Tratamento de Enums e Tratamentos Específicos
         if "unidade" in tabela_alias_lower and "tipo" in df.columns:
             df["tipo"] = df["tipo"].map(lambda x: TIPOS_UNIDADE_MAP.get(x, x))
+
+        # Substitui NaN por string vazia para exibição limpa no Excel
+        df = df.fillna("")
 
         # 4. Filtro de Colunas Solicitadas
         if colunas:
@@ -115,7 +120,7 @@ def exportar_excel(
             for col in worksheet.columns:
                 max_len = max(len(str(cell.value or '')) for cell in col)
                 col_letter = col[0].column_letter
-                worksheet.column_dimensions[col_letter].width = max(max_len + 10, 12)
+                worksheet.column_dimensions[col_letter].width = max(max_len + 10, 14)
 
         output.seek(0)
 

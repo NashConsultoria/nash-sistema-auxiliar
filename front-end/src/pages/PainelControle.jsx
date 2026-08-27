@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE, useAuth } from "../context/AuthContext";
 import "../components/PainelControle.css"; 
 import Card from "../components/card/Card";
 import Button from "../components/button/Button";
@@ -10,15 +11,14 @@ import PermissoesTab from "../components/painel/PermissoesTab";
 import ContratantesTab from "../components/painel/ContratantesTab";
 import UnidadesTab from "../components/painel/UnidadesTab";
 import BancosTab from "../components/painel/BancosTab";
+import FornecedorTab from "../components/painel/FornecedorTab";
 import PlanoContasTab from "../components/painel/PlanoContasTab";
 import LotesTab from "../components/painel/LotesTab";
 import LogsTab from "../components/painel/LogsTab";
 
-import { API_BASE, useAuth } from "../context/AuthContext";
-
 import { CiLogout, CiBank } from "react-icons/ci";
 import { FaUsers } from "react-icons/fa6";
-import { FaUser, FaHistory, FaBuilding } from "react-icons/fa";
+import { FaUser, FaHistory, FaBuilding, FaTruck } from "react-icons/fa";
 import { IoMdSettings } from "react-icons/io";
 import { GrUserManager, GrPlan } from "react-icons/gr";
 import { BiImport } from "react-icons/bi";
@@ -32,6 +32,7 @@ export default function PainelControle() {
     const [contratantes, setContratantes] = useState([]);
     const [unidades, setUnidades] = useState([]);
     const [bancos, setBancos] = useState([]);
+    const [fornecedores, setFornecedores] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
     const [lotes, setLotes] = useState([]);
     const [carregandoLotes, setCarregandoLotes] = useState(false);
@@ -83,6 +84,20 @@ export default function PainelControle() {
         }
     };
 
+    const carregarFornecedores = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/fornecedor`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error("Erro ao buscar fornecedores");
+            
+            const dados = await res.json();
+            setFornecedores(dados.fornecedores || dados || []);
+        } catch (err) {
+            console.error("Erro fornecedor:", err);
+        }
+    };
+
     const carregarUsuarios = async () => {
         try {
             const res = await fetch(`${API_BASE}/api/usuarios`, {
@@ -115,6 +130,7 @@ export default function PainelControle() {
         if (temAcesso(1, 2)) {
             carregarBancos();
             carregarUnidades();
+            carregarFornecedores();
         }
         if (temAcesso(1)) {
             carregarUsuarios();
@@ -184,6 +200,19 @@ export default function PainelControle() {
             )
         },
         {
+            id: "bancos",
+            label: "Bancos",
+            icon: <CiBank />,
+            perfis: [1, 2],
+            component: (
+                <BancosTab 
+                    token={token} 
+                    bancos={bancos} 
+                    carregarBancos={carregarBancos} 
+                />
+            )
+        },
+        {
             id: "unidades",
             label: "Unidades",
             icon: <FaBuilding />,
@@ -197,15 +226,15 @@ export default function PainelControle() {
             )
         },
         {
-            id: "bancos",
-            label: "Bancos",
-            icon: <CiBank />,
+            id: "fornecedor",
+            label: "Fornecedores",
+            icon: <FaTruck />,
             perfis: [1, 2],
             component: (
-                <BancosTab 
+                <FornecedorTab 
                     token={token} 
-                    bancos={bancos} 
-                    carregarBancos={carregarBancos} 
+                    fornecedores={fornecedores} 
+                    carregarFornecedores={carregarFornecedores} 
                 />
             )
         },
