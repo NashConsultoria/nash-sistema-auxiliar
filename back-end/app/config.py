@@ -91,7 +91,7 @@ TABELAS_PERMITIDAS = {
         "coluna_padrao_id": "id"
     },
     "fornecedorregras": {
-        "query": """
+        "query_customizada": """
             SELECT 
                 fr.termoDescricao AS [DESCRICAO],
                 fr.termoTipo AS [TIPO],

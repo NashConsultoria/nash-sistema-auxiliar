@@ -4,7 +4,7 @@ export const ExportarExcel = async ({
     tabela, 
     colunaFiltro, 
     valorFiltro, 
-    colunas, // ex: ["planoConta", "grupoConta", "edre", "dfc"] ou string "planoConta,grupoConta"
+    colunas,
     nomeArquivoCustomizado 
 }) => {
     try {
@@ -21,7 +21,6 @@ export const ExportarExcel = async ({
 
         // Filtro de colunas
         if (colunas) {
-            // Se enviou um array ['col1', 'col2'], converte para string "col1,col2"
             const colunasStr = Array.isArray(colunas) ? colunas.join(",") : colunas;
             params.append("colunas", colunasStr);
         }

@@ -116,13 +116,15 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
             contratanteLower.includes("unidades") ||
             row.tipoLote?.toLowerCase().includes("unidade");
 
-        const ehFornecedor = 
-            nomeArqLower.includes("fornecedor") || 
-            contratanteLower.includes("fornecedores") ||
-            row.tipoLote?.toLowerCase().includes("fornecedor");
-
         const ehRegraFornecedor = 
             nomeArqLower.includes("regras_fornecedor")
+
+        const ehFornecedor = 
+        !ehRegraFornecedor && (
+            nomeArqLower.includes("fornecedor") || 
+            contratanteLower.includes("fornecedores") ||
+            row.tipoLote?.toLowerCase().includes("fornecedor")
+        );
 
         const ehPlanoContas = 
             (nomeArqLower.includes("plano") && !nomeArqLower.includes("regra")) || 
