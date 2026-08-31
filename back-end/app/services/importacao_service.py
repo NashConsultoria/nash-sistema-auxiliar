@@ -1048,8 +1048,7 @@ def importacao_regra_plano(
 
 async def importacao_base_financeira(
     conteudo: bytes, 
-    nome_arquivo: str, 
-    banco: str, 
+    nome_arquivo: str,
     usuario: UsuarioToken, 
     request: Request
 ):
@@ -1062,14 +1061,15 @@ async def importacao_base_financeira(
             "contratante": "CONTRATANTE",
             "unidade": "UNIDADE",
             "banco": "BANCO",
-            "agencia": "AGÊNCIA",
+            "agencia": "AGENCIA",
             "conta": "CONTA",
             "data": "DATA",
-            "descricao": "DESCRIÇÃO",
-            "obs": "OBSERVAÇÃO",
+            "descricao": "DESCRICAO",
+            "obs": "OBSERVACAO",
             "valor": "VALOR",
             "tipo": "TIPO",
-            "fornecedor": "FORNECEDOR",
+            "fornecedor": "FORNECEDORES",
+            "cpfCnpj": "CPF/CNPJ",
             "planoConta": "PLANO DE CONTA",
             "grupoConta": "GRUPO DE CONTA"
         }
@@ -1090,7 +1090,7 @@ async def importacao_base_financeira(
                 "mensagem": "Erro: O nome do contratante na primeira linha do Excel está vazio ou inválido."
             }
 
-        conexao = obter_conexao(banco)
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()
 
         # 2. Validação e Status do Contratante
@@ -1118,25 +1118,7 @@ async def importacao_base_financeira(
                 "mensagem": f"Importação Bloqueada! O contratante '{nome_contratante_bd}' está INATIVO no sistema."
             }
 
-        # 3. Lógica de Lote na dbo.ImportacaoLote
-        cursor.execute("""
-            SELECT id FROM dbo.ImportacaoLote 
-            WHERE nomeArquivo = ? AND contratanteId = ?
-        """, (nome_arquivo, contratante_id))
-        lote_existente = cursor.fetchone()
-
-        if lote_existente:
-            lote_id = lote_existente[0]
-            cursor.execute("DELETE FROM dbo.BaseFinanceiro WHERE importacaoLoteId = ?", (lote_id,))
-        else:
-            cursor.execute("""
-                INSERT INTO dbo.ImportacaoLote (nomeArquivo, contratanteId) 
-                VALUES (?, ?)
-            """, (nome_arquivo, contratante_id))
-            cursor.execute("SELECT @@IDENTITY")
-            lote_id = int(cursor.fetchone()[0])
-
-        # 4. Carrega Mapeamentos em Memória (Bancos, Unidades, Fornecedores e PlanoContas)
+        # 3. Carrega Mapeamentos em Memória (Bancos, Unidades, Fornecedores e PlanoContas)
         
         # Bancos
         cursor.execute("SELECT id, UPPER(TRIM(nome)), codigo, ISNULL(status, 1) FROM dbo.Banco")
@@ -1167,12 +1149,12 @@ async def importacao_base_financeira(
         cursor.execute("SELECT UPPER(TRIM(planoConta)) FROM dbo.PlanoContas")
         planos_no_banco = {normalizar_texto(row[0]) for row in cursor.fetchall()}
 
-        # 5. Pré-validação de consistência do Excel
+        # 4. Pré-validação de consistência do Excel (Bloqueios)
         erros_validacao = []
         for index, row_data in df.iterrows():
             linha_num = index + 2
 
-            # Unidade
+            # Unidade (Valida Existência e Status)
             u_val = str(row_data.get(mapeamento_colunas["unidade"], "")).strip()
             if u_val and u_val.upper() not in ["NAN", "NONE"]:
                 u_id = mapa_unidades.get(normalizar_texto(u_val))
@@ -1181,20 +1163,22 @@ async def importacao_base_financeira(
                 elif status_unidades.get(u_id) != 1:
                     erros_validacao.append(f"Linha {linha_num}: Unidade '{u_val}' está INATIVA.")
 
-            # Banco
+            # Banco (Valida Existência e Status do Banco Pai)
             b_val = str(row_data.get(mapeamento_colunas["banco"], "")).strip()
             if b_val and b_val.upper() not in ["NAN", "NONE"]:
                 b_id = mapa_bancos.get(normalizar_texto(b_val)) or mapa_bancos.get(b_val.lstrip("0"))
                 if not b_id:
-                    erros_validacao.append(f"Linha {linha_num}: Banco '{b_val}' não cadastrado.")
+                    erros_validacao.append(f"Linha {linha_num}: Banco '{b_val}' não cadastrado no sistema.")
                 elif status_bancos.get(b_id) != 1:
                     erros_validacao.append(f"Linha {linha_num}: Banco '{b_val}' está INATIVO.")
 
-            # Fornecedor
+            # Fornecedor (Valida Existência e Status)
             f_val = str(row_data.get(mapeamento_colunas["fornecedor"], "")).strip()
             if f_val and f_val.upper() not in ["NAN", "NONE"]:
                 f_id = mapa_fornecedores.get(normalizar_texto(f_val))
-                if f_id and status_fornecedores.get(f_id) != 1:
+                if not f_id:
+                    erros_validacao.append(f"Linha {linha_num}: Fornecedor '{f_val}' não cadastrado.")
+                elif status_fornecedores.get(f_id) != 1:
                     erros_validacao.append(f"Linha {linha_num}: Fornecedor '{f_val}' está INATIVO.")
 
             # Plano de Contas
@@ -1209,6 +1193,24 @@ async def importacao_base_financeira(
         if erros_validacao:
             conexao.close()
             return {"sucesso": False, "mensagem": "Importação bloqueada! Erros encontrados:\n" + "\n".join(erros_validacao)}
+
+        # 5. Lógica de Lote na dbo.ImportacaoLote (Executa apenas se passou na validação)
+        cursor.execute("""
+            SELECT id FROM dbo.ImportacaoLote 
+            WHERE nomeArquivo = ? AND contratanteId = ?
+        """, (nome_arquivo, contratante_id))
+        lote_existente = cursor.fetchone()
+
+        if lote_existente:
+            lote_id = lote_existente[0]
+            cursor.execute("DELETE FROM dbo.BaseFinanceiro WHERE importacaoLoteId = ?", (lote_id,))
+        else:
+            cursor.execute("""
+                INSERT INTO dbo.ImportacaoLote (nomeArquivo, contratanteId) 
+                VALUES (?, ?)
+            """, (nome_arquivo, contratante_id))
+            cursor.execute("SELECT @@IDENTITY")
+            lote_id = int(cursor.fetchone()[0])
 
         # Função auxiliar de parsing
         def obtener_valor(row_data, coluna_excel, tipo_dado="string"):
@@ -1244,10 +1246,11 @@ async def importacao_base_financeira(
             conta_num = obtener_valor(row, "conta")
             fornecedor_nome = obtener_valor(row, "fornecedor")
 
-            # Resolvendo IDs (sem criar novos registros)
+            # Resolvendo IDs
             unidade_id = mapa_unidades.get(normalizar_texto(nome_unidade)) if nome_unidade else None
-            
-            # Resolvendo BancoConta
+            fornecedor_id = mapa_fornecedores.get(normalizar_texto(fornecedor_nome)) if fornecedor_nome else None
+
+            # Resolução e Auto-criação de BancoConta (vinculado ao Banco existente)
             banco_conta_id = None
             if banco_nome:
                 banco_id = mapa_bancos.get(normalizar_texto(banco_nome)) or mapa_bancos.get(str(banco_nome).strip().lstrip("0"))
@@ -1261,9 +1264,14 @@ async def importacao_base_financeira(
                     b_row = cursor.fetchone()
                     if b_row:
                         banco_conta_id = b_row[0]
-
-            # Resolvendo Fornecedor
-            fornecedor_id = mapa_fornecedores.get(normalizar_texto(fornecedor_nome)) if fornecedor_nome else None
+                    else:
+                        # Cria o registro na BancoConta caso a combinação de agência/conta ainda não exista
+                        cursor.execute("""
+                            INSERT INTO dbo.BancoConta (bancoId, agencia, conta) 
+                            VALUES (?, ?, ?)
+                        """, (banco_id, agencia, conta_num))
+                        cursor.execute("SELECT @@IDENTITY")
+                        banco_conta_id = int(cursor.fetchone()[0])
 
             # Resolvendo PlanoContas
             p_conta_raw = str(row[mapeamento_colunas["planoConta"]]).strip() if pd.notna(row.get(mapeamento_colunas["planoConta"])) else None
@@ -1290,7 +1298,7 @@ async def importacao_base_financeira(
                     if plano_row:
                         plano_conta_id = plano_row[0]
 
-            # Inserção na dbo.BaseFinanceiro[cite: 5]
+            # Inserção na dbo.BaseFinanceiro
             cursor.execute("""
                 INSERT INTO dbo.BaseFinanceiro (
                     unidadeId, bancoContaId, fornecedorId, planoContaId, data, descricao, obs, valor, tipo, importacaoLoteId

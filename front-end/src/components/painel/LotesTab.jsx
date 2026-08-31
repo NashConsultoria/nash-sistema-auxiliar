@@ -105,62 +105,69 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
         const nomeArquivoDownload = `${nomeOriginal}.xlsx`;
         const nomeArqLower = (row.nomeArquivo || row.nome_arquivo || "").toLowerCase();
         const contratanteLower = (row.contratante || "").toLowerCase();
+        const tipoLoteLower = (row.tipoLote || "").toLowerCase();
 
-        const ehBanco = 
-            nomeArqLower.includes("banco") || 
-            contratanteLower.includes("bancos") ||
-            row.tipoLote?.toLowerCase().includes("banco");
+        // 1. Identificações precisas para a Base Financeira
+        const ehBaseFinanceira = 
+            nomeArqLower.includes("base_financeira") || 
+            nomeArqLower.includes("basefinanceiro") ||
+            tipoLoteLower.includes("financeiro") ||
+            tipoLoteLower.includes("base");
 
-        const ehUnidade = 
-            nomeArqLower.includes("unidade") || 
-            contratanteLower.includes("unidades") ||
-            row.tipoLote?.toLowerCase().includes("unidade");
-
-        const ehRegraFornecedor = 
-            nomeArqLower.includes("regras_fornecedor")
-
-        const ehFornecedor = 
-        !ehRegraFornecedor && (
-            nomeArqLower.includes("fornecedor") || 
-            contratanteLower.includes("fornecedores") ||
-            row.tipoLote?.toLowerCase().includes("fornecedor")
-        );
-
-        const ehPlanoContas = 
-            (nomeArqLower.includes("plano") && !nomeArqLower.includes("regra")) || 
-            row.contratante === "PLANO DE CONTAS (SISTEMA)";
-
+        // 2. Outras regras ajustadas para evitar conflitos de palavras
+        const ehRegraFornecedor = nomeArqLower.includes("regras_fornecedor");
+        
         const ehRegraPlano = 
             nomeArqLower.includes("regras_plano") || 
-            nomeArqLower.includes("regra");
+            nomeArqLower.includes("planodepara") ||
+            (nomeArqLower.includes("regra") && !ehRegraFornecedor);
+
+        // Ajustado para não capturar arquivos que só tenham 'plano' no nome
+        const ehPlanoContas = 
+            !ehRegraPlano && 
+            !ehBaseFinanceira && (
+                nomeArqLower === "plano_contas.xlsx" ||
+                nomeArqLower.includes("plano_contas") || 
+                contratanteLower === "plano de contas (sistema)"
+            );
 
         const ehFolhaPagamento = 
             nomeArqLower.includes("folha") || 
-            row.tipoLote?.toLowerCase().includes("folha") ||
+            tipoLoteLower.includes("folha") ||
             contratanteLower.includes("folha");
 
-        if (ehUnidade) {
+        const ehBanco = 
+            !ehBaseFinanceira && (
+                nomeArqLower.includes("banco") || 
+                contratanteLower.includes("bancos") ||
+                tipoLoteLower.includes("banco")
+            );
+
+        const ehUnidade = 
+            !ehBaseFinanceira && (
+                nomeArqLower.includes("unidade") || 
+                contratanteLower.includes("unidades") ||
+                tipoLoteLower.includes("unidade")
+            );
+
+        const ehFornecedor = 
+            !ehRegraFornecedor && !ehBaseFinanceira && (
+                nomeArqLower.includes("fornecedor") || 
+                contratanteLower.includes("fornecedores") ||
+                tipoLoteLower.includes("fornecedor")
+            );
+
+        // Execução (Prioridade para Base Financeira e REGRAS)
+        if (ehBaseFinanceira) {
             ExportarExcel({
-                tabela: "unidade",
+                tabela: "basefinanceiro",
                 colunaFiltro: "importacaoLoteId",
                 valorFiltro: row.id,
-                colunas: ["CONTRATANTE", "NOME", "RAZAO SOCIAL", "BANCO", "AGENCIA", "CONTA", "CNPJ", "TIPO"],
-                nomeArquivoCustomizado: nomeArquivoDownload
-            });
-        } else if (ehBanco) {
-            ExportarExcel({
-                tabela: "banco",
-                colunaFiltro: "importacaoLoteId",
-                valorFiltro: row.id,
-                colunas: ["CODIGO", "BANCO"],
-                nomeArquivoCustomizado: nomeArquivoDownload
-            });
-        } else if (ehFornecedor) {
-            ExportarExcel({
-                tabela: "fornecedor",
-                colunaFiltro: "importacaoLoteId",
-                valorFiltro: row.id,
-                colunas: ["FORNECEDOR", "CPF-CNPJ"],
+                colunas: [
+                    "CONTRATANTE", "UNIDADE", "BANCO", "AGENCIA", "CONTA", "DATA",
+                    "DESCRICAO", "OBSERVACAO", "VALOR", "TIPO", "FORNECEDORES",
+                    "PLANO DE CONTA", "GRUPO DE CONTA", "E-DRE"
+                ],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });
         } else if (ehRegraFornecedor) {
@@ -179,12 +186,6 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
                 colunas: ["CONTRATANTE", "UNIDADE", "BANCO", "DESCRICAO", "TIPO", "FORNECEDOR", "PLANO DE CONTA"],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });
-        } else if (ehPlanoContas) {
-            ExportarExcel({
-                tabela: "planocontas",
-                colunas: ["PLANO DE CONTAS", "GRUPO DE CONTAS", "EDRE", "DFC", "EFOLHA"],
-                nomeArquivoCustomizado: nomeArquivoDownload
-            });
         } else if (ehFolhaPagamento) {
             ExportarExcel({
                 tabela: "BaseFolhaPagamento",
@@ -198,15 +199,46 @@ export default function LotesTab({ token, banco, lotes = [], carregandoLotes, ca
                 ],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });
-        } else {
+        } else if (ehPlanoContas) {
             ExportarExcel({
-                tabela: "BaseFinanceiro",
+                tabela: "planocontas",
+                colunas: ["PLANO DE CONTAS", "GRUPO DE CONTAS", "EDRE", "DFC", "EFOLHA"],
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else if (ehBanco) {
+            ExportarExcel({
+                tabela: "banco",
+                colunaFiltro: "importacaoLoteId",
+                valorFiltro: row.id,
+                colunas: ["CODIGO", "BANCO"],
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else if (ehUnidade) {
+            ExportarExcel({
+                tabela: "unidade",
+                colunaFiltro: "importacaoLoteId",
+                valorFiltro: row.id,
+                colunas: ["CONTRATANTE", "NOME", "RAZAO SOCIAL", "BANCO", "AGENCIA", "CONTA", "CNPJ", "TIPO"],
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else if (ehFornecedor) {
+            ExportarExcel({
+                tabela: "fornecedor",
+                colunaFiltro: "importacaoLoteId",
+                valorFiltro: row.id,
+                colunas: ["FORNECEDOR", "CPF-CNPJ"],
+                nomeArquivoCustomizado: nomeArquivoDownload
+            });
+        } else {
+            // Fallback Padrão: Se não caiu em nada anterior, assume que é Base Financeira
+            ExportarExcel({
+                tabela: "basefinanceiro",
                 colunaFiltro: "importacaoLoteId",
                 valorFiltro: row.id,
                 colunas: [
                     "CONTRATANTE", "UNIDADE", "BANCO", "AGENCIA", "CONTA", "DATA",
                     "DESCRICAO", "OBSERVACAO", "VALOR", "TIPO", "FORNECEDORES",
-                    "CPF_CNPJ", "PLANO DE CONTA", "GRUPO DE CONTA", "E-DRE"
+                    "PLANO DE CONTA", "GRUPO DE CONTA", "E-DRE"
                 ],
                 nomeArquivoCustomizado: nomeArquivoDownload
             });

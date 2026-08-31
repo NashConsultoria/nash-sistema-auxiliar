@@ -33,11 +33,11 @@ const menu = [
     { label: "Balanço", path: "/balanco", icon: <FaBalanceScale />, modulo: "financeiro", perfisPermitidos: [1, 2, 3] },
 
     // --- Módulo: Configurações / Ferramentas ---
+    { label: "Importação", path: "/importacao", icon: <FaFileImport />, modulo: "config", perfisPermitidos: [1] },
+    { label: "Conversor", path: "/conversor", icon: <FaArrowRotateRight />, modulo: "config", perfisPermitidos: [1, 2] },
     { label: "Base Financeira", path: "/base-financeira", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
     { label: "Base Fluxo Caixa", path: "/base-fluxo-caixa", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
     { label: "Base Folha", path: "/base-folha", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
-    { label: "Importação", path: "/importacao", icon: <FaFileImport />, modulo: "config", perfisPermitidos: [1] },
-    { label: "Conversor", path: "/conversor", icon: <FaArrowRotateRight />, modulo: "config", perfisPermitidos: [1, 2] },
 ];
 
 export default function Navbar() {

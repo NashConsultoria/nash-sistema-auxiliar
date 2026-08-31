@@ -46,21 +46,22 @@ def exportar_excel(
         # 1. Definição Dinâmica do Nome da Aba
         nome_aba = config_tabela.get("nome_aba")
         if not nome_aba:
-            # reordenado: checagens mais específicas primeiro
-            if "regras_fornecedor" in tabela_alias_lower or "fornecedorregras" in tabela_alias_lower:
-                nome_aba = "Regras_Fornecedor"
-            elif "banco" in tabela_alias_lower:
-                nome_aba = "MAPA_BANCOS"
-            elif "unidade" in tabela_alias_lower:
-                nome_aba = "MAPA_UNIDADES"
-            elif "fornecedor" in tabela_alias_lower:
-                nome_aba = "MAPA_FORNECEDOR"
-            elif "regra" in tabela_alias_lower or "depara" in tabela_alias_lower:
-                nome_aba = "Regras_Plano"
-            elif "folha" in tabela_alias_lower:
-                nome_aba = "FOLHA_PAGAMENTO"
-            else:
+            if "base_financeira" in tabela_alias_lower:
                 nome_aba = "BASE_FINANCEIRA"
+            elif "base_folha" in tabela_alias_lower or "folha" in tabela_alias_lower:
+                nome_aba = "FOLHA_PAGAMENTO"
+            elif "regras_fornecedor" in tabela_alias_lower or "fornecedorregras" in tabela_alias_lower:
+                nome_aba = "Regras_Fornecedor"
+            elif "mapa_bancos" in tabela_alias_lower:
+                nome_aba = "MAPA_BANCOS"
+            elif "mapa_unidades" in tabela_alias_lower:
+                nome_aba = "MAPA_UNIDADES"
+            elif "mapa_fornecedor" in tabela_alias_lower:
+                nome_aba = "MAPA_FORNECEDOR"
+            elif "regras_plano" in tabela_alias_lower or "depara" in tabela_alias_lower:
+                nome_aba = "Regras_Plano"
+            else:
+                nome_aba = "PLANILHA"
 
         # 2. Aplicação do Filtro via Subquery
         if coluna_filtro and valor_filtro:
@@ -93,14 +94,19 @@ def exportar_excel(
         # 4. Filtro de Colunas Solicitadas
         if colunas:
             colunas_solicitadas = [
-                c.strip() for c in colunas.split(",") if c.strip()
+                c.strip().upper() for c in colunas.split(",") if c.strip()
             ]
+            
+            # Mapeia colunas vindas do Banco para Maiúsculo no DataFrame primeiro
+            df.columns = [str(col).upper() for col in df.columns]
+            
+            # Filtra apenas as colunas que realmente existem no DataFrame
             colunas_validas = [c for c in colunas_solicitadas if c in df.columns]
             if colunas_validas:
                 df = df[colunas_validas]
-
-        # 4.1 Transformar os nomes das colunas para MAIÚSCULO
-        df.columns = [str(col).upper() for col in df.columns]
+        else:
+            # Garante maiúsculas mesmo sem filtro de colunas
+            df.columns = [str(col).upper() for col in df.columns]
 
         # 5. Gerar Excel em memória com formatação
         output = io.BytesIO()

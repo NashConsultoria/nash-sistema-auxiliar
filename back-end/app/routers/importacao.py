@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 
-from app.config import BANCO_AUTENTICACAO, PERFIL_ADMIN
+from app.config import PERFIL_ADMIN
 from app.schemas.usuarios_schema import UsuarioToken
 from app.security import exigir_perfil
 from app.services.importacao_service import (
@@ -92,7 +92,6 @@ async def importar_arquivo_generico(
         return await importacao_folha_pagamento(
             conteudo=conteudo,
             nome_arquivo=file.filename,
-            banco=BANCO_AUTENTICACAO,
             usuario=admin,
             request=request,
         )
@@ -103,7 +102,6 @@ async def importar_arquivo_generico(
         return await importacao_base_financeira(
             conteudo=conteudo,
             nome_arquivo=file.filename,
-            banco=BANCO_AUTENTICACAO,
             usuario=admin,
             request=request,
         )

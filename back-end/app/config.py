@@ -123,37 +123,38 @@ TABELAS_PERMITIDAS = {
         "nome_aba": "Regras_Plano",
         "coluna_padrao_id": "importacaoLoteId"
     },
-    "BaseFinanceiro": {
+    "basefinanceiro": {
         "query_customizada": """
             SELECT 
                 m.id,
                 c.nome AS CONTRATANTE,
                 u.nome AS UNIDADE,
-                bc.banco AS BANCO,
+                b.nome AS BANCO,
                 bc.agencia AS AGENCIA,
                 bc.conta AS CONTA,
-                m.data AS DATA,
+                CONVERT(VARCHAR(10), m.data, 103) AS DATA,
                 m.descricao AS DESCRICAO,
                 m.obs AS OBSERVACAO,
                 m.valor AS VALOR,
                 m.tipo AS TIPO,
                 f.nome AS FORNECEDORES,
-                f.cpf_cnpj AS CPF/CNPJ,
                 p.planoConta AS [PLANO DE CONTA],
                 p.grupoConta AS [GRUPO DE CONTA],
                 p.edre AS [E-DRE],
                 m.importacaoLoteId
             FROM dbo.BaseFinanceiro m
+            LEFT JOIN dbo.ImportacaoLote l ON m.importacaoLoteId = l.id
+            LEFT JOIN dbo.Contratante c ON l.contratanteId = c.id
             LEFT JOIN dbo.Unidade u ON m.unidadeId = u.id
-            LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
             LEFT JOIN dbo.BancoConta bc ON m.bancoContaId = bc.id
+            LEFT JOIN dbo.Banco b ON bc.bancoId = b.id
             LEFT JOIN dbo.Fornecedor f ON m.fornecedorId = f.id
             LEFT JOIN dbo.PlanoContas p ON m.planoContaId = p.id
         """,
         "nome_aba": "BASE_FINANCEIRA",
         "coluna_padrao_id": "importacaoLoteId"
     },
-    "BaseFolhaPagamento": {
+    "basefolhapagamento": {
         "query_customizada": """
             SELECT 
                 m.id,
