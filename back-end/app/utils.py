@@ -4,50 +4,49 @@ import unicodedata
 from app.config import ORDEM_EFOLHA
 
 def normalizar_texto(texto) -> str:
-    """
-    Normaliza strings removendo acentos, caracteres especiais indesejados, 
-    colapsando múltiplos espaços em um só e convertendo para maiúsculas.
-    """
     if pd.isna(texto) or texto is None:
         return ""
     
     texto_str = str(texto).strip()
-    
     if texto_str.lower() in ["nan", "none", "", "null"]:
         return ""
     
-    # 1. Substitui espaços inquebráveis do Excel (CHAR(160) / \xa0) por espaço normal
+    # 1. Substitui espaços inquebráveis por espaço normal
     texto_str = texto_str.replace('\xa0', ' ')
 
-    # 2. Normalização Unicode (Decompõe e remove marcas de acentuação)
+    # 2. Normalização Unicode
     nfkd = unicodedata.normalize('NFD', texto_str)
     texto_sem_acento = "".join(c for c in nfkd if unicodedata.category(c) != 'Mn')
     
-    # 3. Fallback de segurança para caracteres com cedilha/acentos residuais
+    # 3. Fallback de segurança para acentos residuais
     tabela_substituicao = str.maketrans(
         "ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇáàâãäéèêëíìîïóòôõöúùûüç",
         "AAAAAEEEEIIIIOOOOOUUUUCaaaaaeeeeiiiiooooouuuuc"
     )
     texto_limpo = texto_sem_acento.translate(tabela_substituicao)
     
-    # 4. Remove caracteres especiais Mantendo letras, números, hífen e espaço
-    texto_limpo = re.sub(r'[^\w\s\-]', '', texto_limpo)
+    # 4. Mantém letras, números, hífen, espaço, ponto e barra (Permite pontos de processos/CNPJ)
+    texto_limpo = re.sub(r'[^\w\s\-\./&]', '', texto_limpo)
     
-    # 5. Reduz múltiplos espaços/quebras de linha seguidos para um único espaço
+    # 5. Reduz múltiplos espaços para um único
     texto_limpo = re.sub(r'\s+', ' ', texto_limpo)
     
     return texto_limpo.strip().upper()
 
 def corrigir_encoding(texto: str) -> str:
-    """Corrige caracteres corrompidos por encoding (ex: LiquidaÃ§Ã£o -> Liquidação)"""
+    """Corrige caracteres corrompidos por encoding apenas se detectada falha."""
     if not texto:
         return ""
-    try:
-        # Tenta re-codificar o texto quebrado para ISO-8859-1 e decodificar em UTF-8
-        return texto.encode("latin1").decode("utf-8")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        # Se falhar ou o texto já estiver correto, retorna o texto original
-        return texto
+    
+    # Só tenta corrigir se contiver sequências típicas de UTF-8 lido como Latin-1
+    padroes_mojibake = ["Ã", "Â", "Ç", "§", "©"]
+    if any(padrao in texto for padrao in padroes_mojibake):
+        try:
+            return texto.encode("latin1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            return texto
+            
+    return texto
 
 def limpar_e_normalizar(val, apenas_limpar=True):
     if pd.isna(val) or val is None:

@@ -149,7 +149,7 @@ create table BaseFinanceiro
 	obs					varchar(max),
 	valor				decimal(38,2),
 	tipo				varchar(50),
-	planoContaId		int,
+	planoContaId		int					not null,
 	importacaoLoteId	int,
 
 	foreign key (unidadeId)					references Unidade(id),

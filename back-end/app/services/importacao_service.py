@@ -1337,7 +1337,6 @@ async def importacao_base_financeira(
 async def importacao_folha_pagamento(
     conteudo: bytes,
     nome_arquivo: str,
-    banco: str,
     usuario: UsuarioToken,
     request: Request,
 ):
@@ -1386,7 +1385,7 @@ async def importacao_folha_pagamento(
                 "mensagem": "Erro: O nome do contratante na primeira linha do Excel está vazio ou inválido.",
             }
 
-        conexao = obter_conexao(banco)
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()
 
         # 2. Validação e Status do Contratante
