@@ -332,7 +332,6 @@ export default function PlanoContasTab({ token, banco }) {
             ? `${API_BASE}/api/${banco}/regras-planocontas/${regraEmEdicaoId}`
             : `${API_BASE}/api/${banco}/regras-planocontas`;
 
-        // CORRIGIDO: Payload com fornecedorId em vez de termoFornecedor
         const payload = {
             termoDescricao: formRegra.termoDescricao.trim() || null,
             termoTipo: formRegra.termoTipo.trim() || null,

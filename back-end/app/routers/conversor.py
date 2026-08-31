@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from app.config import REGRAS_FORNECEDORES, PALAVRAS_REMOVIDAS
+from app.config import BANCO_AUTENTICACAO
 from app.database import obter_conexao
 from app.utils import corrigir_encoding
 from .pdf_bancos import (
@@ -99,71 +99,52 @@ def identificar_banco_no_pdf(conteudo_bytes: bytes) -> str:
             return "BANCO STONE"
             
     return ""
-    
-def gerar_fornecedor_com_filtro(descricao_texto: str) -> str:
-    if not descricao_texto:
-        return ""
- 
-    texto_limpo = descricao_texto
- 
-    # 1. Remove Datas nos formatos DD/MM ou DD/MM/AAAA (ex: 03/06, 16/06/2026)
-    texto_limpo = re.sub(r"\b\d{2}/\d{2}(?:/\d{2,4})?\b", "", texto_limpo)
- 
-    # 2. Remove Horários nos formatos HH:MM ou HH:MM:SS (ex: 13:03, 16:17:30)
-    texto_limpo = re.sub(r"\b\d{2}:\d{2}(?::\d{2})?\b", "", texto_limpo)
- 
-    # 3. Remove palavras banidas da lista PALAVRAS_REMOVIDAS
-    if PALAVRAS_REMOVIDAS:
-        palavras_escapadas = [re.escape(palavra) for palavra in PALAVRAS_REMOVIDAS]
-        pattern = re.compile(
-            r"\b(" + "|".join(palavras_escapadas) + r")\b", flags=re.IGNORECASE
-        )
-        texto_limpo = pattern.sub("", texto_limpo)
- 
-    # 4. Trata hífens sobrantes e espaços duplicados
-    texto_limpo = re.sub(r"\s*-\s*-\s*", " - ", texto_limpo)
-    texto_limpo = re.sub(r"^\s*-\s*", "", texto_limpo)
-    texto_limpo = re.sub(r"\s*-\s*$", "", texto_limpo)
-    
-    return re.sub(r"\s+", " ", texto_limpo).strip()
 
-def identificar_fornecedor(descricao: str, banco_val: str, tipo: str = "") -> str:
-    desc_lower = descricao.lower()
-    tipo_norm = (tipo or "").strip().upper()
- 
-    for termo, fornecedor in REGRAS_FORNECEDORES:
-        if termo.lower() in desc_lower:
- 
-            # Regra condicional por tipo de transação (PAGAMENTO / RECEBIMENTO)
-            if isinstance(fornecedor, dict):
-                fornecedor_tipo = (
-                    fornecedor.get(tipo_norm)
-                    or fornecedor.get("DEFAULT")
-                    or banco_val
-                )
-                fornecedor_tipo_upper = str(fornecedor_tipo).strip().upper()
-                if fornecedor_tipo_upper in ["BANCO", "(NOME DO BANCO)", "[NOME DO BANCO]"]:
-                    return banco_val
-                return fornecedor_tipo
- 
-            # Regra simples de sempre (comportamento original)
-            fornecedor_upper = str(fornecedor).strip().upper()
-            if fornecedor_upper in ["BANCO", "(NOME DO BANCO)", "[NOME DO BANCO]"]:
-                return banco_val
-            return fornecedor
- 
-    return gerar_fornecedor_com_filtro(descricao)
+def identificar_fornecedor(descricao: str, banco_val: str, tipo: str = "", conexao = None) -> str:
+    desc_upper = (descricao or "").upper().strip()
+    tipo_upper = (tipo or "").upper().strip()
 
-def aplicar_plano_conta(linhas_extrato: list, banco: str, contratante_id: Optional[int] = None) -> list:
+    # 1. Se houver conexão, busca as regras ativas no banco de dados
+    if conexao:
+        try:
+            cursor = conexao.cursor()
+            query = """
+                SELECT 
+                    fr.termoDescricao,
+                    fr.termoTipo,
+                    f.nome AS nomeFornecedor
+                FROM dbo.FornecedorRegras fr
+                INNER JOIN dbo.Fornecedor f ON fr.fornecedorId = f.id
+                WHERE f.status = 1
+            """
+            cursor.execute(query)
+            regras = cursor.fetchall()
+
+            for t_desc, t_tipo, nome_fornecedor in regras:
+                match_desc = True if not t_desc else (t_desc.upper() in desc_upper)
+                match_tipo = True if not t_tipo else (t_tipo.upper() == tipo_upper)
+
+                if match_desc and match_tipo:
+                    fornecedor_upper = str(nome_fornecedor).strip().upper()
+                    if fornecedor_upper in ["BANCO", "(NOME DO BANCO)", "[NOME DO BANCO]"]:
+                        return banco_val
+                    return nome_fornecedor
+        except Exception as e:
+            print(f"Aviso: Erro ao buscar regras de fornecedores: {e}")
+
+    # 2. Fallback: Se não encontrar nenhuma regra, retorna vazio
+    return ""
+
+def aplicar_plano_conta(linhas_extrato: list, contratante_id: Optional[int] = None) -> list:
     """
-    Busca o nome do contratante e aplica as regras de DE/PARA cadastradas,
+    Busca o nome do contratante e aplica as regras de DE/PARA cadastradas na dbo.PlanoDePara,
     preenchendo: contratante, planoConta, grupoConta e edre.
     """
     nome_contratante = ""
     regras = []
 
     if contratante_id:
-        conexao = obter_conexao(banco)
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()
 
         # 1. Busca o nome do contratante
@@ -175,24 +156,29 @@ def aplicar_plano_conta(linhas_extrato: list, banco: str, contratante_id: Option
         except Exception as e:
             print(f"Aviso: Erro ao buscar nome do contratante: {e}")
 
-        # 2. Busca as regras ativas incluindo o termoTipo
-        query_regras = """
-            SELECT 
-                p.termoDescricao,
-                p.termoFornecedor,
-                p.termoTipo,
-                pc.planoConta,
-                pc.grupoConta,
-                pc.edre
-            FROM dbo.PlanoDePara p
-            INNER JOIN dbo.PlanoContas pc ON p.planoContaId = pc.id
-            WHERE p.contratanteId IS NULL OR p.contratanteId = ?
-        """
-        cursor.execute(query_regras, [contratante_id])
-        regras = cursor.fetchall()
-        conexao.close()
+        # 2. Busca as regras ativas associando com dbo.Fornecedor (se houver fornecedorId)
+        try:
+            query_regras = """
+                SELECT 
+                    p.termoDescricao,
+                    f.nome AS termoFornecedor,
+                    p.termoTipo,
+                    pc.planoConta,
+                    pc.grupoConta,
+                    pc.edre
+                FROM dbo.PlanoDePara p
+                INNER JOIN dbo.PlanoContas pc ON p.planoContaId = pc.id
+                LEFT JOIN dbo.Fornecedor f ON p.fornecedorId = f.id
+                WHERE p.contratanteId IS NULL OR p.contratanteId = ?
+            """
+            cursor.execute(query_regras, [contratante_id])
+            regras = cursor.fetchall()
+        except Exception as e:
+            print(f"Aviso: Erro ao buscar regras de PlanoDePara: {e}")
+        finally:
+            conexao.close()
 
-    # 3. Preenche as linhas com o contratante e as categorias mapeadas
+    # 3. Preenche as linhas do extrato com o contratante e as categorias mapeadas
     for linha in linhas_extrato:
         linha["contratante"] = nome_contratante
 
@@ -203,13 +189,11 @@ def aplicar_plano_conta(linhas_extrato: list, banco: str, contratante_id: Option
             or ""
         ).upper().strip()
         
-        tipo_linha = (linha.get("tipo") or "").upper().strip() # Pega o tipo da transação (PAGAMENTO / RECEBIMENTO)
+        tipo_linha = (linha.get("tipo") or "").upper().strip()
 
         for t_desc, t_forn, t_tipo, p_conta, g_conta, edre in regras:
             match_desc = True if not t_desc else (t_desc.upper() in desc)
             match_forn = True if not t_forn else (t_forn.upper() in forn)
-            
-            # Valida o tipo se ele estiver preenchido na regra
             match_tipo = True if not t_tipo else (t_tipo.upper() == tipo_linha)
 
             if match_desc and match_forn and match_tipo:
@@ -331,7 +315,7 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
             tipo = "RECEBIMENTO"
 
         # 2. Identifica o fornecedor passando o TIPO já calculado
-        fornecedor_raw = identificar_fornecedor(descricao_original, banco_val, tipo=tipo)
+        fornecedor_raw = identificar_fornecedor(descricao_original, banco_val, tipo=tipo, conexao=conexao)
 
         # 3. Garante que fornecedor_val seja SEMPRE string
         if isinstance(fornecedor_raw, dict):
@@ -367,11 +351,7 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
 
     return transacoes_dados
 
-def processar_pdf(conteudo_bytes: bytes, conexao, identificar_fornecedor_fn) -> list:
-    """
-    Roteador principal de PDFs: Identifica o banco, executa o parser 
-    correspondente e vincula as informações com o banco de dados SQL.
-    """
+def processar_pdf(conteudo_bytes: bytes, conexao) -> list:
     banco_detectado = identificar_banco_no_pdf(conteudo_bytes).strip()
 
     if not banco_detectado:
@@ -380,26 +360,36 @@ def processar_pdf(conteudo_bytes: bytes, conexao, identificar_fornecedor_fn) -> 
             detail="Não foi possível identificar o banco emissor deste PDF."
         )
 
+    # Wrapper que aceita o parâmetro 'tipo' vindo das funções de PDF
+    def identificar_fn(descricao: str, banco_v: str, tipo: str = ""):
+        # Caso a função de leitura do PDF não passe o tipo, deduz a partir da descrição
+        if not tipo:
+            desc_lower = (descricao or "").lower()
+            if "saldo" in desc_lower:
+                tipo = "SALDO"
+
+        return identificar_fornecedor(descricao, banco_v, tipo=tipo, conexao=conexao)
+
     if banco_detectado == "BANCO DO BRASIL":
-        dados_extraidos = pdf_banco_do_brasil(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_banco_do_brasil(conteudo_bytes, identificar_fn)
     elif banco_detectado == "BRADESCO":
-        dados_extraidos = pdf_bradesco(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_bradesco(conteudo_bytes, identificar_fn)
     elif banco_detectado in ["CAIXA ECONOMICA FEDERAL", "CAIXA"]:
-        dados_extraidos = pdf_caixa(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_caixa(conteudo_bytes, identificar_fn)
     elif banco_detectado == "SICOOB":
-        dados_extraidos = pdf_sicoob(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_sicoob(conteudo_bytes, identificar_fn)
     elif banco_detectado == "BANCO SAFRA":
-        dados_extraidos = pdf_safra(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_safra(conteudo_bytes, identificar_fn)
     elif banco_detectado == "SICREDI":
-        dados_extraidos = pdf_sicredi(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_sicredi(conteudo_bytes, identificar_fn)
     elif banco_detectado == "BANCO C6":
-        dados_extraidos = pdf_c6(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_c6(conteudo_bytes, identificar_fn)
     elif banco_detectado == "BANCO INTER":
-        dados_extraidos = pdf_inter(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_inter(conteudo_bytes, identificar_fn)
     elif banco_detectado == "BANCO CORA":
-        dados_extraidos = pdf_cora(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_cora(conteudo_bytes, identificar_fn)
     elif banco_detectado == "BANCO STONE":
-        dados_extraidos = pdf_stone(conteudo_bytes, identificar_fornecedor_fn)
+        dados_extraidos = pdf_stone(conteudo_bytes, identificar_fn)
     else:
         raise HTTPException(
             status_code=400, 
@@ -410,7 +400,19 @@ def processar_pdf(conteudo_bytes: bytes, conexao, identificar_fornecedor_fn) -> 
     agencia_val = dados_extraidos.get("agencia", "")
     conta_val = dados_extraidos.get("conta", "")
 
-    # Busca no Banco de Dados (Igual ao OFX)
+    # Re-aplica a identificação do Fornecedor caso o PDF tenha montado o TIPO depois de extrair os valores
+    for t in transacoes:
+        tipo_transacao = t.get("tipo", "")
+        # Se o fornecedor veio vazio e o tipo já foi identificado pelo parser do PDF (PAGAMENTO / RECEBIMENTO)
+        if not t.get("fornecedor") and tipo_transacao:
+            t["fornecedor"] = identificar_fornecedor(
+                t.get("descricao", ""), 
+                banco_detectado, 
+                tipo=tipo_transacao, 
+                conexao=conexao
+            )
+
+    # Busca Unidade e Contratante no Banco de Dados
     unidade_val = ""
     contratante_val = ""
 
@@ -443,7 +445,7 @@ def processar_pdf(conteudo_bytes: bytes, conexao, identificar_fornecedor_fn) -> 
 
     return transacoes
 
-def processar_arquivo(file: UploadFile, conteudo_bytes: bytes, banco: str) -> list:
+def processar_arquivo(file: UploadFile, conteudo_bytes: bytes) -> list:
     filename_lower = file.filename.lower()
 
     if filename_lower.endswith(".ofx"):
@@ -457,16 +459,16 @@ def processar_arquivo(file: UploadFile, conteudo_bytes: bytes, banco: str) -> li
         if not conteudo_texto:
             raise HTTPException(status_code=400, detail="Não foi possível decodificar o arquivo OFX.")
         
-        conexao = obter_conexao(banco)
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
         try:
             return processar_ofx(conteudo_texto, conexao)
         finally:
             conexao.close()
 
     elif filename_lower.endswith(".pdf"):
-        conexao = obter_conexao(banco)
+        conexao = obter_conexao(BANCO_AUTENTICACAO)
         try:
-            return processar_pdf(conteudo_bytes, conexao, identificar_fornecedor)
+            return processar_pdf(conteudo_bytes, conexao)
         finally:
             conexao.close()
 
@@ -523,13 +525,12 @@ def padronizar_dataframe(transacoes: list) -> pd.DataFrame:
 async def converter_preview(
     file: UploadFile = File(...),
     contratanteId: Optional[int] = Form(None),
-    banco: str = Form("NashBancoConsultoria")
 ):
     conteudo_bytes = await file.read()
     # Passa o 'banco' aqui para abrir a conexão
-    transacoes = processar_arquivo(file, conteudo_bytes, banco) 
+    transacoes = processar_arquivo(file, conteudo_bytes) 
     
-    transacoes = aplicar_plano_conta(transacoes, banco, contratante_id=contratanteId)
+    transacoes = aplicar_plano_conta(transacoes, contratante_id=contratanteId)
     return {"transacoes": transacoes}
 
 
@@ -537,17 +538,16 @@ async def converter_preview(
 async def converter_download(
     file: UploadFile = File(...),
     contratanteId: Optional[int] = Form(None),
-    banco: str = Form("NashBancoConsultoria")
 ):
     try:
         conteudo_bytes = await file.read()
-        transacoes = processar_arquivo(file, conteudo_bytes, banco)
+        transacoes = processar_arquivo(file, conteudo_bytes)
 
         if not transacoes:
             raise HTTPException(status_code=400, detail="Nenhuma transação encontrada no arquivo.")
 
         # Aplica as regras no conjunto de dados antes de gerar a planilha Excel
-        transacoes = aplicar_plano_conta(transacoes, banco, contratante_id=contratanteId)
+        transacoes = aplicar_plano_conta(transacoes, contratante_id=contratanteId)
 
         df = padronizar_dataframe(transacoes)
         nome_aba = "BASE_FINANCEIRA"

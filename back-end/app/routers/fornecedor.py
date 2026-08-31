@@ -346,10 +346,14 @@ def atualizar_regra_fornecedor(
                 detail=f"Regra de fornecedor ID {regra_id} não encontrada."
             )
 
-        # Prepara valores atualizados mantendo os anteriores se não forem passados
-        nova_descricao = dados.termoDescricao if dados.termoDescricao is not None else regra_atual[1]
-        novo_tipo = dados.termoTipo if dados.termoTipo is not None else regra_atual[2]
-        novo_fornecedor_id = dados.fornecedorId if dados.fornecedorId is not None else regra_atual[3]
+        # 1. Verifica quais campos foram ENVIADOS no JSON da requisição
+        campos_enviados = dados.model_fields_set
+
+        # 2. Se o campo foi enviado no JSON (mesmo que vazio/None), usa o novo valor.
+        # Caso não tenha sido enviado no payload, mantém o valor antigo do banco.
+        nova_descricao = dados.termoDescricao if "termoDescricao" in campos_enviados else regra_atual[1]
+        novo_tipo = dados.termoTipo if "termoTipo" in campos_enviados else regra_atual[2]
+        novo_fornecedor_id = dados.fornecedorId if "fornecedorId" in campos_enviados else regra_atual[3]
 
         # Validação de regra de negócio: pelo menos um termo preenchido
         if not nova_descricao and not novo_tipo:
@@ -367,7 +371,7 @@ def atualizar_regra_fornecedor(
                 detail=f"Fornecedor com ID {novo_fornecedor_id} não encontrado."
             )
 
-        # Atualiza o registro
+        # Atualiza o registro salvando os novos valores (incluindo NULL no banco se apagado)
         query_update = """
             UPDATE dbo.FornecedorRegras
             SET termoDescricao = ?, termoTipo = ?, fornecedorId = ?
