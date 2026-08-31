@@ -138,7 +138,7 @@ TABELAS_PERMITIDAS = {
                 m.valor AS VALOR,
                 m.tipo AS TIPO,
                 f.nome AS FORNECEDORES,
-                f.cpf_cnpj AS CPF_CNPJ,
+                f.cpf_cnpj AS CPF/CNPJ,
                 p.planoConta AS [PLANO DE CONTA],
                 p.grupoConta AS [GRUPO DE CONTA],
                 p.edre AS [E-DRE],
