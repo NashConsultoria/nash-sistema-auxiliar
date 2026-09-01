@@ -265,7 +265,7 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
     banco_codigo_raw = bankid_match.group(1).strip()
     banco_codigo_limpo = banco_codigo_raw.lstrip("0")
 
-    # Validação do Banco no sistema (Mantém o bloqueio estrito do seu original)
+    # Validação do Banco no sistema
     banco_val = mapa_bancos_db.get(banco_codigo_limpo) or mapa_bancos_db.get(banco_codigo_limpo.zfill(3))
 
     if not banco_val:
@@ -280,6 +280,13 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
 
     agencia_val = agencia_match.group(1).strip() if agencia_match else ("CARTAO" if is_cartao else "")
     conta_val = conta_match.group(1).strip() if conta_match else ""
+
+    if conta_val:
+        m_conta_x = re.match(r"^(\d+)-?[xX]$", conta_val.strip())
+        if m_conta_x:
+            conta_val = f"{m_conta_x.group(1)}-0"
+        else:
+            conta_val = re.sub(r"[xX]$", "0", conta_val.strip())
 
     # 4. Leitura dos blocos de transação (STMTTRN ou TRN)
     blocos_transacao = re.findall(r"<STMTTRN>(.*?)</STMTTRN>", conteudo_texto, re.DOTALL | re.IGNORECASE)
@@ -319,7 +326,6 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
         except ValueError:
             valor = 0.0
 
-        # Aplica a função de correção de encoding mantendo o seu padrão
         memo = corrigir_encoding(memo_raw) if 'corrigir_encoding' in globals() else memo_raw
         payee = corrigir_encoding(payee_raw) if 'corrigir_encoding' in globals() else payee_raw
         checknum_val = corrigir_encoding(checknum_raw) if 'corrigir_encoding' in globals() else checknum_raw
@@ -329,7 +335,7 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
         else:
             descricao_original = payee or memo or "Transação OFX"
 
-        # 1. Determina o TIPO PRIMEIRO
+        # Determina o TIPO PRIMEIRO
         desc_lower = descricao_original.lower()
         if "saldo" in desc_lower:
             tipo = "SALDO"
@@ -338,7 +344,7 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
         else:
             tipo = "RECEBIMENTO"
 
-        # 2. Identifica o fornecedor repassando a CONEXAO e o TIPO (Mantido do seu original)
+        # Identifica o fornecedor
         fornecedor_raw = identificar_fornecedor(
             descricao_original, 
             banco_val, 
@@ -346,7 +352,6 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
             conexao=conexao
         )
 
-        # 3. Tratamento para garantir string no fornecedor
         if isinstance(fornecedor_raw, dict):
             fornecedor_val = (
                 fornecedor_raw.get("fornecedor") 
@@ -356,7 +361,6 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
         else:
             fornecedor_val = str(fornecedor_raw) if fornecedor_raw is not None else ""
 
-        # 4. Ajuste secundário de TIPO
         if "saldo" in fornecedor_val.lower():
             tipo = "SALDO"
 
@@ -378,19 +382,23 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
             "edre": ""
         })
 
-    # 5. Consulta e vinculação de Unidade e Contratante para todas as transações do lote
+    # 5. Consulta e vinculação de Unidade e Contratante (JOIN corrigido)
     if banco_codigo_limpo and conta_val:
         try:
+            # Novo JOIN: BancoConta aponta para Unidade (bc.unidadeId = u.id)
             sql_unidade = """
                 SELECT TOP 1 u.nome AS unidade_nome, c.nome AS contratante_nome
                 FROM dbo.BancoConta bc
                 INNER JOIN dbo.Banco b ON bc.bancoId = b.id
-                INNER JOIN dbo.Unidade u ON u.bancoContaId = bc.id
+                INNER JOIN dbo.Unidade u ON bc.unidadeId = u.id
                 LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
-                WHERE LTRIM(RTRIM(REPLACE(b.codigo, '0', ''))) = ?
-                  AND LTRIM(RTRIM(bc.conta)) = ?
+                WHERE (
+                    LTRIM(b.codigo, '0') = ? 
+                    OR b.codigo = ?
+                )
+                AND LTRIM(RTRIM(bc.conta)) = ?
             """
-            params = [banco_codigo_limpo, conta_val]
+            params = [banco_codigo_limpo, banco_codigo_raw, conta_val]
 
             # Se não for cartão de crédito e houver agência, adiciona a validação da agência na query
             if not is_cartao and agencia_val:
@@ -409,7 +417,7 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
                     t["unidade"] = unidade_encontrada
                     t["contratante"] = contratante_encontrado
         except Exception:
-            pass  # Mantém os valores vazios em caso de exceção sem interromper a execução
+            pass  # Mantém os valores vazios em caso de erro
 
     return transacoes_dados
 

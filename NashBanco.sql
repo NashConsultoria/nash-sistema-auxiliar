@@ -1,12 +1,14 @@
 ---------------------------------------------------------------------------------
 --						Criando Banco
 ---------------------------------------------------------------------------------
+
 create database NashBancoConsultoria
 
 use NashBancoConsultoria
 ---------------------------------------------------------------------------------
 --						Criando Tabelas
 ---------------------------------------------------------------------------------
+
 create table ImportacaoLote
 (
 	id					int					not null		primary key		identity,
@@ -26,23 +28,15 @@ create table Banco
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
-create table BancoConta
-(
-	id					int					not null		primary key		identity,
-	bancoId				int					not null,
-	agencia				varchar(50),
-	conta				varchar(50),
-
-	foreign key (bancoId)					references Banco(id),
-	constraint UC_BancoConta				unique (bancoId, agencia, conta),
-)
-
 create table Contratante
 (
 	id					int					not null		primary key		identity,
 	nome				varchar(255)		not null		unique,
 	razaoSocial			varchar(255)			null,
-	status				int					not null		default 1		-- 1.Ativo, 2.Inativo
+	status				int					not null		default 1,		-- 1.Ativo, 2.Inativo
+	importacaoLoteId	int,
+
+	foreign key (importacaoLoteId)			references ImportacaoLote(id)
 )
 
 create table Unidade
@@ -52,14 +46,25 @@ create table Unidade
 	razaoSocial			varchar(255)			null,
 	cnpj				varchar(20)				null,
 	contratanteId		int					not null,
-	bancoContaId		int						null,
 	tipo				int					not null		default 1,		-- 1.Registro, 2.Atuação, 3.Ambos
 	status				int					not null		default 1,		-- 1.Ativo, 2.Inativo
 	importacaoLoteId	int,
 
 	foreign key (contratanteId)				references Contratante(id),
-	foreign key (bancoContaId)				references BancoConta(id),
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
+)
+
+create table BancoConta
+(
+	id					int					not null		primary key		identity,
+	bancoId				int					not null,
+	agencia				varchar(50),
+	conta				varchar(50),
+	unidadeId			int,
+
+	foreign key (bancoId)					references Banco(id),
+	foreign key (unidadeId)					references Unidade(id),
+	constraint UC_BancoConta				unique (bancoId, agencia, conta),
 )
 
 create table Fornecedor 
@@ -243,6 +248,7 @@ create table LogUsuario
 ---------------------------------------------------------------------------------
 --						Verificando Valores
 ---------------------------------------------------------------------------------
+
 select * from Contratante
 select * from Unidade
 select * from Banco

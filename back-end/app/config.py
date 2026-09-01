@@ -38,6 +38,16 @@ ORDEM_EFOLHA = {
 }
 
 TABELAS_PERMITIDAS = {
+    "contratante": {
+        "nome_aba": "MAPA_CONTRATANTES",
+        "query_customizada": """
+            SELECT
+                c.importacaoLoteId,
+                c.nome AS NOME,
+                c.razaoSocial AS RAZAO SOCIAL
+            FROM dbo.Contratante c
+        """
+    },
     "planocontas": {
         "query_customizada": """
             SELECT 

@@ -17,6 +17,7 @@ class UnidadeUpdate(BaseModel):
     razaoSocial: Optional[str] = Field(None, max_length=255)
     cnpj: Optional[str] = Field(None, max_length=20)
     contratanteId: Optional[int] = Field(None, gt=0)
+    bancoContaId: Optional[int] = None
     bancoId: Optional[int] = None
     agencia: Optional[str] = None
     conta: Optional[str] = None

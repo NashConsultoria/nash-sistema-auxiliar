@@ -214,12 +214,13 @@ export default function UnidadesTab({ token }) {
 
         const payload = {
             nome: formUnidade.nome.trim(),
-            razaoSocial: formUnidade.razaoSocial.trim() || null,
-            cnpj: formUnidade.cnpj.trim() || null,
+            razaoSocial: formUnidade.razaoSocial?.trim() || null,
+            cnpj: formUnidade.cnpj?.trim() || null,
             contratanteId: formUnidade.contratanteId ? Number(formUnidade.contratanteId) : null,
+            bancoContaId: editandoUnidadeId && formUnidade.bancoContaId ? Number(formUnidade.bancoContaId) : null, // Envia o ID da conta na edição
             bancoId: formUnidade.bancoId ? Number(formUnidade.bancoId) : null,
-            agencia: formUnidade.agencia.trim() || null,
-            conta: formUnidade.conta.trim() || null,
+            agencia: formUnidade.agencia?.trim() || null,
+            conta: formUnidade.conta?.trim() || null,
             tipo: Number(formUnidade.tipo) || 1
         };
 
@@ -245,7 +246,9 @@ export default function UnidadesTab({ token }) {
 
             alert("Unidade salva com sucesso!");
             setModoCadastroUnidade(false);
-            recarregarTodosDados();
+            
+            // Atualiza os dados vindo diretamente do servidor
+            await recarregarTodosDados();
         } catch (err) {
             alert(err.message);
         } finally {
@@ -265,6 +268,7 @@ export default function UnidadesTab({ token }) {
             razaoSocial: unidade.razaoSocial || unidade.razao_social || "",
             cnpj: unidade.cnpj || "",
             contratanteId: cId || "",
+            bancoContaId: unidade.bancoContaId || unidade.banco_conta_id || "", // Adicionado para carregar o ID da conta
             bancoId: bId || "",
             agencia: unidade.agencia || "",
             conta: unidade.conta || "",

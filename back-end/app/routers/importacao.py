@@ -6,6 +6,7 @@ from app.security import exigir_perfil
 from app.services.importacao_service import (
     importacao_base_financeira,
     importacao_folha_pagamento,
+    importacao_contratantes,
     importacao_plano_contas,
     importacao_banco,
     importacao_unidade,
@@ -25,6 +26,16 @@ async def importar_arquivo_generico(
 ):
     conteudo = await file.read()
     nome_arquivo_lower = file.filename.lower()
+
+    if (
+            "mapa_contratantes" in nome_arquivo_lower
+        ):
+            return importacao_contratantes(
+                conteudo_arquivo=conteudo,
+                nome_arquivo=file.filename,
+                usuario_id=admin.id,
+                request=request,
+            )
 
     if (
         "plano_contas" in nome_arquivo_lower

@@ -20,27 +20,16 @@ async def listar_unidades(
     try:
         sql = """
             SELECT 
-                u.id, 
-                u.nome, 
-                u.razaoSocial, 
-                u.cnpj, 
-                u.contratanteId, 
-                u.bancoContaId, 
-                u.tipo, 
-                u.status,
-                bc.agencia, 
-                bc.conta, 
-                b.nome
+                u.id, u.nome, u.razaoSocial, u.cnpj, u.contratanteId, u.tipo, u.status,
+                bc.id AS bancoContaId, bc.agencia, bc.conta, b.nome AS bancoNome
             FROM dbo.Unidade u
-            LEFT JOIN dbo.BancoConta bc ON u.bancoContaId = bc.id
+            LEFT JOIN dbo.BancoConta bc ON bc.unidadeId = u.id
             LEFT JOIN dbo.Banco b ON bc.bancoId = b.id
         """
-        
         if apenas_ativas:
             sql += " WHERE u.status = 1"
 
-        sql += " ORDER BY u.nome ASC"
-
+        sql += " ORDER BY u.nome ASC, bc.id ASC"
         cursor.execute(sql)
         rows = cursor.fetchall()
 
@@ -51,9 +40,9 @@ async def listar_unidades(
                 "razaoSocial": row[2],
                 "cnpj": row[3],
                 "contratanteId": row[4],
-                "bancoContaId": row[5],
-                "tipo": int(row[6]),
-                "status": int(row[7]),
+                "tipo": int(row[5]),
+                "status": int(row[6]),
+                "bancoContaId": row[7],
                 "agencia": row[8],
                 "conta": row[9],
                 "banco": row[10]
@@ -79,74 +68,84 @@ async def criar_unidade(
         agencia_limpa = dados.agencia.strip() if dados.agencia else None
         conta_limpa = dados.conta.strip() if dados.conta else None
 
-        # 1. Valida duplicidade de nome
-        cursor.execute("SELECT id FROM dbo.Unidade WHERE UPPER(nome) = UPPER(?)", (nome_limpo,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=400, detail="Já existe uma unidade com este nome.")
-
-        # 2. Valida existência do Contratante
+        # 1. Valida existência do Contratante
         cursor.execute("SELECT id FROM dbo.Contratante WHERE id = ?", (dados.contratanteId,))
         if not cursor.fetchone():
             raise HTTPException(status_code=400, detail="Contratante informado não existe.")
 
-        # 3. Trata a Conta Bancária (Busca ou Criação)
+        # 2. Verifica se a Unidade com este Nome já existe
+        cursor.execute("SELECT id FROM dbo.Unidade WHERE UPPER(nome) = UPPER(?)", (nome_limpo,))
+        row_unidade = cursor.fetchone()
+
+        if row_unidade:
+            unidade_id = row_unidade[0]
+            cursor.execute(
+                """
+                UPDATE dbo.Unidade 
+                SET razaoSocial = COALESCE(?, razaoSocial), 
+                    cnpj = COALESCE(?, cnpj), 
+                    contratanteId = ?, 
+                    tipo = ?, 
+                    status = ?
+                WHERE id = ?
+                """,
+                (razao_limpa, cnpj_limpo, dados.contratanteId, dados.tipo, dados.status, unidade_id)
+            )
+            acao_log = "Vínculo de Nova Conta / Atualização"
+        else:
+            cursor.execute(
+                """
+                INSERT INTO dbo.Unidade (nome, razaoSocial, cnpj, contratanteId, tipo, status)
+                OUTPUT INSERTED.id
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (nome_limpo, razao_limpa, cnpj_limpo, dados.contratanteId, dados.tipo, dados.status)
+            )
+            unidade_id = int(cursor.fetchone()[0])
+            acao_log = "Cadastro"
+
+        # 3. Processa e vincula a Conta Bancária
         banco_conta_id = None
         banco_nome = None
 
-        if dados.bancoId and agencia_limpa and conta_limpa:
-            # Valida existência do Banco e pega o nome dele
+        if dados.bancoId and conta_limpa:
             cursor.execute("SELECT id, nome FROM dbo.Banco WHERE id = ?", (dados.bancoId,))
             banco_row = cursor.fetchone()
             if not banco_row:
                 raise HTTPException(status_code=400, detail="Banco informado não existe.")
             banco_nome = banco_row[1]
 
-            # Verifica se essa conta bancária já existe
             cursor.execute(
-                """
-                SELECT id FROM dbo.BancoConta 
-                WHERE bancoId = ? AND agencia = ? AND conta = ?
-                """,
+                "SELECT id FROM dbo.BancoConta WHERE bancoId = ? AND ISNULL(agencia, '') = ISNULL(?, '') AND conta = ?",
                 (dados.bancoId, agencia_limpa, conta_limpa)
             )
             conta_row = cursor.fetchone()
 
             if conta_row:
                 banco_conta_id = conta_row[0]
+                cursor.execute("UPDATE dbo.BancoConta SET unidadeId = ? WHERE id = ?", (unidade_id, banco_conta_id))
             else:
-                # Cria a conta bancária para reuso futuro
                 cursor.execute(
                     """
-                    INSERT INTO dbo.BancoConta (bancoId, agencia, conta)
+                    INSERT INTO dbo.BancoConta (bancoId, agencia, conta, unidadeId)
                     OUTPUT INSERTED.id
-                    VALUES (?, ?, ?)
+                    VALUES (?, ?, ?, ?)
                     """,
-                    (dados.bancoId, agencia_limpa, conta_limpa)
+                    (dados.bancoId, agencia_limpa, conta_limpa, unidade_id)
                 )
                 banco_conta_id = int(cursor.fetchone()[0])
 
-        # 4. Insere a Unidade
-        cursor.execute(
-            """
-            INSERT INTO dbo.Unidade (nome, razaoSocial, cnpj, contratanteId, bancoContaId, tipo, status)
-            OUTPUT INSERTED.id
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (nome_limpo, razao_limpa, cnpj_limpo, dados.contratanteId, banco_conta_id, dados.tipo, dados.status)
-        )
-        novo_id = int(cursor.fetchone()[0])
-
         registrar_log(
             usuario_id=usuario.id,
-            acao="Cadastro",
+            acao=acao_log,
             tabela="Unidade",
-            detalhes={"id": novo_id, "nome": nome_limpo, "contratanteId": dados.contratanteId},
+            detalhes={"id": unidade_id, "nome": nome_limpo, "bancoContaId": banco_conta_id},
             request=request
         )
         conexao.commit()
 
         return {
-            "id": novo_id,
+            "id": unidade_id,
             "nome": nome_limpo,
             "razaoSocial": razao_limpa,
             "cnpj": cnpj_limpo,
@@ -163,7 +162,7 @@ async def criar_unidade(
         raise http_err
     except Exception as e:
         conexao.rollback()
-        raise HTTPException(status_code=500, detail=f"Erro ao cadastrar unidade: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao processar unidade: {str(e)}")
     finally:
         conexao.close()
 
@@ -178,13 +177,17 @@ async def atualizar_unidade(
     conexao = obter_conexao(BANCO_AUTENTICACAO)
     cursor = conexao.cursor()
     try:
-        cursor.execute("SELECT id, nome, razaoSocial, cnpj, contratanteId, bancoContaId, tipo, status FROM dbo.Unidade WHERE id = ?", (unidade_id,))
+        # 1. Verifica existência da Unidade
+        cursor.execute(
+            "SELECT id, nome, razaoSocial, cnpj, contratanteId, tipo, status FROM dbo.Unidade WHERE id = ?", 
+            (unidade_id,)
+        )
         row_existente = cursor.fetchone()
         if not row_existente:
             raise HTTPException(status_code=404, detail="Unidade não encontrada.")
 
-        nome_atual, razao_atual, cnpj_atual, contratante_atual, bancoConta_atual, tipo_atual, status_atual = (
-            row_existente[1], row_existente[2], row_existente[3], row_existente[4], row_existente[5], row_existente[6], row_existente[7]
+        nome_atual, razao_atual, cnpj_atual, contratante_atual, tipo_atual, status_atual = (
+            row_existente[1], row_existente[2], row_existente[3], row_existente[4], row_existente[5], row_existente[6]
         )
 
         novo_nome = dados.nome.strip() if dados.nome else nome_atual
@@ -197,7 +200,7 @@ async def atualizar_unidade(
         if novo_contratante is None:
             raise HTTPException(status_code=400, detail="A unidade deve possuir um contratante vinculado.")
 
-        # Validações de Nome e Contratante
+        # 2. Validações de Nome e Contratante
         if dados.nome:
             cursor.execute("SELECT id FROM dbo.Unidade WHERE UPPER(nome) = UPPER(?) AND id <> ?", (novo_nome, unidade_id))
             if cursor.fetchone():
@@ -208,73 +211,67 @@ async def atualizar_unidade(
             if not cursor.fetchone():
                 raise HTTPException(status_code=400, detail="Contratante informado não existe.")
 
-        # --- TRATAMENTO DA CONTA BANCÁRIA ---
-        novo_banco_conta_id = bancoConta_atual
+        # 3. Tratamento da Conta Bancária
         agencia_limpa = dados.agencia.strip() if dados.agencia else None
         conta_limpa = dados.conta.strip() if dados.conta else None
+        banco_conta_id = getattr(dados, "bancoContaId", None)  # Pega se o schema enviar
         banco_nome = None
 
-        if dados.bancoId and agencia_limpa and conta_limpa:
-            # Valida o Banco informado
+        if dados.bancoId and conta_limpa:
             cursor.execute("SELECT id, nome FROM dbo.Banco WHERE id = ?", (dados.bancoId,))
             banco_row = cursor.fetchone()
             if not banco_row:
                 raise HTTPException(status_code=400, detail="Banco informado não existe.")
             banco_nome = banco_row[1]
 
-            if bancoConta_atual:
-                # ATUALIZA a conta existente vinculada a esta unidade
+            # Se veio um ID de conta bancária específico para editar:
+            if banco_conta_id:
                 cursor.execute(
                     """
                     UPDATE dbo.BancoConta 
-                    SET bancoId = ?, agencia = ?, conta = ?
+                    SET bancoId = ?, agencia = ?, conta = ?, unidadeId = ?
                     WHERE id = ?
                     """,
-                    (dados.bancoId, agencia_limpa, conta_limpa, bancoConta_atual)
+                    (dados.bancoId, agencia_limpa, conta_limpa, unidade_id, banco_conta_id)
                 )
-                novo_banco_conta_id = bancoConta_atual
             else:
-                # CRIA a conta se a unidade não possuía conta cadastrada anteriormente
+                # Se não veio ID da conta, procura se já existe uma conta igual para vincular
                 cursor.execute(
-                    """
-                    INSERT INTO dbo.BancoConta (bancoId, agencia, conta)
-                    OUTPUT INSERTED.id
-                    VALUES (?, ?, ?)
-                    """,
+                    "SELECT id FROM dbo.BancoConta WHERE bancoId = ? AND ISNULL(agencia, '') = ISNULL(?, '') AND conta = ?",
                     (dados.bancoId, agencia_limpa, conta_limpa)
                 )
-                novo_banco_conta_id = int(cursor.fetchone()[0])
+                conta_row = cursor.fetchone()
 
-        elif bancoConta_atual:
-            # Mantém os dados bancários atuais se nenhum dado de banco for alterado
-            cursor.execute(
-                """
-                SELECT bc.agencia, bc.conta, b.nome 
-                FROM dbo.BancoConta bc
-                LEFT JOIN dbo.Banco b ON bc.bancoId = b.id
-                WHERE bc.id = ?
-                """,
-                (bancoConta_atual,)
-            )
-            bc_row = cursor.fetchone()
-            if bc_row:
-                agencia_limpa, conta_limpa, banco_nome = bc_row[0], bc_row[1], bc_row[2]
+                if conta_row:
+                    banco_conta_id = conta_row[0]
+                    cursor.execute("UPDATE dbo.BancoConta SET unidadeId = ? WHERE id = ?", (unidade_id, banco_conta_id))
+                else:
+                    # Se for uma conta nova para a unidade, cria um novo registro
+                    cursor.execute(
+                        """
+                        INSERT INTO dbo.BancoConta (bancoId, agencia, conta, unidadeId)
+                        OUTPUT INSERTED.id
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (dados.bancoId, agencia_limpa, conta_limpa, unidade_id)
+                    )
+                    banco_conta_id = int(cursor.fetchone()[0])
 
-        # Atualiza a Unidade
+        # 4. Atualiza os dados da Unidade
         cursor.execute(
             """
             UPDATE dbo.Unidade 
-            SET nome = ?, razaoSocial = ?, cnpj = ?, contratanteId = ?, bancoContaId = ?, tipo = ?, status = ?
+            SET nome = ?, razaoSocial = ?, cnpj = ?, contratanteId = ?, tipo = ?, status = ?
             WHERE id = ?
             """,
-            (novo_nome, nova_razao, novo_cnpj, novo_contratante, novo_banco_conta_id, novo_tipo, novo_status, unidade_id)
+            (novo_nome, nova_razao, novo_cnpj, novo_contratante, novo_tipo, novo_status, unidade_id)
         )
 
         registrar_log(
             usuario_id=usuario.id,
             acao="Edição",
             tabela="Unidade",
-            detalhes={"id": unidade_id, "novo_nome": novo_nome, "novo_contratante": novo_contratante, "novo_status": novo_status},
+            detalhes={"id": unidade_id, "novo_nome": novo_nome, "bancoContaId": banco_conta_id},
             request=request
         )
         conexao.commit()
@@ -285,7 +282,7 @@ async def atualizar_unidade(
             "razaoSocial": nova_razao,
             "cnpj": novo_cnpj,
             "contratanteId": novo_contratante,
-            "bancoContaId": novo_banco_conta_id,
+            "bancoContaId": banco_conta_id,
             "agencia": agencia_limpa,
             "conta": conta_limpa,
             "banco": banco_nome,

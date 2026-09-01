@@ -127,8 +127,9 @@ def deletar_lote_importacao(
 
         nome_arquivo = lote[0]
 
-        # 2. DELEÇÃO DE REGISTROS DIRETOS DO LOTE (Ordem de Dependência FK)
-        # A) Exclui Movimentações Financeiras e Folha
+        # 2. DELEÇÃO EM CASCATA (Ordem estrita para não violar FKs)
+
+        # A) Exclui Movimentações Financeiras e Folha que dependem de Unidade / BancoConta
         cursor.execute("DELETE FROM dbo.BaseFinanceiro WHERE importacaoLoteId = ?", (lote_id,))
         linhas_movimentacao = cursor.rowcount
 
@@ -142,47 +143,48 @@ def deletar_lote_importacao(
         cursor.execute("DELETE FROM dbo.PlanoContas WHERE importacaoLoteId = ?", (lote_id,))
         linhas_plano_contas = cursor.rowcount
 
-        # Exclui Regras de Fornecedores vinculadas ao lote
         cursor.execute("DELETE FROM dbo.FornecedorRegras WHERE importacaoLoteId = ?", (lote_id,))
         linhas_regras_fornecedor = cursor.rowcount
 
-        # C) Exclui Fornecedores e Unidades vinculados ao Lote
+        # C) Exclui Fornecedores do lote
         cursor.execute("DELETE FROM dbo.Fornecedor WHERE importacaoLoteId = ?", (lote_id,))
         linhas_fornecedores = cursor.rowcount
 
-        cursor.execute("DELETE FROM dbo.Unidade WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_unidades = cursor.rowcount
-
-        # D) Exclui Bancos vinculados ao Lote (dbo.Banco)
-        cursor.execute("DELETE FROM dbo.Banco WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_bancos = cursor.rowcount
-
-        # 3. LIMPEZA DE ÓRFÃOS SEGURO (Desvincula FKs antes de deletar)
-        # A) Limpa vínculo de BancoConta na Unidade se o banco não existir mais
-        cursor.execute(
-            """
-            UPDATE dbo.Unidade 
-            SET bancoContaId = NULL 
-            WHERE bancoContaId NOT IN (SELECT id FROM dbo.BancoConta)
-            """
-        )
-
-        # B) Agora é seguro limpar BancoConta sem referência
+        # D) PRIMEIRO: APAGA BANCOCONTA (Evita a FK da Unidade)
+        # Deleta as contas ligadas diretamente a unidades do lote OU importadas no lote
+        # D) PASSO CRÍTICO: Exclui BancoConta das unidades do lote ANTES de apagar a Unidade
         cursor.execute(
             """
             DELETE FROM dbo.BancoConta 
-            WHERE id NOT IN (
-                SELECT DISTINCT bancoContaId FROM dbo.BaseFinanceiro WHERE bancoContaId IS NOT NULL
-                UNION
-                SELECT DISTINCT bancoId FROM dbo.PlanoDePara WHERE bancoId IS NOT NULL
-                UNION
-                SELECT DISTINCT bancoContaId FROM dbo.Unidade WHERE bancoContaId IS NOT NULL
-            )
-            """
+            WHERE unidadeId IN (SELECT id FROM dbo.Unidade WHERE importacaoLoteId = ?)
+            """, 
+            (lote_id,)
         )
         bancos_contas_removidos = cursor.rowcount
 
-        # C) Limpa Fornecedores órfãos (sem Lote e sem Financeiro)
+        # E) SEGUNDO: APAGA UNIDADE (Agora seguro, pois nenhuma BancoConta aponta para elas)
+        cursor.execute("DELETE FROM dbo.Unidade WHERE importacaoLoteId = ?", (lote_id,))
+        linhas_unidades = cursor.rowcount
+
+        # F) Exclui Bancos do lote
+        cursor.execute("DELETE FROM dbo.Banco WHERE importacaoLoteId = ?", (lote_id,))
+        linhas_bancos = cursor.rowcount
+
+        # 3. LIMPEZA DE ÓRFÃOS SEGUROS
+        # A) Limpa BancoConta sem Unidade e sem histórico financeiro
+        cursor.execute(
+            """
+            DELETE FROM dbo.BancoConta 
+            WHERE unidadeId IS NULL AND id NOT IN (
+                SELECT DISTINCT bancoContaId FROM dbo.BaseFinanceiro WHERE bancoContaId IS NOT NULL
+                UNION
+                SELECT DISTINCT bancoId FROM dbo.PlanoDePara WHERE bancoId IS NOT NULL
+            )
+            """
+        )
+        bancos_contas_orfas = cursor.rowcount
+
+        # B) Limpa Fornecedores órfãos
         cursor.execute(
             """
             DELETE FROM dbo.Fornecedor 
@@ -195,7 +197,25 @@ def deletar_lote_importacao(
         )
         fornecedores_removidos = cursor.rowcount
 
-        # D) Limpa Unidades órfãs
+        # C) Limpa Unidades órfãs (garantindo desvínculo em BancoConta antes, se houver)
+        cursor.execute(
+            """
+            DELETE FROM dbo.BancoConta
+            WHERE unidadeId IN (
+                SELECT id FROM dbo.Unidade 
+                WHERE importacaoLoteId IS NULL AND id NOT IN (
+                    SELECT DISTINCT unidadeId FROM dbo.BaseFinanceiro WHERE unidadeId IS NOT NULL
+                    UNION
+                    SELECT DISTINCT unidadeRegistroId FROM dbo.BaseFolhaPagamento WHERE unidadeRegistroId IS NOT NULL
+                    UNION
+                    SELECT DISTINCT unidadeAtuacaoId FROM dbo.BaseFolhaPagamento WHERE unidadeAtuacaoId IS NOT NULL
+                    UNION
+                    SELECT DISTINCT unidadeId FROM dbo.PlanoDePara WHERE unidadeId IS NOT NULL
+                )
+            )
+            """
+        )
+
         cursor.execute(
             """
             DELETE FROM dbo.Unidade 
@@ -215,7 +235,7 @@ def deletar_lote_importacao(
         # 4. Deleta o registro do Lote principal
         cursor.execute("DELETE FROM dbo.ImportacaoLote WHERE id = ?", (lote_id,))
 
-        # 5. Registrar log de auditoria
+        # 5. Log de auditoria
         detalhes_log = {
             "loteId": lote_id,
             "arquivo": nome_arquivo,
@@ -230,7 +250,7 @@ def deletar_lote_importacao(
             },
             "orfaosLimpos": {
                 "fornecedores": fornecedores_removidos,
-                "bancosContas": bancos_contas_removidos,
+                "bancosContas": bancos_contas_removidos + bancos_contas_orfas,
                 "unidadesOrfas": unidades_orfas_removidas,
             },
         }
