@@ -1,15 +1,12 @@
 ---------------------------------------------------------------------------------
 --						Criando Banco
 ---------------------------------------------------------------------------------
-
 create database NashBancoConsultoria
 
 use NashBancoConsultoria
-
 ---------------------------------------------------------------------------------
 --						Criando Tabelas
 ---------------------------------------------------------------------------------
-
 create table ImportacaoLote
 (
 	id					int					not null		primary key		identity,
@@ -112,7 +109,7 @@ create table PlanoContas
 
 CREATE TABLE PlanoDePara 
 (
-    id					int					not null		primary key		identity(1,1),
+    id					int					not null		primary key		identity,
     contratanteId       int                     null,                       -- NULL = Regra Global
     unidadeId           int                     null,                       -- NULL = Regra Global
     bancoId             int						null,                       -- NULL = Regra Global
@@ -123,12 +120,12 @@ CREATE TABLE PlanoDePara
     importacaoLoteId    int,
 
     -- Chaves Estrangeiras
-    CONSTRAINT FK_PlanoDePara_Contratante       FOREIGN KEY (contratanteId)		references Contratante(id) ON DELETE CASCADE,
-    CONSTRAINT FK_PlanoDePara_Unidade           FOREIGN KEY (unidadeId)			references Unidade(id) ON DELETE CASCADE,
-    CONSTRAINT FK_PlanoDePara			        FOREIGN KEY (bancoId)			references Banco(id) ON DELETE CASCADE,
-	CONSTRAINT FK_PlanoDePara_Fornecedor		FOREIGN KEY (fornecedorId)		references Fornecedor(id) ON DELETE CASCADE,
-    CONSTRAINT FK_PlanoDePara_PlanoContas       FOREIGN KEY (planoContaId)		references PlanoContas(id) ON DELETE CASCADE,
-                                                FOREIGN KEY (importacaoLoteId)	references ImportacaoLote(id) ON DELETE CASCADE,
+    CONSTRAINT FK_PlanoDePara_Contratante       FOREIGN KEY (contratanteId)		references Contratante(id)		ON DELETE CASCADE,
+    CONSTRAINT FK_PlanoDePara_Unidade           FOREIGN KEY (unidadeId)			references Unidade(id)			ON DELETE CASCADE,
+    CONSTRAINT FK_PlanoDePara			        FOREIGN KEY (bancoId)			references Banco(id)			ON DELETE CASCADE,
+	CONSTRAINT FK_PlanoDePara_Fornecedor		FOREIGN KEY (fornecedorId)		references Fornecedor(id)		ON DELETE CASCADE,
+    CONSTRAINT FK_PlanoDePara_PlanoContas       FOREIGN KEY (planoContaId)		references PlanoContas(id)		ON DELETE CASCADE,
+                                                FOREIGN KEY (importacaoLoteId)	references ImportacaoLote(id)	ON DELETE CASCADE,
 
     -- Validação: Pelo menos UM dos três termos DEVE estar preenchido
     CONSTRAINT CK_PlanoDePara_PeloMenosUmTermo CHECK (
@@ -205,8 +202,8 @@ create table UsuarioContratante
 	usuarioId			int					not null,
 	contratanteId		int					not null,
 
-	foreign key (usuarioId)					references Usuario(id) on delete cascade,
-	foreign key (contratanteId)				references Contratante(id) on delete cascade,
+	foreign key (usuarioId)					references Usuario(id)			on delete cascade,
+	foreign key (contratanteId)				references Contratante(id)		on delete cascade,
 
 	constraint UQ_UsuarioContratante		unique (usuarioId, contratanteId)
 )
@@ -225,8 +222,8 @@ CREATE TABLE UsuarioPermissao
     usuarioId			int					not null,
     permissaoId			int					not null,
 
-    foreign key (usuarioId)					references Usuario(id) on delete cascade,
-    foreign key (permissaoId)				references Permissao(id) on delete cascade,
+    foreign key (usuarioId)					references Usuario(id)			on delete cascade,
+    foreign key (permissaoId)				references Permissao(id)		on delete cascade,
 
     constraint UQ_UsuarioPermissao			unique (usuarioId, permissaoId)
 );
@@ -241,9 +238,8 @@ create table LogUsuario
 	detalhes			varchar(max)			null,						--JSON completo
 	criadoEm			datetime			default			getdate(),
 
-	foreign key (usuarioId)					references Usuario(id) on delete cascade
+	foreign key (usuarioId)					references Usuario(id)			on delete cascade
 )
-
 ---------------------------------------------------------------------------------
 --						Verificando Valores
 ---------------------------------------------------------------------------------
@@ -263,11 +259,9 @@ select * from UsuarioContratante
 select * from Permissao
 select * from UsuarioPermissao
 select * from LogUsuario
-
 ---------------------------------------------------------------------------------
 --						Backup do Banco (Testes)
 ---------------------------------------------------------------------------------
-
 --Pasta de Backup Padrão do SQL SERVER
 exec master.dbo.xp_instance_regread
 	N'HKEY_LOCAL_MACHINE',
@@ -281,7 +275,6 @@ with format, init, name = 'Backup de Banco de Dados';
 
 --Restore
 use master;
-
 restore database NashBancoTeste
 from disk = 'C:\Program Files\Microsoft SQL Server\MSSQL17.MSSQLSERVER\MSSQL\Backup\NashBancoTeste.bak'
 with replace;
@@ -289,7 +282,6 @@ with replace;
 alter database NashBancoConsultoria set multi_user;
 
 use NashBancoConsultoria
-
 ---------------------------------------------------------------------------------
 --						Excluindo Banco (Testes)
 ---------------------------------------------------------------------------------

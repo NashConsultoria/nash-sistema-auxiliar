@@ -1,13 +1,18 @@
 import io
 import re
 import pdfplumber
-import bisect 
+import bisect
 import pytesseract
+from typing import Any, Callable, Dict, List
 from fastapi import APIRouter
-from pdf2image import convert_from_bytes
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 POPPLER_PATH = r'C:\Users\Monetae\Downloads\poppler-26.02.0\Library\bin'
+DATA_RE = re.compile(r"^\d{2}/\d{2}/(?:\d{2}|\d{4})$")
+DATA_PARCIAL_RE = re.compile(r"^\d{2}/\d{2}$")
+VALOR_RE = re.compile(r"^[\d.]+,\d{2}(?:CR|-)?$")
+NUMERO_RE = re.compile(r"^\d{1,10}$")
+SALDO_RE = re.compile(r"SALDO\s+EM\s+(\d{2}/\d{2}/\d{4})", re.IGNORECASE)
 
 router = APIRouter(prefix="/NashBancoConsultoria/bancos", tags=["Conversor de Extratos"])
 
@@ -591,6 +596,144 @@ def pdf_bradesco(conteudo_bytes: bytes, identificar_fornecedor_fn) -> dict:
         "conta": conta_val,
         "transacoes": transacoes_dados
     }
+
+def pdf_vp(conteudo_bytes: bytes, identificar_fornecedor_fn: Callable[[str, str], str]) -> Dict[str, Any]:
+    """Extrai o Extrato V&P, cujo layout possui dois extratos lógicos por página."""
+    banco_val = "V&P"
+    transacoes_dados: List[Dict[str, Any]] = []
+
+    def numero(valor_texto: str) -> float:
+        texto = valor_texto.strip().upper()
+        negativo = texto.endswith("-")
+        texto = texto.rstrip("-").removesuffix("CR")
+        valor = float(texto.replace(".", "").replace(",", "."))
+        return -abs(valor) if negativo else abs(valor)
+
+    def normalizar(texto: str) -> str:
+        return re.sub(r"\s+", " ", texto).strip()
+
+    def agrupar_linhas(palavras: List[dict], tolerancia: float = 2.5) -> List[List[dict]]:
+        linhas: List[dict] = []
+        for palavra in sorted(palavras, key=lambda p: (p["top"], p["x0"])):
+            linha = next(
+                (l for l in reversed(linhas) if abs(l["top"] - palavra["top"]) <= tolerancia),
+                None,
+            )
+            if linha is None:
+                linhas.append({"top": palavra["top"], "palavras": [palavra]})
+            else:
+                linha["palavras"].append(palavra)
+        return [sorted(l["palavras"], key=lambda p: p["x0"]) for l in linhas]
+
+    def registro_base(data: str, descricao: str, obs: str, valor: float,
+                      tipo: str, conta: str, agencia: str) -> dict:
+        fornecedor = banco_val if tipo == "SALDO" else identificar_fornecedor_fn(descricao, banco_val)
+        return {
+            "contratante": "", "unidade": "", "banco": banco_val,
+            "agencia": agencia, "conta": conta, "data": data,
+            "descricao": descricao or "LANÇAMENTO", "obs": obs,
+            "valor": float(valor), "tipo": tipo, "fornecedor": fornecedor,
+            "cpf_cnpj": "", "planoConta": "", "grupoConta": "", "edre": "",
+        }
+
+    with pdfplumber.open(io.BytesIO(conteudo_bytes)) as pdf:
+        texto_completo = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        agencia_match = re.search(r"\b(\d{3,5}-\d)\b", texto_completo)
+        conta_match = re.search(r"\b(\d{1,3}\.\d{3}-\d)\b", texto_completo)
+        agencia_val = agencia_match.group(1) if agencia_match else ""
+        conta_val = conta_match.group(1) if conta_match else ""
+        ultimo_registro_por_lado = {"esquerda": None, "direita": None}
+
+        for page in pdf.pages:
+            palavras = page.extract_words(
+                x_tolerance=1, y_tolerance=2,
+                keep_blank_chars=False, use_text_flow=False,
+            )
+            if not palavras:
+                continue
+
+            for nome_lado, x_inicio, x_fim in (
+                ("esquerda", 0, 410),
+                ("direita", 421, page.width + 1),
+            ):
+                lado = [
+                    p for p in palavras
+                    if x_inicio <= p["x0"] < x_fim and 120 <= p["top"] < 500
+                ]
+                if not lado:
+                    continue
+
+                linhas = agrupar_linhas(lado)
+                registros_lado: List[dict] = []
+                ultimo_registro_normal = ultimo_registro_por_lado[nome_lado]
+                historico_x0 = x_inicio + 70
+                documento_x0 = x_inicio + 185
+                documento_x1 = x_inicio + 270
+                valor_x0 = x_inicio + 250
+
+                for palavras_linha in linhas:
+                    texto_linha = normalizar(" ".join(p["text"] for p in palavras_linha))
+                    if not texto_linha or "TRANSPORTE" in texto_linha.upper():
+                        continue
+
+                    datas = [p for p in palavras_linha if DATA_RE.fullmatch(p["text"].strip())]
+                    valores = [
+                        p for p in palavras_linha
+                        if VALOR_RE.fullmatch(p["text"].strip()) and p["x0"] >= valor_x0
+                    ]
+                    saldo_match = SALDO_RE.search(texto_linha)
+
+                    if saldo_match and valores:
+                        registros_lado.append(registro_base(
+                            saldo_match.group(1), "SALDO ANTERIOR", "",
+                            numero(valores[-1]["text"]), "SALDO", conta_val, agencia_val,
+                        ))
+                        ultimo_registro_normal = None
+                        ultimo_registro_por_lado[nome_lado] = None
+                        continue
+
+                    if datas and valores:
+                        candidatos_doc = [
+                            p for p in palavras_linha
+                            if documento_x0 <= p["x0"] < documento_x1
+                            and NUMERO_RE.fullmatch(p["text"].strip())
+                        ]
+                        documento = min(
+                            candidatos_doc,
+                            key=lambda p: abs(p["x0"] - (x_inicio + 212)),
+                            default=None,
+                        )
+                        doc_texto = documento["text"].strip() if documento else ""
+                        descricao = normalizar(" ".join(
+                            p["text"] for p in palavras_linha
+                            if historico_x0 <= p["x0"] < documento_x0
+                            and not DATA_RE.fullmatch(p["text"].strip())
+                            and not DATA_PARCIAL_RE.fullmatch(p["text"].strip())
+                        ))
+                        valor = numero(valores[-1]["text"])
+                        tipo = "PAGAMENTO" if valor < 0 else "RECEBIMENTO"
+                        registro = registro_base(
+                            datas[0]["text"].strip(), descricao, doc_texto,
+                            valor, tipo, conta_val, agencia_val,
+                        )
+                        registros_lado.append(registro)
+                        ultimo_registro_normal = registro
+                        ultimo_registro_por_lado[nome_lado] = registro
+                        continue
+
+                    if ultimo_registro_normal is not None:
+                        complemento = normalizar(" ".join(
+                            p["text"] for p in palavras_linha
+                            if historico_x0 <= p["x0"] < documento_x0
+                        ))
+                        if complemento and "SALDO EM" not in complemento.upper():
+                            ultimo_registro_normal["descricao"] = normalizar(
+                                f"{ultimo_registro_normal['descricao']} {complemento}"
+                            )
+
+                transacoes_dados.extend(registros_lado)
+
+    return {"agencia": agencia_val, "conta": conta_val, "transacoes": transacoes_dados}
 
 def pdf_caixa(conteudo_bytes: bytes, identificar_fornecedor_fn) -> dict:
     """

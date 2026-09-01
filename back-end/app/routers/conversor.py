@@ -13,6 +13,7 @@ from app.utils import corrigir_encoding
 from .pdf_bancos import (
     pdf_banco_do_brasil,
     pdf_bradesco,
+    pdf_vp,
     pdf_caixa,
     pdf_sicoob,
     pdf_safra,
@@ -70,6 +71,11 @@ def identificar_banco_no_pdf(conteudo_bytes: bytes) -> str:
         if not pdf.pages:
             return ""
         texto_pagina1 = (pdf.pages[0].extract_text() or "").upper()
+        texto_completo = "\n".join(
+            (page.extract_text() or "").upper() for page in pdf.pages)
+        
+        if "V & P DISTRIBUIDORA" in texto_completo and "EXTRATO PARA" in texto_completo:
+            return "V&P"
 
         if "BANCO DO BRASIL" in texto_pagina1:
             return "BANCO DO BRASIL"
@@ -87,13 +93,13 @@ def identificar_banco_no_pdf(conteudo_bytes: bytes) -> str:
             return "SICOOB"
         if "SAFRA" in texto_pagina1:
             return "BANCO SAFRA"
-        if "SICREDI" in texto_pagina1:
+        if "SICREDI" in texto_completo:
             return "SICREDI"
-        if "C6 BANK" in texto_pagina1 or "C6BANK" in texto_pagina1:
+        if "C6 BANK" in texto_completo or "BANCO C6" in texto_completo:
             return "BANCO C6"
         if "BANCO INTER" in texto_pagina1:
             return "BANCO INTER"
-        if "BANCO CORA" in texto_pagina1:
+        if "CORA SCFI" in texto_pagina1 or ("CORA" in texto_pagina1 and "PAGAMENTOS S.A" in texto_pagina1):
             return "BANCO CORA"
         if "STONE" in texto_pagina1:
             return "BANCO STONE"
@@ -207,14 +213,14 @@ def aplicar_plano_conta(linhas_extrato: list, contratante_id: Optional[int] = No
 # ==============================================================================
 # PARSER OFX E ROTEADOR
 # ==============================================================================
-
-def processar_ofx(conteudo_texto: str, conexao) -> list:
+def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
     """
-    Processa o conteúdo do arquivo OFX e valida se o banco extraído existe na dbo.Banco.
+    Processa o conteúdo do arquivo OFX suportando tags abertas,
+    validando o banco cadastrado e vinculando Unidade e Contratante.
     """
     cursor = conexao.cursor()
 
-    # 1. Carrega o mapeamento de Bancos do banco de dados (chave: codigo sem zeros, valor: nome)
+    # 1. Carrega o mapeamento de Bancos da tabela dbo.Banco (chave: código sem zeros à esquerda)
     cursor.execute("SELECT codigo, nome FROM dbo.Banco WHERE codigo IS NOT NULL")
     mapa_bancos_db = {}
     for row in cursor.fetchall():
@@ -222,22 +228,46 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
         if cod_db:
             mapa_bancos_db[str(cod_db).strip().lstrip("0")] = nome_db.strip()
 
-    # 2. Extração do código do Banco no OFX
-    bankid_match = re.search(r"<BANKID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
-    
+    # 2. Tratamento inicial e decodificação do arquivo
+    if isinstance(conteudo_bytes_ou_texto, bytes):
+        bytes_corrigidos = conteudo_bytes_ou_texto
+    else:
+        bytes_corrigidos = str(conteudo_bytes_ou_texto).encode("latin-1", errors="ignore")
+
+    # Corrige tags OFX abertas antes de processar as expressões regulares
+    if 'corrigir_tags_ofx_abertas' in globals():
+        conteudo_corrigido_bytes = corrigir_tags_ofx_abertas(bytes_corrigidos)
+    else:
+        conteudo_corrigido_bytes = bytes_corrigidos
+
+    if isinstance(conteudo_corrigido_bytes, bytes):
+        try:
+            conteudo_texto = conteudo_corrigido_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            conteudo_texto = conteudo_corrigido_bytes.decode('latin-1', errors='ignore')
+    else:
+        conteudo_texto = str(conteudo_corrigido_bytes)
+
+    # Identifica se é fatura de cartão de crédito
+    is_cartao = bool(re.search(r"<CCSTMTRS>|<CCACCTFROM>", conteudo_texto, re.IGNORECASE))
+
+    # 3. Extração dos dados globais do banco (BANKID / FID)
+    bankid_match = re.search(r"<BANKID>\s*([^\r\n<]+)", conteudo_texto, re.IGNORECASE)
+    if not bankid_match:
+        bankid_match = re.search(r"<FID>\s*([^\r\n<]+)", conteudo_texto, re.IGNORECASE)
+
     if not bankid_match or not bankid_match.group(1).strip():
         raise HTTPException(
             status_code=400, 
-            detail="Arquivo OFX inválido: Tag <BANKID> não encontrada."
+            detail="Arquivo OFX inválido: Tag <BANKID> ou <FID> não encontrada."
         )
 
     banco_codigo_raw = bankid_match.group(1).strip()
     banco_codigo_limpo = banco_codigo_raw.lstrip("0")
 
-    # 3. Busca o nome do banco no banco de dados pelo código
-    banco_val = mapa_bancos_db.get(banco_codigo_limpo)
+    # Validação do Banco no sistema (Mantém o bloqueio estrito do seu original)
+    banco_val = mapa_bancos_db.get(banco_codigo_limpo) or mapa_bancos_db.get(banco_codigo_limpo.zfill(3))
 
-    # Bloqueia a importação caso o banco não esteja cadastrado na dbo.Banco
     if not banco_val:
         raise HTTPException(
             status_code=400,
@@ -245,79 +275,78 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
         )
 
     # Extração de Agência e Conta
-    agencia_match = re.search(r"<BRANCHID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
-    conta_match = re.search(r"<ACCTID>(.*?)(?:<|$)", conteudo_texto, re.IGNORECASE)
+    agencia_match = re.search(r"<BRANCHID>\s*([^\r\n<]+)", conteudo_texto, re.IGNORECASE)
+    conta_match = re.search(r"<ACCTID>\s*([^\r\n<]+)", conteudo_texto, re.IGNORECASE)
 
-    agencia_val = agencia_match.group(1).strip() if agencia_match else ""
+    agencia_val = agencia_match.group(1).strip() if agencia_match else ("CARTAO" if is_cartao else "")
     conta_val = conta_match.group(1).strip() if conta_match else ""
 
-    unidade_val = ""
-    contratante_val = ""
-
-    if banco_codigo_limpo and agencia_val and conta_val:
-        cursor.execute(
-            """
-            SELECT u.nome AS unidade_nome, c.nome AS contratante_nome
-            FROM dbo.BancoConta bc
-            INNER JOIN dbo.Banco b ON bc.bancoId = b.id
-            INNER JOIN dbo.Unidade u ON u.bancoContaId = bc.id
-            LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
-            WHERE LTRIM(RTRIM(REPLACE(b.codigo, '0', ''))) = ?
-              AND LTRIM(RTRIM(bc.agencia)) = ?
-              AND LTRIM(RTRIM(bc.conta)) = ?
-            """,
-            (banco_codigo_limpo, agencia_val, conta_val)
-        )
-        row_unidade = cursor.fetchone()
-        if row_unidade:
-            unidade_val = row_unidade[0] or ""
-            contratante_val = row_unidade[1] or ""
-
-    # Leitura dos blocos de transação
+    # 4. Leitura dos blocos de transação (STMTTRN ou TRN)
     blocos_transacao = re.findall(r"<STMTTRN>(.*?)</STMTTRN>", conteudo_texto, re.DOTALL | re.IGNORECASE)
     if not blocos_transacao:
         blocos_transacao = re.findall(r"<TRN>(.*?)</TRN>", conteudo_texto, re.DOTALL | re.IGNORECASE)
 
+    if not blocos_transacao and "<STMTTRN>" in conteudo_texto.upper():
+        partes = re.split(r'<STMTTRN>', conteudo_texto, flags=re.IGNORECASE)
+        blocos_transacao = partes[1:]
+
     transacoes_dados = []
 
     for bloco in blocos_transacao:
-        data_match = re.search(r"<DTPOSTED>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-        valor_match = re.search(r"<TRNAMT>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-        memo_match = re.search(r"<MEMO>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-        payee_match = re.search(r"<NAME>(.*?)(?:<|$)", bloco, re.IGNORECASE)
-        checknum_match = re.search(r"<CHECKNUM>(.*?)(?:<|$)", bloco, re.IGNORECASE)
+        def extrair_tag(tag_nome, texto_bloco):
+            m = re.search(rf'<{tag_nome}>\s*([^<\r\n]+)(?:</{tag_nome}>)?', texto_bloco, re.IGNORECASE)
+            return m.group(1).strip() if m else ""
 
-        data_str = data_match.group(1).strip() if data_match else ""
-        data_formatada = f"{data_str[6:8]}/{data_str[4:6]}/{data_str[0:4]}" if len(data_str) >= 8 else data_str
+        tipo_bruto = extrair_tag("TRNTYPE", bloco).upper()
+        data_str = extrair_tag("DTPOSTED", bloco)
+        valor_str = extrair_tag("TRNAMT", bloco)
+        memo_raw = extrair_tag("MEMO", bloco)
+        payee_raw = extrair_tag("NAME", bloco)
+        checknum_raw = extrair_tag("CHECKNUM", bloco)
 
-        valor_str = valor_match.group(1).strip().replace(",", ".") if valor_match else "0"
+        # Formatação de Data
+        advert_limpa_data = re.sub(r'\D', '', data_str)
+        if len(advert_limpa_data) >= 8:
+            ano, mes, dia = advert_limpa_data[0:4], advert_limpa_data[4:6], advert_limpa_data[6:8]
+            data_formatada = f"{dia}/{mes}/{ano}"
+        else:
+            data_formatada = data_str[:10]
+
+        # Tratamento de Valor
+        valor_limpo = valor_str.replace(",", ".").replace("R$", "").strip()
         try:
-            valor = float(valor_str)
+            valor = float(valor_limpo)
         except ValueError:
             valor = 0.0
 
-        memo = corrigir_encoding(memo_match.group(1).strip() if memo_match else "")
-        payee = corrigir_encoding(payee_match.group(1).strip() if payee_match else "")
-        checknum_val = corrigir_encoding(checknum_match.group(1).strip() if checknum_match else "")
+        # Aplica a função de correção de encoding mantendo o seu padrão
+        memo = corrigir_encoding(memo_raw) if 'corrigir_encoding' in globals() else memo_raw
+        payee = corrigir_encoding(payee_raw) if 'corrigir_encoding' in globals() else payee_raw
+        checknum_val = corrigir_encoding(checknum_raw) if 'corrigir_encoding' in globals() else checknum_raw
 
         if payee and memo:
             descricao_original = f"{payee} - {memo}"
         else:
-            descricao_original = payee or memo
+            descricao_original = payee or memo or "Transação OFX"
 
-        # 1. Determina o TIPO PRIMEIRO (para enviar para a regra do fornecedor)
+        # 1. Determina o TIPO PRIMEIRO
         desc_lower = descricao_original.lower()
         if "saldo" in desc_lower:
             tipo = "SALDO"
-        elif valor < 0:
+        elif tipo_bruto in ["DEBIT", "DEB"] or valor < 0:
             tipo = "PAGAMENTO"
         else:
             tipo = "RECEBIMENTO"
 
-        # 2. Identifica o fornecedor passando o TIPO já calculado
-        fornecedor_raw = identificar_fornecedor(descricao_original, banco_val, tipo=tipo, conexao=conexao)
+        # 2. Identifica o fornecedor repassando a CONEXAO e o TIPO (Mantido do seu original)
+        fornecedor_raw = identificar_fornecedor(
+            descricao_original, 
+            banco_val, 
+            tipo=tipo, 
+            conexao=conexao
+        )
 
-        # 3. Garante que fornecedor_val seja SEMPRE string
+        # 3. Tratamento para garantir string no fornecedor
         if isinstance(fornecedor_raw, dict):
             fornecedor_val = (
                 fornecedor_raw.get("fornecedor") 
@@ -327,13 +356,13 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
         else:
             fornecedor_val = str(fornecedor_raw) if fornecedor_raw is not None else ""
 
-        # 4. Ajuste secundário de TIPO (caso a palavra SALDO estivesse oculta no fornecedor)
+        # 4. Ajuste secundário de TIPO
         if "saldo" in fornecedor_val.lower():
             tipo = "SALDO"
 
         transacoes_dados.append({
-            "contratante": contratante_val,
-            "unidade": unidade_val,
+            "contratante": "",
+            "unidade": "",
             "banco": banco_val,
             "agencia": agencia_val,
             "conta": conta_val,
@@ -348,6 +377,39 @@ def processar_ofx(conteudo_texto: str, conexao) -> list:
             "grupoConta": "",
             "edre": ""
         })
+
+    # 5. Consulta e vinculação de Unidade e Contratante para todas as transações do lote
+    if banco_codigo_limpo and conta_val:
+        try:
+            sql_unidade = """
+                SELECT TOP 1 u.nome AS unidade_nome, c.nome AS contratante_nome
+                FROM dbo.BancoConta bc
+                INNER JOIN dbo.Banco b ON bc.bancoId = b.id
+                INNER JOIN dbo.Unidade u ON u.bancoContaId = bc.id
+                LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
+                WHERE LTRIM(RTRIM(REPLACE(b.codigo, '0', ''))) = ?
+                  AND LTRIM(RTRIM(bc.conta)) = ?
+            """
+            params = [banco_codigo_limpo, conta_val]
+
+            # Se não for cartão de crédito e houver agência, adiciona a validação da agência na query
+            if not is_cartao and agencia_val:
+                sql_unidade += " AND LTRIM(RTRIM(bc.agencia)) = ?"
+                params.append(agencia_val)
+
+            cursor.execute(sql_unidade, params)
+            row_unidade = cursor.fetchone()
+
+            if row_unidade:
+                unidade_encontrada = row_unidade[0] or ""
+                contratante_encontrado = row_unidade[1] or ""
+                
+                # Aplica Unidade e Contratante para todas as transações extraídas
+                for t in transacoes_dados:
+                    t["unidade"] = unidade_encontrada
+                    t["contratante"] = contratante_encontrado
+        except Exception:
+            pass  # Mantém os valores vazios em caso de exceção sem interromper a execução
 
     return transacoes_dados
 
@@ -372,6 +434,8 @@ def processar_pdf(conteudo_bytes: bytes, conexao) -> list:
 
     if banco_detectado == "BANCO DO BRASIL":
         dados_extraidos = pdf_banco_do_brasil(conteudo_bytes, identificar_fn)
+    elif banco_detectado == "V&P":
+        dados_extraidos = pdf_vp(conteudo_bytes, identificar_fn)
     elif banco_detectado == "BRADESCO":
         dados_extraidos = pdf_bradesco(conteudo_bytes, identificar_fn)
     elif banco_detectado in ["CAIXA ECONOMICA FEDERAL", "CAIXA"]:

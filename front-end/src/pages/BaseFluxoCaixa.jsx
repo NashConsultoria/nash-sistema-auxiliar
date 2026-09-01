@@ -23,9 +23,9 @@ export default function BaseFinanceira() {
     const [valorMax, setValorMax] = useState("");
 
     // ==================================================================
-    // CONFIGURAÇÃO FIXA DA VISÃO FINANCEIRA (DRE)
+    // CONFIGURAÇÃO FIXA DA VISÃO FLUXO DE CAIXA (DFC)
     // ==================================================================
-    const TITULO_PAGINA = "Movimentações Financ. (DRE)";
+    const TITULO_PAGINA = "Fluxo de Caixa ";
     const ENDPOINT_DRE = "consolidado";
     const COLUNAS_SEM_SELECT = ["descricao", "obs", "valor", "data", "cpf"];
     
