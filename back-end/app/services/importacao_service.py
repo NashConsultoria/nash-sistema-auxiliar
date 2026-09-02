@@ -120,7 +120,7 @@ def importacao_contratantes(
         # 5. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
-            acao="IMPORTAR_MAPA_CONTRATANTES",
+            acao="Importação",
             tabela="Contratante",
             detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
             request=request
@@ -282,8 +282,8 @@ def importacao_plano_contas(
         # 5. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
-            acao="IMPORTAR_PLANO_CONTAS",
-            tabela="planocontas",
+            acao="Importação",
+            tabela="PlanoContas",
             detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_novos_registros": total_linhas},
             request=request
         )
@@ -420,7 +420,7 @@ def importacao_banco(
         # 5. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
-            acao="IMPORTAR_MAPA_BANCOS",
+            acao="Importação",
             tabela="Banco",
             detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
             request=request
@@ -663,7 +663,7 @@ def importacao_unidade(
         # 7. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
-            acao="IMPORTAR_MAPA_UNIDADES",
+            acao="Importação",
             tabela="Unidade",
             detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
             request=request
@@ -803,7 +803,7 @@ def importacao_fornecedor(
         # 5. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
-            acao="IMPORTAR_MAPA_FORNECEDOR",
+            acao="Importação",
             tabela="Fornecedor",
             detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
             request=request
@@ -959,8 +959,8 @@ def importacao_regra_fornecedor(
         # 6. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
-            acao="IMPORTAR_REGRAS_FORNECEDOR",
-            tabela="planodepara",
+            acao="Importação",
+            tabela="PlanoDePara",
             detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
             request=request
         )
@@ -1159,8 +1159,8 @@ def importacao_regra_plano(
         # 6. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
-            acao="IMPORTAR_REGRAS_PLANO",
-            tabela="planodepara",
+            acao="Importação",
+            tabela="PlanoDePara",
             detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
             request=request
         )
@@ -1455,7 +1455,7 @@ async def importacao_base_financeira(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Importacao",
+            acao="Importação",
             tabela="BaseFinanceiro",
             detalhes={"arquivo": nome_arquivo, "contratante": nome_contratante_bd, "linhas": linhas_importadas},
             request=request
@@ -1851,7 +1851,7 @@ async def importacao_folha_pagamento(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Importacao",
+            acao="Importação",
             tabela="BaseFolhaPagamento",
             detalhes={
                 "arquivo": nome_arquivo,

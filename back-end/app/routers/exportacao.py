@@ -136,7 +136,7 @@ def exportar_excel(
         # 6. Log de Auditoria
         registrar_log(
             usuario_id=admin.id,
-            acao="EXPORTAR_EXCEL",
+            acao="Exportação",
             tabela=tabela_alias_lower,
             detalhes={
                 "total_linhas": len(df),

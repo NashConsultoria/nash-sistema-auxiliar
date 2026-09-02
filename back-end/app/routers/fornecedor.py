@@ -66,7 +66,7 @@ async def criar_Fornecedor(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Cadastro",
+            acao="Cadastrar",
             tabela="Fornecedor",
             detalhes={"id": novo_id, "nome": nome_limpo, "cpfCnpj": cpf_cnpj_limpo, "status": 1},
             request=request
@@ -140,7 +140,7 @@ async def atualizar_fornecedor(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Edição",
+            acao="Editar",
             tabela="Fornecedor",
             detalhes={"id": fornecedor_id, "nome": novo_nome, "cpfCnpj": novo_cpfCnpj, "status": novo_status},
             request=request
@@ -179,7 +179,7 @@ async def alterar_status_fornecedor(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="AlteracaoStatus",
+            acao="Alterar Status",
             tabela="Fornecedor",
             detalhes={"id": fornecedor_id, "novo_status": "Ativo" if ativo else "Inativo"},
             request=request
@@ -291,7 +291,7 @@ def criar_regra_fornecedor(
         # Log de Auditoria
         registrar_log(
             usuario_id=usuario.id,
-            acao="CRIAR_REGRA_FORNECEDOR",
+            acao="Cadastrar",
             tabela="FornecedorRegras",
             detalhes={"id": novo_id, "fornecedorId": dados.fornecedorId},
             request=request
@@ -383,7 +383,7 @@ def atualizar_regra_fornecedor(
         # Log de Auditoria
         registrar_log(
             usuario_id=usuario.id,
-            acao="ATUALIZAR_REGRA_FORNECEDOR",
+            acao="Editar",
             tabela="FornecedorRegras",
             detalhes={"id": regra_id, "fornecedorId": novo_fornecedor_id},
             request=request
@@ -439,7 +439,7 @@ def deletar_regra_fornecedor(
         # Log de Auditoria
         registrar_log(
             usuario_id=usuario.id,
-            acao="DELETAR_REGRA_FORNECEDOR",
+            acao="Excluir",
             tabela="FornecedorRegras",
             detalhes={"id": regra_id},
             request=request

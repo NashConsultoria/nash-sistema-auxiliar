@@ -91,7 +91,7 @@ async def criar_unidade(
                 """,
                 (razao_limpa, cnpj_limpo, dados.contratanteId, dados.tipo, dados.status, unidade_id)
             )
-            acao_log = "Vínculo de Nova Conta / Atualização"
+            acao_log = "Editar"
         else:
             cursor.execute(
                 """
@@ -102,7 +102,7 @@ async def criar_unidade(
                 (nome_limpo, razao_limpa, cnpj_limpo, dados.contratanteId, dados.tipo, dados.status)
             )
             unidade_id = int(cursor.fetchone()[0])
-            acao_log = "Cadastro"
+            acao_log = "Cadastrar"
 
         # 3. Processa e vincula a Conta Bancária
         banco_conta_id = None
@@ -269,7 +269,7 @@ async def atualizar_unidade(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Edição",
+            acao="Editar",
             tabela="Unidade",
             detalhes={"id": unidade_id, "novo_nome": novo_nome, "bancoContaId": banco_conta_id},
             request=request
@@ -319,7 +319,7 @@ async def alternar_status_unidade(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Alteração de Status",
+            acao="Alterar Status",
             tabela="Unidade",
             detalhes={"id": unidade_id, "novo_status": novo_status},
             request=request

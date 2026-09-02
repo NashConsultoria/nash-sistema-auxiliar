@@ -140,7 +140,7 @@ def cadastrar_usuario(
     if novo_id:
         registrar_log(
             usuario_id=admin.id,
-            acao="Cadastro",
+            acao="Cadastrar",
             tabela="Usuario",
             detalhes={
                 "usuario_criado_id": novo_id,
@@ -268,7 +268,7 @@ def editar_usuario(
 
     registrar_log(
         usuario_id=admin.id,
-        acao="Edição",
+        acao="Editar",
         tabela="Usuario",
         detalhes={
             "usuario_editado_id": usuario_id,
@@ -319,7 +319,7 @@ def excluir_usuario_logico(
 
     registrar_log(
         usuario_id=admin.id,
-        acao="Desativação",
+        acao="Alterar Status",
         tabela="Usuario",
         detalhes={"usuario_desativado_id": usuario_id},
         request=request,
@@ -405,7 +405,7 @@ def vincular_contratante(
 
         registrar_log(
             usuario_id=admin.id,
-            acao="Vincular Contratante",
+            acao="Vincular",
             tabela="UsuarioContratante",
             detalhes={
                 "funcionario_id": usuario_id,
@@ -455,7 +455,7 @@ def remover_vinculo_contratante(
 
         registrar_log(
             usuario_id=admin.id,
-            acao="Remover Vínculo Contratante",
+            acao="Desvincular",
             tabela="UsuarioContratante",
             detalhes={
                 "funcionario_id": usuario_id,

@@ -85,7 +85,7 @@ async def criar_plano_contas(
         # 4. Auditoria via Registro de Log
         registrar_log(
             usuario_id=usuario.id,
-            acao="Cadastro",
+            acao="Cadastrar",
             tabela="PlanoContas",
             detalhes={
                 "id": novo_id,
@@ -183,7 +183,7 @@ async def atualizar_plano_contas(
         # 5. Auditoria via Log
         registrar_log(
             usuario_id=usuario.id,
-            acao="Edição",
+            acao="Editar",
             tabela="PlanoContas",
             detalhes={
                 "id": id,
@@ -239,7 +239,7 @@ async def inativar_plano_contas(
         # 3. Registrar Log
         registrar_log(
             usuario_id=usuario.id,
-            acao="Inativação",
+            acao="Alterar Status",
             tabela="PlanoContas",
             detalhes={"id": id, "planoConta": registro[1], "status": 2},
             request=request
@@ -359,7 +359,7 @@ async def criar_regra_planocontas(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Cadastro",
+            acao="Cadastrar",
             tabela="PlanoDePara",
             detalhes={
                 "banco": banco,
@@ -419,7 +419,7 @@ async def atualizar_regra_planocontas(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Edição",
+            acao="Editar",
             tabela="PlanoDePara",
             detalhes={
                 "banco": banco,
@@ -461,7 +461,7 @@ async def excluir_regra_planocontas(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Exclusão",
+            acao="Excluir",
             tabela="PlanoDePara",
             detalhes={
                 "banco": banco,

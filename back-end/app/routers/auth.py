@@ -79,7 +79,7 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
             registrar_log(
                 usuario_id=usuario_id,
                 acao="Login",
-                tabela="usuarios",
+                tabela="Usuario",
                 detalhes={"email": email},
                 request=request,
             )

@@ -1,6 +1,4 @@
 import pyodbc
-import pandas as pd
-from fastapi import HTTPException
 from app.config import CONEXAO_BASE
 
 def obter_conexao(banco: str):

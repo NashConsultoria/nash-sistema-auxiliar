@@ -258,7 +258,7 @@ def deletar_lote_importacao(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="ExclusaoLote",
+            acao="Excluir",
             tabela="ImportacaoLote",
             detalhes=detalhes_log,
             request=request,

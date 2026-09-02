@@ -103,7 +103,7 @@ def criar_contratante(
     if contratante_id:
         registrar_log(
             usuario_id=admin.id,
-            acao="Cadastro",
+            acao="Cadastrar",
             tabela="Contratante",
             detalhes={
                 "id": contratante_id,
@@ -183,7 +183,7 @@ def atualizar_contratante(
     # Log fora da conexão
     registrar_log(
         usuario_id=admin.id,
-        acao="Edição",
+        acao="Editar",
         tabela="Contratante",
         detalhes={
             "id": id,
@@ -229,7 +229,7 @@ def inativar_contratante(
 
     registrar_log(
         usuario_id=admin.id,
-        acao="Edição",
+        acao="Atualizar Status",
         tabela="Contratante",
         detalhes={
             "id": id,

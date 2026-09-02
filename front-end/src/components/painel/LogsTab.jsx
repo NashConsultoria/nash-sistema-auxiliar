@@ -165,18 +165,18 @@ export default function LogsTab({ token }) {
             width: "18%",
             Cell: ({ row }) => {
                 const cores = {
-                    "Login": { bg: "rgba(34, 197, 94, 0.12)", text: "#16a34a", border: "rgba(34, 197, 94, 0.3)" },
-                    "Cadastro": { bg: "rgba(59, 130, 246, 0.12)", text: "#2563eb", border: "rgba(59, 130, 246, 0.3)" },
-                    "Edição": { bg: "rgba(249, 115, 22, 0.12)", text: "#ea580c", border: "rgba(249, 115, 22, 0.3)" },
-                    "Importacao": { bg: "rgba(234, 179, 8, 0.12)", text: "#d97706", border: "rgba(234, 179, 8, 0.3)" },
-                    "IMPORTAR_PLANO_CONTAS": { bg: "rgba(234, 179, 8, 0.12)", text: "#d97706", border: "rgba(234, 179, 8, 0.3)" },
-                    "EXPORTAR_EXCEL": { bg: "rgba(234, 179, 8, 0.12)", text: "#d97706", border: "rgba(234, 179, 8, 0.3)" },
-                    "ExclusaoLote": { bg: "rgba(239, 68, 68, 0.12)", text: "#dc2626", border: "rgba(239, 68, 68, 0.3)" },
-                    "Vincular Contratante": { bg: "rgba(14, 165, 233, 0.12)", text: "#0284c7", border: "rgba(14, 165, 233, 0.3)" },
-                    "Remover Vínculo Contratante": { bg: "rgba(239, 68, 68, 0.12)", text: "#dc2626", border: "rgba(239, 68, 68, 0.3)" }
+                    "Login":            { bg: "#22c55e1f",  text: "#16a34a", border: "#22c55e4d" },
+                    "Cadastrar":        { bg: "#3b82f61f",  text: "#2563eb", border: "#3b82f64d" },
+                    "Editar":           { bg: "#f973161f",  text: "#ea580c", border: "#f973164d" },
+                    "Alterar Status":   { bg: "#eab3081f",  text: "#ca8a04", border: "#eab3084d" },
+                    "Importação":       { bg: "#9333ea4d",  text: "#9333ea", border: "#9333ea4d" },
+                    "Exportação":       { bg: "#06b6d41f",  text: "#0891b2", border: "#06b6d44d" },
+                    "Excluir":          { bg: "#ef44441f",  text: "#dc2626", border: "#ef44444d" },
+                    "Vincular":         { bg: "#14b8a61f",  text: "#0d9488", border: "#14b8a64d" },
+                    "Desvincular":      { bg: "#f43f5e1f",  text: "#e11d48", border: "#f43f5e4d" }
                 };
 
-                const estilo = cores[row.acao] || { bg: "rgba(148, 163, 184, 0.12)", text: "#64748b", border: "rgba(148, 163, 184, 0.3)" };
+                const estilo = cores[row.acao] || { bg: "#94a3b81f", text: "#64748b", border: "#94a3b84d" };
 
                 return (
                     <span style={{

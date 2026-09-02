@@ -63,7 +63,7 @@ async def criar_banco(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Cadastro",
+            acao="Cadastrar",
             tabela="Banco",
             detalhes={"id": novo_id, "codigo": codigo_limpo, "nome": nome_limpo, "status": 1},
             request=request
@@ -122,7 +122,7 @@ async def atualizar_banco(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="Edição",
+            acao="Editar",
             tabela="Banco",
             detalhes={"id": banco_id, "novo_codigo": novo_codigo, "novo_nome": novo_nome, "novo_status": novo_status},
             request=request
@@ -159,7 +159,7 @@ async def alterar_status_banco(
 
         registrar_log(
             usuario_id=usuario.id,
-            acao="AlteracaoStatus",
+            acao="Alterar Status",
             tabela="Banco",
             detalhes={"id": banco_id, "novo_status": "Ativo" if ativo else "Inativo"},
             request=request
