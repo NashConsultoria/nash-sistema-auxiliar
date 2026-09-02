@@ -1,5 +1,7 @@
 import os
 from fastapi.security import OAuth2PasswordBearer
+from dataclasses import dataclass
+from typing import List, Optional
 
 SECRET_KEY = os.getenv("SECRET_KEY", "TROQUE-ISSO-POR-UMA-CHAVE-LONGA-E-ALEATORIA-DE-VERDADE")
 ALGORITHM = "HS256"
@@ -44,7 +46,7 @@ TABELAS_PERMITIDAS = {
             SELECT
                 c.importacaoLoteId,
                 c.nome AS NOME,
-                c.razaoSocial AS RAZAO SOCIAL
+                c.razaoSocial AS [RAZAO SOCIAL]
             FROM dbo.Contratante c
         """
     },
@@ -198,3 +200,69 @@ TABELAS_PERMITIDAS = {
         "coluna_padrao_id": "importacaoLoteId"
     },
 }
+
+@dataclass(frozen=True)
+class TipoLoteSistema:
+    chave: str                # identificador curto (usado em logs/erros)
+    padroes: List[str]        # substrings (minúsculas) buscadas em nomeArquivo
+    tabela_contagem: str      # tabela usada para contar "totalMovimentacoes"
+    label: str                # texto exibido na coluna "contratante"
+ 
+ 
+TIPOS_LOTE_SISTEMA: List[TipoLoteSistema] = [
+    TipoLoteSistema(
+        chave="regras_fornecedor",
+        padroes=["regras_fornecedor", "regra_fornecedor"],
+        tabela_contagem="dbo.FornecedorRegras",
+        label="REGRAS FORNECEDOR (SISTEMA)",
+    ),
+    TipoLoteSistema(
+        chave="regras_plano",
+        padroes=["regra"],
+        tabela_contagem="dbo.PlanoDePara",
+        label="REGRAS PLANO DE CONTAS (SISTEMA)",
+    ),
+    TipoLoteSistema(
+        chave="mapa_contratantes",
+        padroes=["mapa_contratantes", "mapa_contratante"],
+        tabela_contagem="dbo.Contratante",
+        label="MAPA CONTRATANTES (SISTEMA)",
+    ),
+    TipoLoteSistema(
+        chave="mapa_bancos",
+        padroes=["mapa_bancos", "mapa_banco"],
+        tabela_contagem="dbo.Banco",
+        label="MAPA BANCOS (SISTEMA)",
+    ),
+    TipoLoteSistema(
+        chave="mapa_unidades",
+        padroes=["mapa_unidades", "mapa_unidade"],
+        tabela_contagem="dbo.Unidade",
+        label="MAPA UNIDADES (SISTEMA)",
+    ),
+    TipoLoteSistema(
+        chave="mapa_fornecedores",
+        padroes=["mapa_fornecedor", "mapa_fornecedores"],
+        tabela_contagem="dbo.Fornecedor",
+        label="MAPA FORNECEDORES (SISTEMA)",
+    ),
+ 
+    # >>> NOVO TIPO DE LOTE: adicione aqui uma nova TipoLoteSistema <<<
+    # Exemplo:
+    # TipoLoteSistema(
+    #     chave="mapa_centros_custo",
+    #     padroes=["mapa_centro_custo", "mapa_centros_custo"],
+    #     tabela_contagem="dbo.CentroCusto",
+    #     label="SISTEMA (MAPA CENTROS DE CUSTO)",
+    # ),
+]
+
+CASCATA_SIMPLES = [
+    ("contratantes", "dbo.Contratante"),
+    ("movimentacoes", "dbo.BaseFinanceiro"),
+    ("folhaPagamento", "dbo.BaseFolhaPagamento"),
+    ("regrasPlano", "dbo.PlanoDePara"),
+    ("planoContas", "dbo.PlanoContas"),
+    ("regrasFornecedor", "dbo.FornecedorRegras"),
+    ("fornecedores", "dbo.Fornecedor"),
+]

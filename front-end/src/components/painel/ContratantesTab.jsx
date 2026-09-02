@@ -4,6 +4,7 @@ import Button from "../button/Button";
 import Table from "../table/Table";
 import FiltroBar from "../filtro/FiltroBar";
 import { API_BASE } from "../../context/AuthContext";
+import { ExportarExcel } from "../../utils/ExportarExcel";
 
 export default function ContratantesTab({ token, contratantes = [], carregarContratantes }) {
     const [modoCadastroContratante, setModoCadastroContratante] = useState(false);
@@ -224,6 +225,14 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
         }
     ];
 
+    const handleExportarContratantes = () => {
+        ExportarExcel({
+            tabela: "contratante",
+            colunas: ["NOME", "RAZAO SOCIAL"],
+            nomeArquivoCustomizado: "Mapa_Contratantes.xlsx"
+        });
+    };
+
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {!modoCadastroContratante ? (
@@ -262,6 +271,10 @@ export default function ContratantesTab({ token, contratantes = [], carregarCont
                                 onLimpar={limparFiltros}
                             />
                         </div>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", margin: "8px" }}>
+                        <Button onClick={() => handleExportarContratantes()}>Baixar Tudo</Button>
                     </div>
 
                     <Table

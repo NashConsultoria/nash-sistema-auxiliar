@@ -1,12 +1,65 @@
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from app.config import PERFIL_ADMIN, PERFIL_CLIENTE
+from app.config import PERFIL_ADMIN, PERFIL_CLIENTE, TIPOS_LOTE_SISTEMA, CASCATA_SIMPLES
 from app.database import obter_conexao
 from app.schemas.usuarios_schema import UsuarioToken
 from app.security import exigir_perfil, obter_usuario_atual, registrar_log
 
 router = APIRouter(prefix="/api", tags=["Lotes de Importação"])
+
+
+# ---------------------------------------------------------------------------
+# Helpers de SQL gerados a partir de TIPOS_LOTE_SISTEMA (app/lotes_config.py).
+# Adicionar um novo tipo de lote lá é o suficiente para ele aparecer aqui.
+# ---------------------------------------------------------------------------
+
+def _condicao_padroes(alias_arquivo: str, padroes: list[str]) -> str:
+    return " OR ".join(f"LOWER({alias_arquivo}) LIKE '%{p}%'" for p in padroes)
+
+
+def _case_classificacao_contratante(
+    alias_arquivo: str = "l.nomeArquivo",
+    alias_contratante_id: str = "l.contratanteId",
+    alias_nome_contratante: str = "c.nome",
+) -> str:
+    """Monta o CASE WHEN que decide o texto exibido na coluna 'contratante'."""
+    partes = [f"CASE WHEN {alias_contratante_id} IS NOT NULL THEN {alias_nome_contratante}"]
+    for tipo in TIPOS_LOTE_SISTEMA:
+        condicao = _condicao_padroes(alias_arquivo, tipo.padroes)
+        partes.append(f"WHEN {condicao} THEN '{tipo.label}'")
+    partes.append("ELSE 'PLANO DE CONTAS (SISTEMA)' END")
+    return " ".join(partes)
+
+
+def _case_total_movimentacoes(
+    alias_arquivo: str = "l.nomeArquivo",
+    alias_contratante_id: str = "l.contratanteId",
+    alias_id: str = "l.id",
+) -> str:
+    """Monta o CASE WHEN que decide como contar 'totalMovimentacoes'."""
+    partes = ["CASE"]
+    for tipo in TIPOS_LOTE_SISTEMA:
+        condicao = _condicao_padroes(alias_arquivo, tipo.padroes)
+        partes.append(
+            f"WHEN {condicao} THEN "
+            f"(ISNULL((SELECT COUNT(*) FROM {tipo.tabela_contagem} "
+            f"WHERE importacaoLoteId = {alias_id}), 0))"
+        )
+    partes.append(
+        f"WHEN {alias_contratante_id} IS NULL THEN "
+        f"(ISNULL((SELECT COUNT(*) FROM dbo.PlanoContas WHERE importacaoLoteId = {alias_id}), 0))"
+    )
+    partes.append(
+        "ELSE ("
+        f"ISNULL((SELECT COUNT(*) FROM dbo.BaseFinanceiro WHERE importacaoLoteId = {alias_id}), 0) + "
+        f"ISNULL((SELECT COUNT(*) FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = {alias_id}), 0)"
+        ")"
+    )
+    partes.append("END")
+    return " ".join(partes)
+
 
 @router.get("/{banco}/lotes")
 def listar_lotes_importacao(
@@ -19,46 +72,13 @@ def listar_lotes_importacao(
         conexao = obter_conexao(banco)
         cursor = conexao.cursor()
 
-        query = """
-            SELECT 
+        query = f"""
+            SELECT
                 l.id,
                 l.nomeArquivo,
-                CASE 
-                    WHEN l.contratanteId IS NOT NULL THEN c.nome
-                    WHEN LOWER(l.nomeArquivo) LIKE '%regras_fornecedor%' OR LOWER(l.nomeArquivo) LIKE '%regra_fornecedor%' THEN 'REGRAS FORNECEDOR (SISTEMA)'
-                    WHEN LOWER(l.nomeArquivo) LIKE '%regra%' THEN 'REGRAS (SISTEMA)'
-                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_bancos%' OR LOWER(l.nomeArquivo) LIKE '%mapa_banco%' THEN 'SISTEMA (MAPA BANCOS)'
-                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_unidades%' OR LOWER(l.nomeArquivo) LIKE '%mapa_unidade%' THEN 'SISTEMA (MAPA UNIDADES)'
-                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_fornecedor%' OR LOWER(l.nomeArquivo) LIKE '%mapa_fornecedores%' THEN 'SISTEMA (MAPA FORNECEDORES)'
-                    ELSE 'PLANO DE CONTAS (SISTEMA)'
-                END AS contratante,
+                {_case_classificacao_contratante()} AS contratante,
                 l.criadoEm,
-                CASE 
-                    /* REGRAS DE FORNECEDOR: Checa na tabela dbo.FornecedorRegras */
-                    WHEN LOWER(l.nomeArquivo) LIKE '%regras_fornecedor%' OR LOWER(l.nomeArquivo) LIKE '%regra_fornecedor%' THEN (
-                        ISNULL((SELECT COUNT(*) FROM dbo.FornecedorRegras WHERE importacaoLoteId = l.id), 0)
-                    )
-                    /* REGRAS DO PLANO: Checa na tabela dbo.PlanoDePara */
-                    WHEN LOWER(l.nomeArquivo) LIKE '%regra%' THEN (
-                        ISNULL((SELECT COUNT(*) FROM dbo.PlanoDePara WHERE importacaoLoteId = l.id), 0)
-                    )
-                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_bancos%' OR LOWER(l.nomeArquivo) LIKE '%mapa_banco%' THEN (
-                        ISNULL((SELECT COUNT(*) FROM dbo.Banco WHERE importacaoLoteId = l.id), 0)
-                    )
-                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_unidades%' OR LOWER(l.nomeArquivo) LIKE '%mapa_unidade%' THEN (
-                        ISNULL((SELECT COUNT(*) FROM dbo.Unidade WHERE importacaoLoteId = l.id), 0)
-                    )
-                    WHEN LOWER(l.nomeArquivo) LIKE '%mapa_fornecedor%' OR LOWER(l.nomeArquivo) LIKE '%mapa_fornecedores%' THEN (
-                        ISNULL((SELECT COUNT(*) FROM dbo.Fornecedor WHERE importacaoLoteId = l.id), 0)
-                    )
-                    WHEN l.contratanteId IS NULL THEN (
-                        ISNULL((SELECT COUNT(*) FROM dbo.PlanoContas WHERE importacaoLoteId = l.id), 0)
-                    )
-                    ELSE (
-                        ISNULL((SELECT COUNT(*) FROM dbo.BaseFinanceiro WHERE importacaoLoteId = l.id), 0) +
-                        ISNULL((SELECT COUNT(*) FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = l.id), 0)
-                    )
-                END AS totalMovimentacoes,
+                {_case_total_movimentacoes()} AS totalMovimentacoes,
                 (
                     ISNULL((SELECT SUM(ISNULL(valor, 0)) FROM dbo.BaseFinanceiro WHERE importacaoLoteId = l.id), 0) +
                     ISNULL((SELECT SUM(ISNULL(valor, 0)) FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = l.id), 0)
@@ -102,6 +122,89 @@ def listar_lotes_importacao(
             conexao.close()
 
 
+# ---------------------------------------------------------------------------
+# Exclusão em cascata
+# ---------------------------------------------------------------------------
+
+def _excluir_e_contar(cursor, tabela: str, lote_id: int, coluna: str = "importacaoLoteId") -> int:
+    cursor.execute(f"DELETE FROM {tabela} WHERE {coluna} = ?", (lote_id,))
+    return cursor.rowcount
+
+
+def _limpar_bancoconta_e_unidade_do_lote(cursor, lote_id: int) -> tuple[int, int]:
+    """BancoConta depende de Unidade, então precisa ser apagado primeiro."""
+    cursor.execute(
+        """
+        DELETE FROM dbo.BancoConta
+        WHERE unidadeId IN (SELECT id FROM dbo.Unidade WHERE importacaoLoteId = ?)
+        """,
+        (lote_id,),
+    )
+    bancos_contas_removidos = cursor.rowcount
+
+    linhas_unidades = _excluir_e_contar(cursor, "dbo.Unidade", lote_id)
+    return bancos_contas_removidos, linhas_unidades
+
+
+# Limpeza de órfãos que não têm relação direta com um lote específico —
+# rodam sempre depois da exclusão do lote, para varrer o que ficou solto.
+def _limpar_orfaos(cursor) -> dict:
+    resultados = {}
+
+    cursor.execute(
+        """
+        DELETE FROM dbo.BancoConta
+        WHERE unidadeId IS NULL AND id NOT IN (
+            SELECT DISTINCT bancoContaId FROM dbo.BaseFinanceiro WHERE bancoContaId IS NOT NULL
+            UNION
+            SELECT DISTINCT bancoId FROM dbo.PlanoDePara WHERE bancoId IS NOT NULL
+        )
+        """
+    )
+    resultados["bancosContasOrfas"] = cursor.rowcount
+
+    cursor.execute(
+        """
+        DELETE FROM dbo.Fornecedor
+        WHERE importacaoLoteId IS NULL AND id NOT IN (
+            SELECT DISTINCT fornecedorId FROM dbo.BaseFinanceiro WHERE fornecedorId IS NOT NULL
+            UNION
+            SELECT DISTINCT fornecedorId FROM dbo.PlanoDePara WHERE fornecedorId IS NOT NULL
+        )
+        """
+    )
+    resultados["fornecedoresRemovidos"] = cursor.rowcount
+
+    # Unidades órfãs: primeiro desvincula BancoConta, depois apaga a Unidade
+    condicao_unidade_em_uso = """
+        SELECT DISTINCT unidadeId FROM dbo.BaseFinanceiro WHERE unidadeId IS NOT NULL
+        UNION
+        SELECT DISTINCT unidadeRegistroId FROM dbo.BaseFolhaPagamento WHERE unidadeRegistroId IS NOT NULL
+        UNION
+        SELECT DISTINCT unidadeAtuacaoId FROM dbo.BaseFolhaPagamento WHERE unidadeAtuacaoId IS NOT NULL
+        UNION
+        SELECT DISTINCT unidadeId FROM dbo.PlanoDePara WHERE unidadeId IS NOT NULL
+    """
+    cursor.execute(
+        f"""
+        DELETE FROM dbo.BancoConta
+        WHERE unidadeId IN (
+            SELECT id FROM dbo.Unidade
+            WHERE importacaoLoteId IS NULL AND id NOT IN ({condicao_unidade_em_uso})
+        )
+        """
+    )
+    cursor.execute(
+        f"""
+        DELETE FROM dbo.Unidade
+        WHERE importacaoLoteId IS NULL AND id NOT IN ({condicao_unidade_em_uso})
+        """
+    )
+    resultados["unidadesOrfasRemovidas"] = cursor.rowcount
+
+    return resultados
+
+
 @router.delete("/{banco}/lotes/{lote_id}")
 def deletar_lote_importacao(
     banco: str,
@@ -114,145 +217,43 @@ def deletar_lote_importacao(
         conexao = obter_conexao(banco)
         cursor = conexao.cursor()
 
-        # 1. Verifica se o lote existe
         cursor.execute(
             "SELECT nomeArquivo FROM dbo.ImportacaoLote WHERE id = ?", (lote_id,)
         )
         lote = cursor.fetchone()
-
         if not lote:
             raise HTTPException(
                 status_code=404, detail="Lote de importação não encontrado."
             )
-
         nome_arquivo = lote[0]
 
-        # 2. DELEÇÃO EM CASCATA (Ordem estrita para não violar FKs)
+        # 1) Tabelas simples, sem dependências entre si
+        linhas_apagadas = {
+            nome_resultado: _excluir_e_contar(cursor, tabela, lote_id)
+            for nome_resultado, tabela in CASCATA_SIMPLES
+        }
 
-        # A) Exclui Movimentações Financeiras e Folha que dependem de Unidade / BancoConta
-        cursor.execute("DELETE FROM dbo.BaseFinanceiro WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_movimentacao = cursor.rowcount
-
-        cursor.execute("DELETE FROM dbo.BaseFolhaPagamento WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_folha = cursor.rowcount
-
-        # B) Exclui Regras / DePara e Plano de Contas
-        cursor.execute("DELETE FROM dbo.PlanoDePara WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_regras = cursor.rowcount
-
-        cursor.execute("DELETE FROM dbo.PlanoContas WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_plano_contas = cursor.rowcount
-
-        cursor.execute("DELETE FROM dbo.FornecedorRegras WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_regras_fornecedor = cursor.rowcount
-
-        # C) Exclui Fornecedores do lote
-        cursor.execute("DELETE FROM dbo.Fornecedor WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_fornecedores = cursor.rowcount
-
-        # D) PRIMEIRO: APAGA BANCOCONTA (Evita a FK da Unidade)
-        # Deleta as contas ligadas diretamente a unidades do lote OU importadas no lote
-        # D) PASSO CRÍTICO: Exclui BancoConta das unidades do lote ANTES de apagar a Unidade
-        cursor.execute(
-            """
-            DELETE FROM dbo.BancoConta 
-            WHERE unidadeId IN (SELECT id FROM dbo.Unidade WHERE importacaoLoteId = ?)
-            """, 
-            (lote_id,)
-        )
-        bancos_contas_removidos = cursor.rowcount
-
-        # E) SEGUNDO: APAGA UNIDADE (Agora seguro, pois nenhuma BancoConta aponta para elas)
-        cursor.execute("DELETE FROM dbo.Unidade WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_unidades = cursor.rowcount
-
-        # F) Exclui Bancos do lote
-        cursor.execute("DELETE FROM dbo.Banco WHERE importacaoLoteId = ?", (lote_id,))
-        linhas_bancos = cursor.rowcount
-
-        # 3. LIMPEZA DE ÓRFÃOS SEGUROS
-        # A) Limpa BancoConta sem Unidade e sem histórico financeiro
-        cursor.execute(
-            """
-            DELETE FROM dbo.BancoConta 
-            WHERE unidadeId IS NULL AND id NOT IN (
-                SELECT DISTINCT bancoContaId FROM dbo.BaseFinanceiro WHERE bancoContaId IS NOT NULL
-                UNION
-                SELECT DISTINCT bancoId FROM dbo.PlanoDePara WHERE bancoId IS NOT NULL
-            )
-            """
-        )
-        bancos_contas_orfas = cursor.rowcount
-
-        # B) Limpa Fornecedores órfãos
-        cursor.execute(
-            """
-            DELETE FROM dbo.Fornecedor 
-            WHERE importacaoLoteId IS NULL AND id NOT IN (
-                SELECT DISTINCT fornecedorId FROM dbo.BaseFinanceiro WHERE fornecedorId IS NOT NULL
-                UNION
-                SELECT DISTINCT fornecedorId FROM dbo.PlanoDePara WHERE fornecedorId IS NOT NULL
-            )
-            """
-        )
-        fornecedores_removidos = cursor.rowcount
-
-        # C) Limpa Unidades órfãs (garantindo desvínculo em BancoConta antes, se houver)
-        cursor.execute(
-            """
-            DELETE FROM dbo.BancoConta
-            WHERE unidadeId IN (
-                SELECT id FROM dbo.Unidade 
-                WHERE importacaoLoteId IS NULL AND id NOT IN (
-                    SELECT DISTINCT unidadeId FROM dbo.BaseFinanceiro WHERE unidadeId IS NOT NULL
-                    UNION
-                    SELECT DISTINCT unidadeRegistroId FROM dbo.BaseFolhaPagamento WHERE unidadeRegistroId IS NOT NULL
-                    UNION
-                    SELECT DISTINCT unidadeAtuacaoId FROM dbo.BaseFolhaPagamento WHERE unidadeAtuacaoId IS NOT NULL
-                    UNION
-                    SELECT DISTINCT unidadeId FROM dbo.PlanoDePara WHERE unidadeId IS NOT NULL
-                )
-            )
-            """
+        # 2) BancoConta -> Unidade (ordem importa: BancoConta depende de Unidade)
+        bancos_contas_removidos, linhas_apagadas["unidades"] = _limpar_bancoconta_e_unidade_do_lote(
+            cursor, lote_id
         )
 
-        cursor.execute(
-            """
-            DELETE FROM dbo.Unidade 
-            WHERE importacaoLoteId IS NULL AND id NOT IN (
-                SELECT DISTINCT unidadeId FROM dbo.BaseFinanceiro WHERE unidadeId IS NOT NULL
-                UNION
-                SELECT DISTINCT unidadeRegistroId FROM dbo.BaseFolhaPagamento WHERE unidadeRegistroId IS NOT NULL
-                UNION
-                SELECT DISTINCT unidadeAtuacaoId FROM dbo.BaseFolhaPagamento WHERE unidadeAtuacaoId IS NOT NULL
-                UNION
-                SELECT DISTINCT unidadeId FROM dbo.PlanoDePara WHERE unidadeId IS NOT NULL
-            )
-            """
-        )
-        unidades_orfas_removidas = cursor.rowcount
+        # 3) Banco do lote
+        linhas_apagadas["bancos"] = _excluir_e_contar(cursor, "dbo.Banco", lote_id)
 
-        # 4. Deleta o registro do Lote principal
+        # 4) Limpeza de órfãos que sobraram soltos no banco
+        orfaos_limpos = _limpar_orfaos(cursor)
+        orfaos_limpos["bancosContas"] = bancos_contas_removidos + orfaos_limpos.pop("bancosContasOrfas")
+
+        # 5) Apaga o registro do lote em si
         cursor.execute("DELETE FROM dbo.ImportacaoLote WHERE id = ?", (lote_id,))
 
-        # 5. Log de auditoria
+        # 6) Log de auditoria
         detalhes_log = {
             "loteId": lote_id,
             "arquivo": nome_arquivo,
-            "linhasApagadas": {
-                "bancos": linhas_bancos,
-                "unidades": linhas_unidades,
-                "fornecedores": linhas_fornecedores,
-                "regrasPlano": linhas_regras,
-                "planoContas": linhas_plano_contas,
-                "movimentacoes": linhas_movimentacao,
-                "folhaPagamento": linhas_folha,
-            },
-            "orfaosLimpos": {
-                "fornecedores": fornecedores_removidos,
-                "bancosContas": bancos_contas_removidos + bancos_contas_orfas,
-                "unidadesOrfas": unidades_orfas_removidas,
-            },
+            "linhasApagadas": linhas_apagadas,
+            "orfaosLimpos": orfaos_limpos,
         }
 
         registrar_log(
@@ -268,7 +269,7 @@ def deletar_lote_importacao(
         return {
             "sucesso": True,
             "mensagem": f"Lote '{nome_arquivo}' (ID: {lote_id}) excluído com sucesso!",
-            "detalhes": detalhes_log["linhasApagadas"],
+            "detalhes": linhas_apagadas,
         }
 
     except HTTPException as http_err:

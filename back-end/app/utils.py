@@ -1,7 +1,9 @@
 import pandas as pd
 import re
 import unicodedata
-from app.config import ORDEM_EFOLHA
+from typing import Optional
+
+from app.config import ORDEM_EFOLHA, TipoLoteSistema, TIPOS_LOTE_SISTEMA
 
 def normalizar_texto(texto) -> str:
     if pd.isna(texto) or texto is None:
@@ -89,3 +91,13 @@ def obter_ordem_efolha(nome_efolha: str) -> int:
             return ordem
 
     return 99
+
+def identificar_tipo_lote(nome_arquivo: str) -> Optional[TipoLoteSistema]:
+    """Retorna o TipoLoteSistema cujo padrão bate com o nome do arquivo,
+    ou None se não corresponder a nenhum tipo de sistema conhecido
+    (nesse caso é PLANO DE CONTAS ou um lote normal de contratante)."""
+    nome = (nome_arquivo or "").lower()
+    for tipo in TIPOS_LOTE_SISTEMA:
+        if any(padrao in nome for padrao in tipo.padroes):
+            return tipo
+    return None
