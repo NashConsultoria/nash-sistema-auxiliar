@@ -64,7 +64,7 @@ export default function BancosTab({ token, bancos = [], carregarBancos }) {
             label: "Código do Banco",
             tipo: "inputlist",
             placeholder: "Buscar por Código...",
-            options: opcoesCodigo // 3. CORRIGIDO: usa opcoesCodigo
+            options: opcoesCodigo
         },
         {
             key: "nome",

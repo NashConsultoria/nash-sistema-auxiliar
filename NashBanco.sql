@@ -247,6 +247,19 @@ create table LogUsuario
 
 	foreign key (usuarioId)					references Usuario(id)			on delete cascade
 )
+
+create table ChangeLog
+(
+    id					int					not null		primary key		identity,
+    versao				varchar(20)				null,						-- Ex: 'v1.2.0', 'v2.0.1'
+    titulo				varchar(150)		not null,						-- Ex: 'Aba de Regras para Fornecedores'
+    descricao			varchar(MAX)		not null,
+    tipo				varchar(30)			not null		default 'Melhoria', -- 'Nova Feature', 'Correção', 'Melhoria'
+    usuarioId			int					not null,
+    criadoEm			datetime			not null		default getdate(),
+
+    foreign key (usuarioId)					references Usuario(id)			on delete cascade
+);
 ---------------------------------------------------------------------------------
 --						Verificando Valores
 ---------------------------------------------------------------------------------
@@ -267,6 +280,7 @@ select * from UsuarioContratante
 select * from Permissao
 select * from UsuarioPermissao
 select * from LogUsuario
+select * from ChangeLog
 ---------------------------------------------------------------------------------
 --						Backup do Banco (Testes)
 ---------------------------------------------------------------------------------

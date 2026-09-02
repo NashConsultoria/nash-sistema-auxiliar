@@ -495,12 +495,13 @@ def processar_pdf(conteudo_bytes: bytes, conexao) -> list:
         agencia_limpa = re.sub(r"\D", "", agencia_val).lstrip("0")
         conta_limpa = re.sub(r"\D", "", conta_val).lstrip("0")
 
+        # Query atualizada: BancoConta possui a FK unidadeId
         cursor.execute(
             """
             SELECT u.nome AS unidade_nome, c.nome AS contratante_nome
             FROM dbo.BancoConta bc
             INNER JOIN dbo.Banco b ON bc.bancoId = b.id
-            INNER JOIN dbo.Unidade u ON u.bancoContaId = bc.id
+            LEFT JOIN dbo.Unidade u ON bc.unidadeId = u.id
             LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
             WHERE LTRIM(RTRIM(REPLACE(bc.agencia, '-', ''))) LIKE ?
               AND LTRIM(RTRIM(REPLACE(bc.conta, '-', ''))) LIKE ?

@@ -11,6 +11,7 @@ import Custos from "../pages/Custos";
 import Balanco from "../pages/Balanco";
 import BaseFinanceira from "../pages/BaseFinanceira"
 import BaseFolha from "../pages/BaseFolha"
+import ChangeLog from "../pages/ChangeLog";
 import BaseFluxoCaixa from "../pages/BaseFluxoCaixa"
 import Importacao from "../pages/Importacao"
 import Conversor from "../pages/Conversor";
@@ -66,6 +67,9 @@ export default function AppRoutes() {
                 } />
                 <Route path="base-folha" element={
                     <RotaProtegida perfisPermitidos={[1, 2]}><BaseFolha /></RotaProtegida>
+                } />
+                <Route path="changelog" element={
+                    <RotaProtegida perfisPermitidos={[1, 2]}><ChangeLog /></RotaProtegida>
                 } />
                 <Route path="base-fluxo-caixa" element={
                     <RotaProtegida perfisPermitidos={[1, 2]}><BaseFluxoCaixa /></RotaProtegida>

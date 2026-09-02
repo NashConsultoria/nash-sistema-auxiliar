@@ -6,6 +6,7 @@ from app.routers import (
     auth,
     conversor,
     bancos,
+    changelog,
     contratantes,
     dados,
     exportacao,
@@ -43,6 +44,7 @@ def startup_db():
 app.include_router(auth.router)
 app.include_router(conversor.router, prefix="/api")
 app.include_router(bancos.router)
+app.include_router(changelog.router)
 app.include_router(contratantes.router)
 app.include_router(dados.router, prefix="/api")
 app.include_router(exportacao.router)

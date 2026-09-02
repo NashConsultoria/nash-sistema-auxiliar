@@ -38,6 +38,7 @@ const menu = [
     { label: "Base Financeira", path: "/base-financeira", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
     { label: "Base Fluxo Caixa", path: "/base-fluxo-caixa", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
     { label: "Base Folha", path: "/base-folha", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
+    { label: "Changelog", path: "/changelog", icon: <FaTable />, modulo: "config", perfisPermitidos: [1, 2] },
 ];
 
 export default function Navbar() {
