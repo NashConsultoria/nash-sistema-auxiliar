@@ -84,11 +84,12 @@ create table FornecedorRegras
     termoDescricao      varchar(255)			null,                       -- Busca na Descrição (Ex: "TARIFA")
     termoTipo           varchar(255)			null,                       -- Busca no Tipo (Ex: "RECEBIMENTO")
     fornecedorId		int					not null,                       -- Mapeia para Fornecedor
+	prioridade			int						null		default 0,
     importacaoLoteId    int						null,
 
     -- Chaves Estrangeiras
-	CONSTRAINT FK_FornecedorRegras_Fornecedor FOREIGN KEY (fornecedorId)     REFERENCES Fornecedor(id) ON DELETE CASCADE,
-    CONSTRAINT FK_FornecedorRegras_Lote       FOREIGN KEY (importacaoLoteId) REFERENCES ImportacaoLote(id) ON DELETE CASCADE,
+	CONSTRAINT FK_FornecedorRegras_Fornecedor FOREIGN KEY (fornecedorId)     REFERENCES Fornecedor(id)			ON DELETE CASCADE,
+    CONSTRAINT FK_FornecedorRegras_Lote       FOREIGN KEY (importacaoLoteId) REFERENCES ImportacaoLote(id)		ON DELETE CASCADE,
 
     -- Validação: Pelo menos UM dos critérios de busca DEVE estar preenchido
     CONSTRAINT CK_FornecedorRegras_PeloMenosUmTermo CHECK (
@@ -122,6 +123,7 @@ CREATE TABLE PlanoDePara
     termoTipo           varchar(255)			null,                       -- Busca no Tipo (Ex: "RECEBIMENTO")
     fornecedorId		int						null,                       -- Busca no Fornecedor (Ex: "ITAU")
     planoContaId        int					not null,                       -- Mapeia para PlanoContas
+	prioridade			int						null		default 0,
     importacaoLoteId    int,
 
     -- Chaves Estrangeiras

@@ -838,11 +838,6 @@ def importacao_regra_fornecedor(
     usuario_id: int, 
     request: Request
 ):
-    """
-    Processa o upload do Excel com as Regras de Fornecedor (FornecedorRegras) vinculando ao ImportacaoLote.
-    Aba esperada: 'Regras_Fornecedor'
-    Colunas esperadas: DESCRICAO, TIPO, FORNECEDOR
-    """
     conexao = None
     try:
         buffer = io.BytesIO(conteudo_arquivo)
@@ -857,7 +852,7 @@ def importacao_regra_fornecedor(
         df.columns = [str(col).strip().upper().replace("-", "") for col in df.columns]
 
         # 1. Validação de Colunas Obrigatórias
-        colunas_necessarias = ["DESCRICAO", "TIPO", "FORNECEDOR"]
+        colunas_necessarias = ["DESCRICAO", "TIPO", "PRIORIDADE", "FORNECEDOR"]
         for col in colunas_necessarias:
             if col not in df.columns:
                 raise HTTPException(
@@ -868,7 +863,7 @@ def importacao_regra_fornecedor(
         conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()
 
-        # 2. CORRIGIDO: Nome da variável alinhado para map_fornecedores
+        # 2. Mapeamento dos Fornecedores por Nome
         cursor.execute("SELECT id, LOWER(nome) FROM dbo.Fornecedor WHERE nome IS NOT NULL")
         map_fornecedores = {row[1].strip(): row[0] for row in cursor.fetchall()}
 
@@ -901,8 +896,8 @@ def importacao_regra_fornecedor(
         # 5. Processamento e Inserção
         query_insert = """
             INSERT INTO dbo.FornecedorRegras 
-            (termoDescricao, termoTipo, fornecedorId, importacaoLoteId)
-            VALUES (?, ?, ?, ?)
+            (termoDescricao, termoTipo, fornecedorId, prioridade, importacaoLoteId)
+            VALUES (?, ?, ?, ?, ?)
         """
 
         total_linhas = 0
@@ -911,9 +906,16 @@ def importacao_regra_fornecedor(
         for idx, row in df.iterrows():
             linha_num = idx + 2  # Considera o cabeçalho como linha 1
 
-            termo_descricao = limpar_e_normalizar(row["DESCRICAO"])
-            termo_tipo = limpar_e_normalizar(row["TIPO"])
-            val_fornecedor = limpar_e_normalizar(row["FORNECEDOR"])
+            termo_descricao = limpar_e_normalizar(row["DESCRICAO"]) if 'limpar_e_normalizar' in globals() else str(row["DESCRICAO"]).strip()
+            termo_tipo = limpar_e_normalizar(row["TIPO"]) if 'limpar_e_normalizar' in globals() else str(row["TIPO"]).strip()
+            val_fornecedor = limpar_e_normalizar(row["FORNECEDOR"]) if 'limpar_e_normalizar' in globals() else str(row["FORNECEDOR"]).strip()
+            val_prioridade_raw = row["PRIORIDADE"]
+
+            # Tratamento da Prioridade com Fallback seguro
+            try:
+                prioridade_val = int(val_prioridade_raw) if pd.notna(val_prioridade_raw) and str(val_prioridade_raw).strip() != "" else 0
+            except (ValueError, TypeError):
+                prioridade_val = 0
 
             # Validação 1: Pelo menos Descrição ou Tipo deve ser preenchido
             if not termo_descricao and not termo_tipo:
@@ -922,7 +924,7 @@ def importacao_regra_fornecedor(
                 )
                 continue
 
-            # Validação 2: CORRIGIDO - Fornecedor é estritamente OBRIGATÓRIO
+            # Validação 2: Fornecedor é OBRIGATÓRIO
             if not val_fornecedor:
                 erros_validacao.append(
                     f"Linha {linha_num}: O campo 'FORNECEDOR' é obrigatório."
@@ -937,30 +939,32 @@ def importacao_regra_fornecedor(
                 )
                 continue
 
+            # Inserção com ordem de parâmetros perfeitamente alinhada à query SQL
             cursor.execute(query_insert, (
                 termo_descricao or None,
                 termo_tipo or None,
                 fornecedor_id,
+                prioridade_val,
                 lote_id
             ))
             total_linhas += 1
 
         # Cancela tudo se houver erros de consistência nos dados
         if erros_validacao:
+            conexao.rollback()
             primeiros_erros = "<br>".join(erros_validacao[:5])
             raise HTTPException(
                 status_code=400, 
                 detail=f"Erros na validação da planilha:<br>{primeiros_erros}"
             )
 
-        # CORRIGIDO: Persiste as regras antes do log
         conexao.commit()
 
         # 6. Log de Auditoria
         registrar_log(
             usuario_id=usuario_id,
             acao="Importação",
-            tabela="PlanoDePara",
+            tabela="FornecedorRegras",
             detalhes={"lote_id": lote_id, "arquivo": nome_arquivo, "total_registros": total_linhas},
             request=request
         )

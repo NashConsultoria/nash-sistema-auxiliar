@@ -20,16 +20,19 @@ export default function FornecedorTab({ token, fornecedores = [], carregarFornec
     const [modoCadastroRegra, setModoCadastroRegra] = useState(false);
     const [regraEmEdicaoId, setRegraEmEdicaoId] = useState(null);
     const [salvandoRegra, setSalvandoRegra] = useState(false);
+
     const [formRegra, setFormRegra] = useState({
         termoDescricao: "",
         termoTipo: "",
-        fornecedorTexto: ""
+        fornecedorTexto: "",
+        prioridade: "0"
     });
 
     const [filtrosRegra, setFiltrosRegra] = useState({
         descricao: "",
         tipo: "",
-        fornecedor: ""
+        fornecedor: "",
+        prioridade: ""
     });
 
     // --- ESTADOS DO FILTROBAR (FORNECEDORES) ---
@@ -95,10 +98,14 @@ export default function FornecedorTab({ token, fornecedores = [], carregarFornec
 
         const metodo = regraEmEdicaoId ? "PUT" : "POST";
 
+        // 💡 Ajuste: Converte a prioridade para Inteiro
+        const prioridadeNum = parseInt(formRegra.prioridade, 10);
+
         const payload = {
             termoDescricao: formRegra.termoDescricao.trim() || null,
             termoTipo: formRegra.termoTipo.trim() || null,
-            fornecedorId: fornecedorEncontrado.id
+            fornecedorId: fornecedorEncontrado.id,
+            prioridade: isNaN(prioridadeNum) ? 0 : prioridadeNum,
         };
 
         try {
@@ -129,7 +136,8 @@ export default function FornecedorTab({ token, fornecedores = [], carregarFornec
         setFormRegra({
             termoDescricao: regra.termoDescricao || "",
             termoTipo: regra.termoTipo || "",
-            fornecedorTexto: regra.nomeFornecedor || ""
+            fornecedorTexto: regra.nomeFornecedor || "",
+            prioridade: String(regra.prioridade ?? 0),
         });
         setModoCadastroRegra(true);
     };
@@ -317,18 +325,21 @@ export default function FornecedorTab({ token, fornecedores = [], carregarFornec
 
     // --- LÓGICA DE FILTRAGEM - REGRAS ---
     const handleFilterRegraChange = (key, value) => setFiltrosRegra((prev) => ({ ...prev, [key]: value }));
-    const limparFiltrosRegra = () => setFiltrosRegra({ descricao: "", tipo: "", fornecedor: "" });
+    const limparFiltrosRegra = () => setFiltrosRegra({ descricao: "", tipo: "", fornecedor: "", prioridade: "" });
 
     const filtrarRegraExcecao = (chaveIgnorada) => {
         return regras.filter((item) => {
             const descricao = (item.termoDescricao || "- Qualquer -").toLowerCase();
             const tipo = (item.termoTipo || "- Qualquer -").toLowerCase();
             const fornecedor = (item.nomeFornecedor || "- Qualquer -").toLowerCase();
+            // 💡 Ajuste: Garante conversão para String do número da prioridade
+            const prioridade = String(item.prioridade ?? 0).toLowerCase();
 
             return (
                 (chaveIgnorada === "descricao" || descricao.includes(filtrosRegra.descricao.toLowerCase().trim())) &&
                 (chaveIgnorada === "tipo" || tipo.includes(filtrosRegra.tipo.toLowerCase().trim())) &&
-                (chaveIgnorada === "fornecedor" || fornecedor.includes(filtrosRegra.fornecedor.toLowerCase().trim()))
+                (chaveIgnorada === "fornecedor" || fornecedor.includes(filtrosRegra.fornecedor.toLowerCase().trim())) &&
+                (chaveIgnorada === "prioridade" || prioridade.includes(filtrosRegra.prioridade.toLowerCase().trim()))
             );
         });
     };
@@ -336,7 +347,8 @@ export default function FornecedorTab({ token, fornecedores = [], carregarFornec
     const schemaFiltroRegra = [
         { key: "descricao", label: "Descrição", tipo: "inputlist", placeholder: "Buscar descrição...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao("descricao").map((r) => r.termoDescricao || "- Qualquer -").filter(Boolean))), [regras, filtrosRegra]) },
         { key: "tipo", label: "Tipo", tipo: "inputlist", placeholder: "Buscar tipo...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao("tipo").map((r) => r.termoTipo || "- Qualquer -").filter(Boolean))), [regras, filtrosRegra]) },
-        { key: "fornecedor", label: "Fornecedor", tipo: "inputlist", placeholder: "Buscar fornecedor...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao("fornecedor").map((r) => r.nomeFornecedor || "- Qualquer -").filter(Boolean))), [regras, filtrosRegra]) }
+        { key: "fornecedor", label: "Fornecedor", tipo: "inputlist", placeholder: "Buscar fornecedor...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao("fornecedor").map((r) => r.nomeFornecedor || "- Qualquer -").filter(Boolean))), [regras, filtrosRegra]) },
+        { key: "prioridade", label: "Prioridade", tipo: "inputlist", placeholder: "Buscar prioridade...", options: useMemo(() => Array.from(new Set(filtrarRegraExcecao("prioridade").map((r) => String(r.prioridade ?? 0)).filter(Boolean))), [regras, filtrosRegra]) }
     ];
 
     const regrasFiltradas = useMemo(() => {
@@ -344,19 +356,22 @@ export default function FornecedorTab({ token, fornecedores = [], carregarFornec
             const descricao = (item.termoDescricao || "- Qualquer -").toLowerCase();
             const tipo = (item.termoTipo || "- Qualquer -").toLowerCase();
             const fornecedor = (item.nomeFornecedor || "- Qualquer -").toLowerCase();
+            const prioridade = String(item.prioridade ?? 0).toLowerCase();
 
             return (
                 descricao.includes(filtrosRegra.descricao.toLowerCase().trim()) &&
                 tipo.includes(filtrosRegra.tipo.toLowerCase().trim()) &&
-                fornecedor.includes(filtrosRegra.fornecedor.toLowerCase().trim())
+                fornecedor.includes(filtrosRegra.fornecedor.toLowerCase().trim()) &&
+                prioridade.includes(filtrosRegra.prioridade.toLowerCase().trim())
             );
         });
     }, [regras, filtrosRegra]);
 
     const colunasRegras = [
         { label: "Descrição", key: "termoDescricao", width: "30%", Cell: ({ row }) => row.termoDescricao || <span>- Qualquer -</span> },
-        { label: "Tipo", key: "termoTipo", width: "30%", Cell: ({ row }) => row.termoTipo || <span>- Qualquer -</span> },
+        { label: "Tipo", key: "termoTipo", width: "20%", Cell: ({ row }) => row.termoTipo || <span>- Qualquer -</span> },
         { label: "Fornecedor", key: "nomeFornecedor", width: "25%", Cell: ({ row }) => row.nomeFornecedor || <span>- Qualquer -</span> },
+        { label: "Prioridade", key: "prioridade", width: "10%", Cell: ({ row }) => <span style={{ fontWeight: "600" }}>{row.prioridade ?? 0}</span> },
         {
             label: "Ações",
             key: "acoes",
@@ -382,7 +397,7 @@ export default function FornecedorTab({ token, fornecedores = [], carregarFornec
     const handleExportarRegrasFornecedor = () => {
         ExportarExcel({
             tabela: "fornecedorregras",
-            colunas: ["DESCRICAO", "TIPO", "FORNECEDOR"],
+            colunas: ["DESCRICAO", "TIPO", "PRIORIDADE", "FORNECEDOR"],
             nomeArquivoCustomizado: "Regras_Fornecedor.xlsx"
         });
     };
@@ -397,7 +412,7 @@ export default function FornecedorTab({ token, fornecedores = [], carregarFornec
                         <Button
                             onClick={() => {
                                 setRegraEmEdicaoId(null);
-                                setFormRegra({ termoDescricao: "", termoTipo: "", fornecedorTexto: "" });
+                                setFormRegra({ termoDescricao: "", termoTipo: "", fornecedorTexto: "", prioridade: "0" });
                                 setModoCadastroRegra(true);
                             }}
                         >
@@ -456,6 +471,16 @@ export default function FornecedorTab({ token, fornecedores = [], carregarFornec
                                 onChange={(e) => setFormRegra({ ...formRegra, fornecedorTexto: e.target.value })}
                                 options={fornecedores}
                                 valueKey={(f) => f.nome || ""}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Prioridade</label>
+                            <input
+                                type="number"
+                                className="form-input"
+                                placeholder="Ex: 0, 10..."
+                                value={formRegra.prioridade}
+                                onChange={(e) => setFormRegra({ ...formRegra, prioridade: e.target.value })}
                             />
                         </div>
 

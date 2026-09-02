@@ -108,6 +108,7 @@ TABELAS_PERMITIDAS = {
                 fr.termoDescricao AS [DESCRICAO],
                 fr.termoTipo AS [TIPO],
                 f.nome AS [FORNECEDOR],
+                fr.prioridade as [PRIORIDADE],
                 fr.importacaoLoteId
             FROM dbo.FornecedorRegras fr
             LEFT JOIN dbo.Fornecedor f ON fr.fornecedorId = f.id

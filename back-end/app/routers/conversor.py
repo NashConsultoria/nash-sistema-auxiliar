@@ -110,7 +110,6 @@ def identificar_fornecedor(descricao: str, banco_val: str, tipo: str = "", conex
     desc_upper = (descricao or "").upper().strip()
     tipo_upper = (tipo or "").upper().strip()
 
-    # 1. Se houver conexão, busca as regras ativas no banco de dados
     if conexao:
         try:
             cursor = conexao.cursor()
@@ -122,6 +121,10 @@ def identificar_fornecedor(descricao: str, banco_val: str, tipo: str = "", conex
                 FROM dbo.FornecedorRegras fr
                 INNER JOIN dbo.Fornecedor f ON fr.fornecedorId = f.id
                 WHERE f.status = 1
+                ORDER BY 
+                    fr.prioridade DESC,           -- 1º Critério: Maior prioridade definida
+                    LEN(fr.termoDescricao) DESC,  -- 2º Critério: Termos mais específicos (desempate)
+                    fr.id DESC                    -- 3º Critério: Mais recentes primeiro (desempate)
             """
             cursor.execute(query)
             regras = cursor.fetchall()
@@ -138,7 +141,6 @@ def identificar_fornecedor(descricao: str, banco_val: str, tipo: str = "", conex
         except Exception as e:
             print(f"Aviso: Erro ao buscar regras de fornecedores: {e}")
 
-    # 2. Fallback: Se não encontrar nenhuma regra, retorna vazio
     return ""
 
 def aplicar_plano_conta(linhas_extrato: list, contratante_id: Optional[int] = None) -> list:

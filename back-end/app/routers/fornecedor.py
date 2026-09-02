@@ -212,6 +212,7 @@ def listar_regras_fornecedor(
                 rf.termoDescricao,
                 rf.termoTipo,
                 rf.fornecedorId,
+                rf.prioridade,
                 f.nome AS nomeFornecedor,
                 rf.importacaoLoteId
             FROM dbo.FornecedorRegras rf
@@ -224,7 +225,8 @@ def listar_regras_fornecedor(
             query += " AND rf.fornecedorId = ?"
             params.append(fornecedor_id)
 
-        query += " ORDER BY rf.id DESC"
+        # Ordena por Prioridade maior primeiro e desempata por ID mais recente
+        query += " ORDER BY rf.prioridade DESC, rf.id DESC"
 
         cursor.execute(query, params)
         rows = cursor.fetchall()
@@ -235,8 +237,9 @@ def listar_regras_fornecedor(
                 termoDescricao=row[1],
                 termoTipo=row[2],
                 fornecedorId=row[3],
-                nomeFornecedor=row[4],
-                importacaoLoteId=row[5]
+                prioridade=row[4] or 0,  # ÍNDICE CORRIGIDO: 4 é prioridade
+                nomeFornecedor=row[5],   # ÍNDICE CORRIGIDO: 5 é nomeFornecedor
+                importacaoLoteId=row[6]
             )
             for row in rows
         ]
@@ -251,6 +254,7 @@ def listar_regras_fornecedor(
     finally:
         if conexao:
             conexao.close()
+
 
 @router.post("/regras", response_model=RegraFornecedorResponse, status_code=status.HTTP_201_CREATED)
 def criar_regra_fornecedor(
@@ -274,14 +278,15 @@ def criar_regra_fornecedor(
 
         # Inserção na tabela
         query_insert = """
-            INSERT INTO dbo.FornecedorRegras (termoDescricao, termoTipo, fornecedorId, importacaoLoteId)
+            INSERT INTO dbo.FornecedorRegras (termoDescricao, termoTipo, fornecedorId, prioridade, importacaoLoteId)
             OUTPUT INSERTED.id
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
         """
         cursor.execute(query_insert, (
             dados.termoDescricao,
             dados.termoTipo,
             dados.fornecedorId,
+            dados.prioridade,
             dados.importacaoLoteId
         ))
         novo_id = cursor.fetchone()[0]
@@ -293,7 +298,7 @@ def criar_regra_fornecedor(
             usuario_id=usuario.id,
             acao="Cadastrar",
             tabela="FornecedorRegras",
-            detalhes={"id": novo_id, "fornecedorId": dados.fornecedorId},
+            detalhes={"id": novo_id, "fornecedorId": dados.fornecedorId, "prioridade": dados.prioridade},
             request=request
         )
 
@@ -303,6 +308,7 @@ def criar_regra_fornecedor(
             termoTipo=dados.termoTipo,
             fornecedorId=dados.fornecedorId,
             nomeFornecedor=fornecedor[1],
+            prioridade=dados.prioridade,
             importacaoLoteId=dados.importacaoLoteId
         )
 
@@ -321,6 +327,7 @@ def criar_regra_fornecedor(
         if conexao:
             conexao.close()
 
+
 @router.put("/regras/{regra_id}", response_model=RegraFornecedorResponse)
 def atualizar_regra_fornecedor(
     regra_id: int,
@@ -333,9 +340,9 @@ def atualizar_regra_fornecedor(
         conexao = obter_conexao(BANCO_AUTENTICACAO)
         cursor = conexao.cursor()
 
-        # Busca registro atual
+        # Busca registro atual incluindo prioridade e importacaoLoteId
         cursor.execute("""
-            SELECT id, termoDescricao, termoTipo, fornecedorId, importacaoLoteId 
+            SELECT id, termoDescricao, termoTipo, fornecedorId, prioridade, importacaoLoteId 
             FROM dbo.FornecedorRegras WHERE id = ?
         """, (regra_id,))
         regra_atual = cursor.fetchone()
@@ -346,23 +353,19 @@ def atualizar_regra_fornecedor(
                 detail=f"Regra de fornecedor ID {regra_id} não encontrada."
             )
 
-        # 1. Verifica quais campos foram ENVIADOS no JSON da requisição
         campos_enviados = dados.model_fields_set
 
-        # 2. Se o campo foi enviado no JSON (mesmo que vazio/None), usa o novo valor.
-        # Caso não tenha sido enviado no payload, mantém o valor antigo do banco.
         nova_descricao = dados.termoDescricao if "termoDescricao" in campos_enviados else regra_atual[1]
         novo_tipo = dados.termoTipo if "termoTipo" in campos_enviados else regra_atual[2]
         novo_fornecedor_id = dados.fornecedorId if "fornecedorId" in campos_enviados else regra_atual[3]
+        nova_prioridade = dados.prioridade if "prioridade" in campos_enviados else regra_atual[4]
 
-        # Validação de regra de negócio: pelo menos um termo preenchido
         if not nova_descricao and not novo_tipo:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="A regra precisa ter pelo menos 'termoDescricao' ou 'termoTipo' preenchido."
             )
 
-        # Valida existência do novo fornecedor (caso alterado)
         cursor.execute("SELECT nome FROM dbo.Fornecedor WHERE id = ?", (novo_fornecedor_id,))
         row_fornecedor = cursor.fetchone()
         if not row_fornecedor:
@@ -371,13 +374,13 @@ def atualizar_regra_fornecedor(
                 detail=f"Fornecedor com ID {novo_fornecedor_id} não encontrado."
             )
 
-        # Atualiza o registro salvando os novos valores (incluindo NULL no banco se apagado)
+        # CORRIGIDO: Adicionada a vírgula antes de prioridade
         query_update = """
             UPDATE dbo.FornecedorRegras
-            SET termoDescricao = ?, termoTipo = ?, fornecedorId = ?
+            SET termoDescricao = ?, termoTipo = ?, fornecedorId = ?, prioridade = ?
             WHERE id = ?
         """
-        cursor.execute(query_update, (nova_descricao, novo_tipo, novo_fornecedor_id, regra_id))
+        cursor.execute(query_update, (nova_descricao, novo_tipo, novo_fornecedor_id, nova_prioridade, regra_id))
         conexao.commit()
 
         # Log de Auditoria
@@ -385,7 +388,7 @@ def atualizar_regra_fornecedor(
             usuario_id=usuario.id,
             acao="Editar",
             tabela="FornecedorRegras",
-            detalhes={"id": regra_id, "fornecedorId": novo_fornecedor_id},
+            detalhes={"id": regra_id, "fornecedorId": novo_fornecedor_id, "prioridade": nova_prioridade},
             request=request
         )
 
@@ -395,7 +398,8 @@ def atualizar_regra_fornecedor(
             termoTipo=novo_tipo,
             fornecedorId=novo_fornecedor_id,
             nomeFornecedor=row_fornecedor[0],
-            importacaoLoteId=regra_atual[4]
+            prioridade=nova_prioridade,
+            importacaoLoteId=regra_atual[5]
         )
 
     except HTTPException as http_err:
