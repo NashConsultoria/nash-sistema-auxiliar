@@ -43,6 +43,11 @@
   color: var(--bg-color5);
 }
 
+.btn-icon img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
 /* ==========================================
    VARIANTE TOGGLE (SELETOR)
    ========================================== */

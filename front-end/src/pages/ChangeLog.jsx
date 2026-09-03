@@ -219,7 +219,14 @@ export default function ChangeLog() {
                                     <h3>{item.titulo}</h3>
 
                                     <div style={{ paddingLeft: "16px", marginTop: "12px" }}>
-                                        <ReactMarkdown>{item.descricao}</ReactMarkdown>
+                                        <ReactMarkdown components={{hr: () => (<hr 
+                                                style={{ 
+                                                    border: "none", 
+                                                    borderTop: "1px solid #acadad",
+                                                    margin: "20px 0"
+                                                }}/>)
+                                            }}>{item.descricao}
+                                        </ReactMarkdown>
                                     </div>
                                 </div>
                             ))}

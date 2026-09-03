@@ -89,11 +89,11 @@ create table FornecedorRegras
     importacaoLoteId    int						null,
 
     -- Chaves Estrangeiras
-	CONSTRAINT FK_FornecedorRegras_Fornecedor FOREIGN KEY (fornecedorId)     REFERENCES Fornecedor(id)			ON DELETE CASCADE,
-    CONSTRAINT FK_FornecedorRegras_Lote       FOREIGN KEY (importacaoLoteId) REFERENCES ImportacaoLote(id)		ON DELETE CASCADE,
+	constraint FK_FornecedorRegras_Fornecedor foreign key (fornecedorId)     references Fornecedor(id)			on delete cascade,
+    constraint FK_FornecedorRegras_Lote       foreign key (importacaoLoteId) references ImportacaoLote(id)		on delete cascade,
 
     -- Validação: Pelo menos UM dos critérios de busca DEVE estar preenchido
-    CONSTRAINT CK_FornecedorRegras_PeloMenosUmTermo CHECK (
+    constraint CK_FornecedorRegras_PeloMenosUmTermo CHECK (
         termoDescricao IS NOT NULL OR 
         termoTipo IS NOT NULL
     )
@@ -128,15 +128,15 @@ CREATE TABLE PlanoDePara
     importacaoLoteId    int,
 
     -- Chaves Estrangeiras
-    CONSTRAINT FK_PlanoDePara_Contratante       FOREIGN KEY (contratanteId)		references Contratante(id)		ON DELETE CASCADE,
-    CONSTRAINT FK_PlanoDePara_Unidade           FOREIGN KEY (unidadeId)			references Unidade(id)			ON DELETE CASCADE,
-    CONSTRAINT FK_PlanoDePara			        FOREIGN KEY (bancoId)			references Banco(id)			ON DELETE CASCADE,
-	CONSTRAINT FK_PlanoDePara_Fornecedor		FOREIGN KEY (fornecedorId)		references Fornecedor(id)		ON DELETE CASCADE,
-    CONSTRAINT FK_PlanoDePara_PlanoContas       FOREIGN KEY (planoContaId)		references PlanoContas(id)		ON DELETE CASCADE,
-                                                FOREIGN KEY (importacaoLoteId)	references ImportacaoLote(id)	ON DELETE CASCADE,
+    constraint FK_PlanoDePara_Contratante       foreign key (contratanteId)		references Contratante(id)		on delete cascade,
+    constraint FK_PlanoDePara_Unidade           foreign key (unidadeId)			references Unidade(id)			on delete cascade,
+    constraint FK_PlanoDePara			        foreign key (bancoId)			references Banco(id)			on delete cascade,
+	constraint FK_PlanoDePara_Fornecedor		foreign key (fornecedorId)		references Fornecedor(id)		on delete cascade,
+    constraint FK_PlanoDePara_PlanoContas       foreign key (planoContaId)		references PlanoContas(id)		on delete cascade,
+                                                foreign key (importacaoLoteId)	references ImportacaoLote(id)	on delete cascade,
 
     -- Validação: Pelo menos UM dos três termos DEVE estar preenchido
-    CONSTRAINT CK_PlanoDePara_PeloMenosUmTermo CHECK (
+    constraint CK_PlanoDePara_PeloMenosUmTermo check (
         termoDescricao IS NOT NULL OR 
         termoTipo IS NOT NULL OR 
         fornecedorId IS NOT NULL
@@ -319,25 +319,26 @@ truncate table ChangeLog;
 
 insert into ChangeLog (versao, titulo, descricao, criadoEm) values
 (
-    'v0.0.1', 
-    'Lançamento Inicial e Exportações', 
-    '### Novidades' + char(13) + char(10) +
-	'* Sistema de exportação da tabela geral importada' + char(13) + char(10) +
-    '* Cadastro manual de plano de contas' + char(13) + char(10) +
-	'* Cadastro de Fornecedores' + char(13) + char(10) +
-    '* Cadastro de regras para a coluna de fornecedores' + char(13) + char(10) +
-    '* Criação de página para Fornecedores' + char(13) + char(10) +
-	'* Criação de prioridade de regras' + char(13) + char(10) +
-    '* Criação de página de ChangeLog' + char(13) + char(10) + char(13) + char(10) +
-	'* Criação de prioridade de regras' + char(13) + char(10) +
-    '### Correções' + char(13) + char(10) +
-    '* Correção de bug ao baixar a lista de regras de fornecedores tanto da página de fornecedores quanto da página de lotes importados' + char(13) + char(10) +
-    '* Correção de erros em fornecedores' + char(13) + char(10) +
-	'* Correção de caractere desconhecido no cadastro' + char(13) + char(10) +
-    '* Correção de tela de Logs' + char(13) + char(10) +
-	'* Fornecedores com o tipo "pagamento" corretamente classificados' + char(13) + char(10) +
-	'* Finalização DRE com bases testadas' + char(13) + char(10) + char(13) + char(10) +
-	'* Manutenção da coluna de fornecedores' + char(13) + char(10) +
-    '* Polimento no sistema de lotes importados',
+    'Alpha v0.0.1',
+    'Lançamento Inicial',
+    '### Novidades' + CHAR(13) + CHAR(10) +
+    '- Sistema de exportação da tabela geral importada' + CHAR(13) + CHAR(10) +
+    '- Cadastro manual de plano de contas' + CHAR(13) + CHAR(10) +
+    '- Cadastro de Fornecedores' + CHAR(13) + CHAR(10) +
+    '- Cadastro de regras para a coluna de fornecedores' + CHAR(13) + CHAR(10) +
+    '- Criação de página para Fornecedores' + CHAR(13) + CHAR(10) +
+    '- Criação de página de ChangeLog' + CHAR(13) + CHAR(10) +
+    '- Criação de prioridade de regras' + CHAR(13) + CHAR(10) +
+    '---' + CHAR(13) + CHAR(10) +
+    '### Correções' + CHAR(13) + CHAR(10) +
+    '- Correção de bug ao baixar a lista de regras de fornecedores tanto da página de fornecedores quanto da página de lotes importados' + CHAR(13) + CHAR(10) +
+    '- Correção de erros em fornecedores' + CHAR(13) + CHAR(10) +
+    '- Correção de caractere desconhecido no cadastro' + CHAR(13) + CHAR(10) +
+    '- Correção de tela de Logs' + CHAR(13) + CHAR(10) +
+    '- Fornecedores com o tipo "pagamento" corretamente classificados' + CHAR(13) + CHAR(10) +
+    '- Finalização DRE com bases testadas' + CHAR(13) + CHAR(10) +
+    '- Manutenção da coluna de fornecedores' + CHAR(13) + CHAR(10) +
+    '- Tratamento de texto em agencia/conta em ofx e pdf' + CHAR(13) + CHAR(10) +
+	'- Manutenção da coluna de fornecedores',
     '20260901 14:50:00'
 )

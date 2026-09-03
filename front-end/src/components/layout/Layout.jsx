@@ -38,6 +38,13 @@ export default function Layout() {
             <main className="container">
                 <Outlet />
             </main>
+
+            {/* Versão do sistema */}
+            {!isLoginPage && (
+                <div className="system-version">
+                    Versão 0.0.6
+                </div>
+            )}
         </>
     );
 }

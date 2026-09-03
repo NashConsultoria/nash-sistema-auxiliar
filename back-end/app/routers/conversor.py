@@ -283,12 +283,22 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
     agencia_val = agencia_match.group(1).strip() if agencia_match else ("CARTAO" if is_cartao else "")
     conta_val = conta_match.group(1).strip() if conta_match else ""
 
+    # Normalização da Agência (Apenas números)
+    if is_cartao:
+        agencia_val = "CARTAO"
+    else:
+        agencia_val = re.sub(r"\D", "", agencia_val)  # Remove ., -, / e espaços
+
     if conta_val:
+        # Tratamento de dígito X -> 0 antes de limpar
         m_conta_x = re.match(r"^(\d+)-?[xX]$", conta_val.strip())
         if m_conta_x:
-            conta_val = f"{m_conta_x.group(1)}-0"
+            conta_val = f"{m_conta_x.group(1)}0"
         else:
             conta_val = re.sub(r"[xX]$", "0", conta_val.strip())
+        
+        # Remove todos os caracteres não numéricos (pontos, hífens, etc)
+        conta_val = re.sub(r"\D", "", conta_val)
 
     # 4. Leitura dos blocos de transação (STMTTRN ou TRN)
     blocos_transacao = re.findall(r"<STMTTRN>(.*?)</STMTTRN>", conteudo_texto, re.DOTALL | re.IGNORECASE)
@@ -387,7 +397,7 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
     # 5. Consulta e vinculação de Unidade e Contratante (JOIN corrigido)
     if banco_codigo_limpo and conta_val:
         try:
-            # Novo JOIN: BancoConta aponta para Unidade (bc.unidadeId = u.id)
+            # Limpa caracteres especiais do BD na consulta usando REPLACE
             sql_unidade = """
                 SELECT TOP 1 u.nome AS unidade_nome, c.nome AS contratante_nome
                 FROM dbo.BancoConta bc
@@ -398,13 +408,13 @@ def processar_ofx(conteudo_bytes_ou_texto, conexao) -> list:
                     LTRIM(b.codigo, '0') = ? 
                     OR b.codigo = ?
                 )
-                AND LTRIM(RTRIM(bc.conta)) = ?
+                AND REPLACE(REPLACE(REPLACE(bc.conta, '-', ''), '.', ''), ' ', '') = ?
             """
             params = [banco_codigo_limpo, banco_codigo_raw, conta_val]
 
-            # Se não for cartão de crédito e houver agência, adiciona a validação da agência na query
+            # Se não for cartão e houver agência, adiciona a comparação limpa da agência
             if not is_cartao and agencia_val:
-                sql_unidade += " AND LTRIM(RTRIM(bc.agencia)) = ?"
+                sql_unidade += " AND REPLACE(REPLACE(REPLACE(bc.agencia, '-', ''), '.', ''), ' ', '') = ?"
                 params.append(agencia_val)
 
             cursor.execute(sql_unidade, params)
@@ -434,7 +444,6 @@ def processar_pdf(conteudo_bytes: bytes, conexao) -> list:
 
     # Wrapper que aceita o parâmetro 'tipo' vindo das funções de PDF
     def identificar_fn(descricao: str, banco_v: str, tipo: str = ""):
-        # Caso a função de leitura do PDF não passe o tipo, deduz a partir da descrição
         if not tipo:
             desc_lower = (descricao or "").lower()
             if "saldo" in desc_lower:
@@ -471,13 +480,26 @@ def processar_pdf(conteudo_bytes: bytes, conexao) -> list:
         )
 
     transacoes = dados_extraidos.get("transacoes", [])
-    agencia_val = dados_extraidos.get("agencia", "")
-    conta_val = dados_extraidos.get("conta", "")
+    agencia_raw = dados_extraidos.get("agencia", "")
+    conta_raw = dados_extraidos.get("conta", "")
 
-    # Re-aplica a identificação do Fornecedor caso o PDF tenha montado o TIPO depois de extrair os valores
+    # Normalização de Agência (Apenas dígitos)
+    agencia_val = re.sub(r"\D", "", str(agencia_raw))
+
+    # Normalização de Conta (Trata o 'X' e extrai apenas dígitos)
+    conta_val = str(conta_raw).strip()
+    if conta_val:
+        m_conta_x = re.match(r"^(\d+)-?[xX]$", conta_val)
+        if m_conta_x:
+            conta_val = f"{m_conta_x.group(1)}0"
+        else:
+            conta_val = re.sub(r"[xX]$", "0", conta_val)
+        
+        conta_val = re.sub(r"\D", "", conta_val)
+
+    # Re-aplica a identificação do Fornecedor
     for t in transacoes:
         tipo_transacao = t.get("tipo", "")
-        # Se o fornecedor veio vazio e o tipo já foi identificado pelo parser do PDF (PAGAMENTO / RECEBIMENTO)
         if not t.get("fornecedor") and tipo_transacao:
             t["fornecedor"] = identificar_fornecedor(
                 t.get("descricao", ""), 
@@ -490,33 +512,41 @@ def processar_pdf(conteudo_bytes: bytes, conexao) -> list:
     unidade_val = ""
     contratante_val = ""
 
-    if conexao and agencia_val and conta_val:
-        cursor = conexao.cursor()
-        agencia_limpa = re.sub(r"\D", "", agencia_val).lstrip("0")
-        conta_limpa = re.sub(r"\D", "", conta_val).lstrip("0")
+    if conexao and conta_val:
+        try:
+            cursor = conexao.cursor()
 
-        # Query atualizada: BancoConta possui a FK unidadeId
-        cursor.execute(
+            # Query que limpa hífens, pontos e espaços da tabela BancoConta
+            sql_unidade = """
+                SELECT TOP 1 u.nome AS unidade_nome, c.nome AS contratante_nome
+                FROM dbo.BancoConta bc
+                INNER JOIN dbo.Banco b ON bc.bancoId = b.id
+                LEFT JOIN dbo.Unidade u ON bc.unidadeId = u.id
+                LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
+                WHERE LOWER(b.nome) LIKE ?
+                  AND REPLACE(REPLACE(REPLACE(bc.conta, '-', ''), '.', ''), ' ', '') LIKE ?
             """
-            SELECT u.nome AS unidade_nome, c.nome AS contratante_nome
-            FROM dbo.BancoConta bc
-            INNER JOIN dbo.Banco b ON bc.bancoId = b.id
-            LEFT JOIN dbo.Unidade u ON bc.unidadeId = u.id
-            LEFT JOIN dbo.Contratante c ON u.contratanteId = c.id
-            WHERE LTRIM(RTRIM(REPLACE(bc.agencia, '-', ''))) LIKE ?
-              AND LTRIM(RTRIM(REPLACE(bc.conta, '-', ''))) LIKE ?
-            """,
-            (f"%{agencia_limpa}%", f"%{conta_limpa}%")
-        )
-        row_unidade = cursor.fetchone()
-        if row_unidade:
-            unidade_val = row_unidade[0] or ""
-            contratante_val = row_unidade[1] or ""
+            params = [f"%{banco_detectado.lower()}%", f"%{conta_val}%"]
 
-    # Aplica Unidade e Contratante nas transações
+            if agencia_val:
+                sql_unidade += " AND REPLACE(REPLACE(REPLACE(bc.agencia, '-', ''), '.', ''), ' ', '') LIKE ?"
+                params.append(f"%{agencia_val}%")
+
+            cursor.execute(sql_unidade, params)
+            row_unidade = cursor.fetchone()
+
+            if row_unidade:
+                unidade_val = row_unidade[0] or ""
+                contratante_val = row_unidade[1] or ""
+        except Exception as e:
+            print(f"Aviso ao vincular Unidade no PDF: {e}")
+
+    # Aplica Unidade, Contratante, Agencia e Conta limpas nas transações
     for t in transacoes:
         t["contratante"] = contratante_val
         t["unidade"] = unidade_val or t.get("unidade", "")
+        t["agencia"] = agencia_val
+        t["conta"] = conta_val
 
     return transacoes
 
