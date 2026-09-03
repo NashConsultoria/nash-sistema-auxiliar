@@ -12,7 +12,6 @@ class ChangeLogResponse(BaseModel):
     versao: Optional[str] = None
     titulo: str
     descricao: str
-    usuarioNome: Optional[str] = None
     criadoEm: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# 1. Adicionado 'conversor' na importação
 from app.routers import (
     auth,
     conversor,
@@ -23,7 +22,6 @@ from app.security import criar_admin_padrao_se_necessario
 
 app = FastAPI(title="NASH Valuation API")
 
-# Middlewares - Suporta requisições tanto de localhost quanto de 127.0.0.1
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

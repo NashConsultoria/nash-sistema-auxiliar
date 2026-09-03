@@ -5,6 +5,7 @@
 create database NashBancoConsultoria
 
 use NashBancoConsultoria
+
 ---------------------------------------------------------------------------------
 --						Criando Tabelas
 ---------------------------------------------------------------------------------
@@ -15,7 +16,7 @@ create table ImportacaoLote
 	nomeArquivo			varchar(255)		not null,
 	contratanteId		int						null,
 	criadoEm			datetime							default			getdate()
-)
+);
 
 create table Banco
 (
@@ -26,7 +27,7 @@ create table Banco
 	importacaoLoteId	int,
 
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
-)
+);
 
 create table Contratante
 (
@@ -37,7 +38,7 @@ create table Contratante
 	importacaoLoteId	int,
 
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
-)
+);
 
 create table Unidade
 (
@@ -52,7 +53,7 @@ create table Unidade
 
 	foreign key (contratanteId)				references Contratante(id),
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
-)
+);
 
 create table BancoConta
 (
@@ -65,7 +66,7 @@ create table BancoConta
 	foreign key (bancoId)					references Banco(id),
 	foreign key (unidadeId)					references Unidade(id),
 	constraint UC_BancoConta				unique (bancoId, agencia, conta),
-)
+);
 
 create table Fornecedor 
 (
@@ -111,7 +112,7 @@ create table PlanoContas
 	importacaoLoteId	int,
 
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
-)
+);
 
 CREATE TABLE PlanoDePara 
 (
@@ -161,7 +162,7 @@ create table BaseFinanceiro
 	foreign key (fornecedorId)				references Fornecedor(id),
 	foreign key (planoContaId)				references PlanoContas(id),
 	foreign key (importacaoLoteId)			references ImportacaoLote(id)
-)
+);
 
 create table BaseFolhaPagamento
 (
@@ -187,7 +188,7 @@ create table BaseFolhaPagamento
 	foreign key (unidadeAtuacaoId)			references Unidade(id),
     foreign key (planoContaId)				references PlanoContas(id),
     foreign key (importacaoLoteId)			references ImportacaoLote(id)
-)
+);
 
 create table Usuario
 (
@@ -201,7 +202,7 @@ create table Usuario
 	protegido			int					not null		default 0,
 
 	foreign key (contratanteId)				references Contratante(id)
-)
+);
 
 create table UsuarioContratante
 (
@@ -213,7 +214,7 @@ create table UsuarioContratante
 	foreign key (contratanteId)				references Contratante(id)		on delete cascade,
 
 	constraint UQ_UsuarioContratante		unique (usuarioId, contratanteId)
-)
+);
 
 CREATE TABLE Permissao
 (
@@ -246,7 +247,7 @@ create table LogUsuario
 	criadoEm			datetime			default			getdate(),
 
 	foreign key (usuarioId)					references Usuario(id)			on delete cascade
-)
+);
 
 create table ChangeLog
 (
@@ -254,33 +255,31 @@ create table ChangeLog
     versao				varchar(20)				null,						-- Ex: 'v1.2.0', 'v2.0.1'
     titulo				varchar(150)		not null,						-- Ex: 'Aba de Regras para Fornecedores'
     descricao			varchar(MAX)		not null,
-    tipo				varchar(30)			not null		default 'Melhoria', -- 'Nova Feature', 'Correção', 'Melhoria'
-    usuarioId			int					not null,
     criadoEm			datetime			not null		default getdate(),
-
-    foreign key (usuarioId)					references Usuario(id)			on delete cascade
 );
+
 ---------------------------------------------------------------------------------
 --						Verificando Valores
 ---------------------------------------------------------------------------------
 
-select * from Contratante
-select * from Unidade
-select * from Banco
-select * from BancoConta
-select * from Fornecedor
-select * from FornecedorRegras
-select * from ImportacaoLote
-select * from PlanoContas
-select * from PlanoDePara
-select * from BaseFinanceiro
-select * from BaseFolhaPagamento
-select * from Usuario
-select * from UsuarioContratante
-select * from Permissao
-select * from UsuarioPermissao
-select * from LogUsuario
-select * from ChangeLog
+select * from Contratante;
+select * from Unidade;
+select * from Banco;
+select * from BancoConta;
+select * from Fornecedor;
+select * from FornecedorRegras;
+select * from ImportacaoLote;
+select * from PlanoContas;
+select * from PlanoDePara;
+select * from BaseFinanceiro;
+select * from BaseFolhaPagamento;
+select * from Usuario;
+select * from UsuarioContratante;
+select * from Permissao;
+select * from UsuarioPermissao;
+select * from LogUsuario;
+select * from ChangeLog;
+
 ---------------------------------------------------------------------------------
 --						Backup do Banco (Testes)
 ---------------------------------------------------------------------------------
@@ -307,6 +306,38 @@ use NashBancoConsultoria
 ---------------------------------------------------------------------------------
 --						Excluindo Banco (Testes)
 ---------------------------------------------------------------------------------
+
 use master
 alter database NashBancoConsultoria set single_user with rollback immediate
 drop database NashBancoConsultoria
+
+---------------------------------------------------------------------------------
+--						Insert de changelog
+---------------------------------------------------------------------------------
+
+truncate table ChangeLog;
+
+insert into ChangeLog (versao, titulo, descricao, criadoEm) values
+(
+    'v0.0.1', 
+    'Lançamento Inicial e Exportações', 
+    '### Novidades' + char(13) + char(10) +
+	'* Sistema de exportação da tabela geral importada' + char(13) + char(10) +
+    '* Cadastro manual de plano de contas' + char(13) + char(10) +
+	'* Cadastro de Fornecedores' + char(13) + char(10) +
+    '* Cadastro de regras para a coluna de fornecedores' + char(13) + char(10) +
+    '* Criação de página para Fornecedores' + char(13) + char(10) +
+	'* Criação de prioridade de regras' + char(13) + char(10) +
+    '* Criação de página de ChangeLog' + char(13) + char(10) + char(13) + char(10) +
+	'* Criação de prioridade de regras' + char(13) + char(10) +
+    '### Correções' + char(13) + char(10) +
+    '* Correção de bug ao baixar a lista de regras de fornecedores tanto da página de fornecedores quanto da página de lotes importados' + char(13) + char(10) +
+    '* Correção de erros em fornecedores' + char(13) + char(10) +
+	'* Correção de caractere desconhecido no cadastro' + char(13) + char(10) +
+    '* Correção de tela de Logs' + char(13) + char(10) +
+	'* Fornecedores com o tipo "pagamento" corretamente classificados' + char(13) + char(10) +
+	'* Finalização DRE com bases testadas' + char(13) + char(10) + char(13) + char(10) +
+	'* Manutenção da coluna de fornecedores' + char(13) + char(10) +
+    '* Polimento no sistema de lotes importados',
+    '20260901 14:50:00'
+)

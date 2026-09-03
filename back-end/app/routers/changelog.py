@@ -22,10 +22,8 @@ def listar_changelogs(
                 c.versao, 
                 c.titulo, 
                 c.descricao, 
-                ISNULL(u.nome, 'Sistema') AS usuarioNome, 
                 c.criadoEm
             FROM dbo.ChangeLog c
-            LEFT JOIN dbo.Usuario u ON c.usuarioId = u.id
             ORDER BY c.criadoEm DESC, c.id DESC
         """)
         rows = cursor.fetchall()
@@ -35,8 +33,7 @@ def listar_changelogs(
                 versao=row[1],
                 titulo=row[2],
                 descricao=row[3],
-                usuarioNome=row[4],
-                criadoEm=row[5]
+                criadoEm=row[4]
             )
             for row in rows
         ]
@@ -59,15 +56,13 @@ def criar_changelog(
         cursor = conexao.cursor()
 
         cursor.execute("""
-            INSERT INTO dbo.ChangeLog (versao, titulo, descricao, usuarioId, criadoEm)
+            INSERT INTO dbo.ChangeLog (versao, titulo, descricao, criadoEm)
             OUTPUT INSERTED.id, INSERTED.criadoEm
-            VALUES (?, ?, ?, ?, GETDATE())
-        """, (dados.versao, dados.titulo, dados.descricao, usuario.id))
+            VALUES (?, ?, ?, GETDATE())
+        """, (dados.versao, dados.titulo, dados.descricao))
         
         row = cursor.fetchone()
 
-        # O registrar_log pode levantar exceção se conexao interna falhar,
-        # execute antes do commit
         try:
             registrar_log(
                 usuario_id=usuario.id,
@@ -86,7 +81,6 @@ def criar_changelog(
             versao=dados.versao,
             titulo=dados.titulo,
             descricao=dados.descricao,
-            usuarioNome=usuario.nome if hasattr(usuario, 'nome') else "Admin",
             criadoEm=row[1]
         )
     except Exception as e:
