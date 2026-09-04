@@ -23,7 +23,6 @@ from app.security import (
 
 router = APIRouter(prefix="/api/usuarios", tags=["Usuários"])
 
-
 @router.get("/")
 def listar_usuarios(admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN))):
     try:
@@ -32,7 +31,7 @@ def listar_usuarios(admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN))):
 
         cursor.execute(
             """
-            SELECT id, nome, email, perfil, contratanteId, CAST(status AS INT) 
+            SELECT id, nome, email, perfil, contratanteId, CAST(status AS INT), CAST(protegido AS INT)
             FROM dbo.Usuario 
             ORDER BY nome ASC
         """
@@ -50,6 +49,7 @@ def listar_usuarios(admin: UsuarioToken = Depends(exigir_perfil(PERFIL_ADMIN))):
                     "perfil": int(r[3]) if r[3] is not None else 1,
                     "contratanteId": int(r[4]) if r[4] is not None else None,
                     "status": int(r[5]) if r[5] is not None else 1,
+                    "protegido": int(r[6]) if r[6] is not None else 0,
                 }
             )
 

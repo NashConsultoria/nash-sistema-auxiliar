@@ -42,7 +42,7 @@ export default function Layout() {
             {/* Versão do sistema */}
             {!isLoginPage && (
                 <div className="system-version">
-                    Versão 0.0.6
+                    Alpha 0.0.1
                 </div>
             )}
         </>

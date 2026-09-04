@@ -13,7 +13,7 @@ export default function RotaProtegida({ children, perfisPermitidos }) {
     }
 
     if (perfisPermitidos && !perfisPermitidos.includes(usuario.perfil)) {
-        return <div style={{ padding: "40px", textAlign: "center" }}>
+        return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-color3)" }}>
             Você não tem permissão para acessar esta página.
         </div>;
     }

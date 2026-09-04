@@ -252,8 +252,8 @@ create table LogUsuario
 create table ChangeLog
 (
     id					int					not null		primary key		identity,
-    versao				varchar(20)				null,						-- Ex: 'v1.2.0', 'v2.0.1'
-    titulo				varchar(150)		not null,						-- Ex: 'Aba de Regras para Fornecedores'
+    versao				varchar(20)				null,
+    titulo				varchar(150)		not null,
     descricao			varchar(MAX)		not null,
     criadoEm			datetime			not null		default getdate(),
 );
@@ -339,6 +339,7 @@ insert into ChangeLog (versao, titulo, descricao, criadoEm) values
     '- Finalização DRE com bases testadas' + CHAR(13) + CHAR(10) +
     '- Manutenção da coluna de fornecedores' + CHAR(13) + CHAR(10) +
     '- Tratamento de texto em agencia/conta em ofx e pdf' + CHAR(13) + CHAR(10) +
-	'- Manutenção da coluna de fornecedores',
+	'- Manutenção da coluna de fornecedores' + CHAR(13) + CHAR(10) +
+	'- Correção no front: Bloqueio do botao de edição de admin supremo + botao de inativação da propria conta',
     '20260901 14:50:00'
 )

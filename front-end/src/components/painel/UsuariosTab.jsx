@@ -4,7 +4,7 @@ import Button from "../button/Button";
 import Table from "../table/Table";
 import Inputlist from "../Inputlist/Inputlist";
 import FiltroBar from "../filtro/FiltroBar";
-import { API_BASE } from "../../context/AuthContext";
+import { API_BASE, useAuth } from "../../context/AuthContext";
 
 // Dicionário de mapeamento local
 const nomesPerfis = {
@@ -13,11 +13,12 @@ const nomesPerfis = {
     3: "Cliente"
 };
 
-export default function UsuariosTab({ usuario, setUsuario, token, contratantes = [], usuarios = [], carregarUsuarios }) {
+export default function UsuariosTab({ contratantes = [], usuarios = [], carregarUsuarios }) {
     const [modoCadastro, setModoCadastro] = useState(false);
     const [mostrarInativos, setMostrarInativos] = useState(false);
     const [editandoId, setEditandoId] = useState(null);
     const [carregando, setCarregando] = useState(false);
+    const { usuario, token, setUsuario } = useAuth();
     
     const [formData, setFormData] = useState({
         nome: "",
@@ -304,25 +305,33 @@ export default function UsuariosTab({ usuario, setUsuario, token, contratantes =
             key: "acoes",
             width: "15%",
             style: { textAlign: "center" },
-            Cell: ({ row }) => (
-                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-                    <Button onClick={() => handleIniciarEdicao(row)}>
-                        Editar
-                    </Button>
+            Cell: ({ row }) => {
+                const isProtegido = Number(row.protegido) === 1;
+                const isConta = Number(row.id) === Number(usuario?.id);
 
-                    {Number(row.protegido) !== 1 && (
+                return (
+                    <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                        <Button 
+                            onClick={() => handleIniciarEdicao(row)} 
+                            disabled={isProtegido && !isConta}
+                            style={{
+                                cursor: isProtegido && !isConta ? "not-allowed" : "pointer"
+                            }}>
+                            Editar
+                        </Button>
+
                         <Button
                             onClick={() => handleAlternarStatus(row)}
+                            disabled={isProtegido || isConta}
                             style={{
                                 backgroundColor: Number(row.status) === 1 ? "#ef444422" : "#22c55e22",
                                 color: Number(row.status) === 1 ? "#f87171" : "#4ade80",
-                            }}
-                        >
+                            }}>
                             {Number(row.status) === 1 ? "Inativar" : "Reativar"}
                         </Button>
-                    )}
-                </div>
-            )
+                    </div>
+                );
+            }
         }
     ];
 
