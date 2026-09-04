@@ -16,7 +16,7 @@ export default function PerfilTab({ usuario }) {
         <Card title="Meu Perfil">
             <div className="perfil-info">
                 <p>
-                    <strong>Nome:</strong> {usuario?.nome || "Administrador Supremo"}
+                    <strong>Nome:</strong> {usuario?.nome}
                 </p>
                 {usuario?.email && (
                     <p>
@@ -28,13 +28,6 @@ export default function PerfilTab({ usuario }) {
                     {ehSupremo
                         ? "Administrador Supremo"
                         : (nomesPerfis[perfilId] || "Não Identificado")}
-                </p>
-                <p>
-                    <strong>Contratante:</strong>{" "}
-                    {perfilId === 3 
-                        ? (usuario?.nome_contratante || usuario?.contratanteNome || "Não Vinculado") 
-                        : "N/A"
-                    }
                 </p>
             </div>
         </Card>

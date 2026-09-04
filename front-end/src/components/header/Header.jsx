@@ -86,7 +86,7 @@ export default function Header() {
                     </>
                 )}
 
-                {/* Botão de tema sempre fica na direita (no login e logado) */}
+                {/* Botão de tema sempre fica na direita */}
                 <Button isIcon onClick={toggleTema}>
                     {escuro ? <FaMoon /> : <FaCircle />}
                 </Button>

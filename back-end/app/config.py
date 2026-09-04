@@ -247,15 +247,6 @@ TIPOS_LOTE_SISTEMA: List[TipoLoteSistema] = [
         tabela_contagem="dbo.Fornecedor",
         label="MAPA FORNECEDORES (SISTEMA)",
     ),
- 
-    # >>> NOVO TIPO DE LOTE: adicione aqui uma nova TipoLoteSistema <<<
-    # Exemplo:
-    # TipoLoteSistema(
-    #     chave="mapa_centros_custo",
-    #     padroes=["mapa_centro_custo", "mapa_centros_custo"],
-    #     tabela_contagem="dbo.CentroCusto",
-    #     label="SISTEMA (MAPA CENTROS DE CUSTO)",
-    # ),
 ]
 
 CASCATA_SIMPLES = [
